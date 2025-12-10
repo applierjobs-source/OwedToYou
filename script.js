@@ -543,42 +543,43 @@ function handleSearch() {
     searchBtn.textContent = 'Searching...';
     
     try {
-        // Always show the leaderboard (if it has entries)
-        // If leaderboard has entries, show them
-        if (leaderboardData.length > 0) {
-            // Highlight the searched user if they exist
-            const users = generateLeaderboard(handle);
-            displayLeaderboard(users);
+        const cleanHandleValue = cleanHandle(handle);
+        const handleName = cleanHandleValue.replace(/_/g, ' ');
+        const capitalizedName = handleName.split(' ').map(word => 
+            word.charAt(0).toUpperCase() + word.slice(1)
+        ).join(' ');
+        
+        // Check if this handle exists in the leaderboard
+        const foundEntry = leaderboardData.find(entry => cleanHandle(entry.handle) === cleanHandleValue);
+        
+        let usersToShow = [];
+        
+        if (foundEntry) {
+            // User exists in leaderboard - show all entries with this one highlighted
+            usersToShow = generateLeaderboard(handle);
         } else {
-            // Leaderboard is empty - show it anyway so user can see the structure
-            // They can click "Claim It" on any entry to start the process
-            // For now, just show empty leaderboard or create a placeholder entry
-            const leaderboard = document.getElementById('leaderboard');
-            if (leaderboard) {
-                leaderboard.classList.remove('hidden');
-                // Show empty state or allow them to proceed
-                const listContainer = document.getElementById('leaderboardList');
-                if (listContainer) {
-                    // Create a placeholder entry for the searched user so they can click "Claim It"
-                    const cleanHandleValue = cleanHandle(handle);
-                    const handleName = cleanHandleValue.replace(/_/g, ' ');
-                    const capitalizedName = handleName.split(' ').map(word => 
-                        word.charAt(0).toUpperCase() + word.slice(1)
-                    ).join(' ');
-                    
-                    const placeholderUser = {
-                        name: capitalizedName || cleanHandleValue,
-                        handle: cleanHandleValue,
-                        amount: 500, // Placeholder amount - will be updated with real amount after claim
-                        isPlaceholder: true, // Flag to show $500+ instead of exact amount
-                        isSearched: true,
-                        profilePic: null
-                    };
-                    
-                    displayLeaderboard([placeholderUser]);
-                }
-            }
+            // User doesn't exist - create placeholder entry and add it to the leaderboard display
+            const placeholderUser = {
+                name: capitalizedName || cleanHandleValue,
+                handle: cleanHandleValue,
+                amount: 500,
+                isPlaceholder: true,
+                isSearched: true,
+                profilePic: null
+            };
+            
+            // Combine existing leaderboard entries with the new placeholder
+            usersToShow = [...leaderboardData, placeholderUser];
+            // Sort by amount (highest first), but placeholders go to bottom
+            usersToShow.sort((a, b) => {
+                if (a.isPlaceholder && !b.isPlaceholder) return 1;
+                if (!a.isPlaceholder && b.isPlaceholder) return -1;
+                return b.amount - a.amount;
+            });
         }
+        
+        // Always show the leaderboard
+        displayLeaderboard(usersToShow);
         
         // Re-enable button immediately
         searchBtn.disabled = false;
