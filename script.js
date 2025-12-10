@@ -591,14 +591,28 @@ function handleSearch() {
             word.charAt(0).toUpperCase() + word.slice(1)
         ).join(' ');
         
-        // Check if this handle exists in the leaderboard
+        // Check if this handle exists in the leaderboard (real entries only, not placeholders)
         const foundEntry = leaderboardData.find(entry => cleanHandle(entry.handle) === cleanHandleValue);
+        
+        // Also check if there's already a placeholder for this handle in the current display
+        const existingPlaceholders = new Set();
+        const currentEntries = document.querySelectorAll('.leaderboard-entry');
+        currentEntries.forEach(entry => {
+            const handleText = entry.querySelector('.entry-handle')?.textContent || '';
+            const handleMatch = handleText.match(/@(.+)/);
+            if (handleMatch) {
+                existingPlaceholders.add(cleanHandle(handleMatch[1]));
+            }
+        });
         
         let usersToShow = [];
         
         if (foundEntry) {
             // User exists in leaderboard - show all entries with this one highlighted
             usersToShow = generateLeaderboard(handle);
+        } else if (existingPlaceholders.has(cleanHandleValue)) {
+            // Placeholder already exists in display - just show current leaderboard
+            usersToShow = generateLeaderboard();
         } else {
             // User doesn't exist - create placeholder entry and add it to the leaderboard display
             const placeholderUser = {
@@ -610,10 +624,54 @@ function handleSearch() {
                 profilePic: null
             };
             
-            // Combine existing leaderboard entries with the new placeholder
-            usersToShow = [...leaderboardData, placeholderUser];
+            // Get all current displayed entries (including placeholders)
+            const currentDisplayedUsers = [];
+            currentEntries.forEach((entry, idx) => {
+                const nameEl = entry.querySelector('.entry-name');
+                const handleEl = entry.querySelector('.entry-handle');
+                const amountEl = entry.querySelector('.entry-amount');
+                
+                if (nameEl && handleEl) {
+                    const name = nameEl.textContent.trim();
+                    const handleText = handleEl.textContent.trim();
+                    const handleMatch = handleText.match(/@(.+)/);
+                    const entryHandle = handleMatch ? cleanHandle(handleMatch[1]) : '';
+                    const amountText = amountEl?.textContent.trim() || '$0';
+                    const amountMatch = amountText.match(/\$(\d+)/);
+                    const amount = amountMatch ? parseInt(amountMatch[1]) : 0;
+                    
+                    // Check if this is a placeholder (has $500+ or is not in leaderboardData)
+                    const isPlaceholder = amountText.includes('$500+') || 
+                                        !leaderboardData.find(e => cleanHandle(e.handle) === entryHandle);
+                    
+                    currentDisplayedUsers.push({
+                        name: name,
+                        handle: entryHandle || handleText.replace('@', ''),
+                        amount: amount,
+                        isPlaceholder: isPlaceholder,
+                        isSearched: false,
+                        profilePic: null
+                    });
+                }
+            });
+            
+            // Add the new placeholder to the list
+            currentDisplayedUsers.push(placeholderUser);
+            
+            // Combine with real leaderboard entries (avoid duplicates)
+            const allHandles = new Set(currentDisplayedUsers.map(u => cleanHandle(u.handle)));
+            leaderboardData.forEach(entry => {
+                if (!allHandles.has(cleanHandle(entry.handle))) {
+                    currentDisplayedUsers.push({
+                        ...entry,
+                        isPlaceholder: false,
+                        profilePic: null
+                    });
+                }
+            });
+            
             // Sort by amount (highest first), but placeholders go to bottom
-            usersToShow.sort((a, b) => {
+            usersToShow = currentDisplayedUsers.sort((a, b) => {
                 if (a.isPlaceholder && !b.isPlaceholder) return 1;
                 if (!a.isPlaceholder && b.isPlaceholder) return -1;
                 return b.amount - a.amount;
