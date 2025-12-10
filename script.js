@@ -473,7 +473,8 @@ async function loadProfilePicturesInBackground(users) {
 // Create leaderboard entry HTML
 function createEntryHTML(user, rank) {
     const initials = getInitials(user.name);
-    const formattedAmount = `$${user.amount}`;
+    // Show $500+ for placeholder entries, otherwise show actual amount
+    const formattedAmount = user.isPlaceholder ? '$500+' : `$${user.amount}`;
     const escapedName = user.name.replace(/'/g, "\\'");
     
     // Create profile picture HTML with fallback
