@@ -1016,65 +1016,124 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             const tables = document.querySelectorAll('table');
             console.log('Found', tables.length, 'tables');
             tables.forEach((table, tableIdx) => {
-                // Skip header rows
-                const rows = Array.from(table.querySelectorAll('tr')).filter(row => {
-                    const cells = row.querySelectorAll('td, th');
-                    const text = (row.innerText || row.textContent).toLowerCase();
-                    // Skip header rows
-                    return cells.length > 0 && !text.includes('header') && 
-                           (text.includes('$') || cells.length >= 2);
+                // Get header row to find column indices
+                const headerRow = table.querySelector('tr');
+                if (!headerRow) return;
+                
+                const headerCells = Array.from(headerRow.querySelectorAll('th, td'));
+                const headerTexts = headerCells.map(cell => (cell.innerText || cell.textContent || '').toLowerCase());
+                
+                // Find column indices
+                const reportingBusinessIdx = headerTexts.findIndex(h => 
+                    h.includes('reporting business') || h.includes('business name') || h.includes('holder')
+                );
+                const ownerNameIdx = headerTexts.findIndex(h => 
+                    h.includes('owner name') || h.includes('owner')
+                );
+                const amountIdx = headerTexts.findIndex(h => 
+                    h.includes('amount') || h.includes('value')
+                );
+                
+                console.log(`Table ${tableIdx} column indices:`, {
+                    reportingBusiness: reportingBusinessIdx,
+                    ownerName: ownerNameIdx,
+                    amount: amountIdx
                 });
                 
+                // Get all data rows (skip header)
+                const rows = Array.from(table.querySelectorAll('tr')).slice(1);
                 console.log(`Table ${tableIdx} has ${rows.length} data rows`);
+                
                 rows.forEach((row, rowIdx) => {
-                    const cells = row.querySelectorAll('td, th');
-                    if (cells.length >= 2) {
-                        const text = row.innerText || row.textContent;
-                        // Look for dollar amounts
-                        const amountMatch = text.match(/\$[\d,]+\.?\d*/g);
-                        if (amountMatch && amountMatch.length > 0) {
-                            // Extract entity name from cells
-                            let entity = '';
-                            // Usually entity is in first or second cell
-                            for (let i = 0; i < Math.min(3, cells.length); i++) {
-                                const cellText = cells[i].innerText.trim();
-                                // Skip if it's a number, amount, or very short
-                                if (cellText && 
-                                    !cellText.match(/^\$[\d,]+\.?\d*$/) && 
-                                    !cellText.match(/^\d+$/) &&
-                                    cellText.length > 2 && 
-                                    cellText.length < 150 &&
-                                    !cellText.match(/^(amount|property|entity|holder|state|city)$/i)) {
-                                    entity = cellText;
-                                    break;
-                                }
-                            }
-                            
-                            // If still no entity, try to get text before the amount
-                            if (!entity) {
-                                const amountIndex = text.indexOf(amountMatch[0]);
-                                const beforeAmount = text.substring(0, amountIndex).trim();
-                                const lines = beforeAmount.split(/\s+/).filter(l => l.trim() && l.length > 2);
-                                if (lines.length > 0) {
-                                    // Take the last meaningful word/phrase before amount
-                                    entity = lines.slice(-3).join(' ').substring(0, 100);
-                                }
-                            }
-                            
-                            // Only add if we have a reasonable entity name
-                            if (entity && entity.length > 2) {
-                                data.push({
-                                    entity: entity.substring(0, 150),
-                                    amount: amountMatch[0],
-                                    details: text.substring(0, 500)
-                                });
+                    const cells = Array.from(row.querySelectorAll('td, th'));
+                    if (cells.length < 2) return;
+                    
+                    const rowText = (row.innerText || row.textContent || '').toLowerCase();
+                    
+                    // Skip if it's a header row or doesn't contain relevant data
+                    if (rowText.includes('select') && rowText.includes('action') && rowText.includes('owner')) {
+                        return; // This is a header row
+                    }
+                    
+                    // Look for amount indicators (ranges like "OVER $100", "$25 TO $50", or dollar signs)
+                    const hasAmount = rowText.includes('$') || 
+                                     rowText.includes('over') || 
+                                     rowText.includes('to $') ||
+                                     /over\s+\$[\d,]+/i.test(rowText) ||
+                                     /\$\d+\s+to\s+\$\d+/i.test(rowText);
+                    
+                    if (!hasAmount) return;
+                    
+                    // Extract entity name - prioritize Reporting Business Name column
+                    let entity = '';
+                    let amount = '';
+                    
+                    // Try to get Reporting Business Name first
+                    if (reportingBusinessIdx >= 0 && cells[reportingBusinessIdx]) {
+                        entity = cells[reportingBusinessIdx].innerText.trim();
+                    }
+                    
+                    // Fallback to Owner Name if no Reporting Business
+                    if ((!entity || entity.length < 2) && ownerNameIdx >= 0 && cells[ownerNameIdx]) {
+                        entity = cells[ownerNameIdx].innerText.trim();
+                    }
+                    
+                    // If still no entity, try first few cells
+                    if ((!entity || entity.length < 2)) {
+                        for (let i = 0; i < Math.min(5, cells.length); i++) {
+                            const cellText = cells[i].innerText.trim();
+                            if (cellText && 
+                                cellText.length > 2 && 
+                                cellText.length < 200 &&
+                                !cellText.match(/^(claim|select|view|info)$/i) &&
+                                !cellText.match(/^\$[\d,]+\.?\d*$/) &&
+                                !cellText.match(/^(over|to|\$25|\$50|\$100)$/i) &&
+                                !cellText.match(/^[A-Z]{2}$/) && // Not state code
+                                !cellText.match(/^\d{5}$/)) { // Not ZIP
+                                entity = cellText;
+                                break;
                             }
                         }
+                    }
+                    
+                    // Extract amount - look for amount column or ranges
+                    if (amountIdx >= 0 && cells[amountIdx]) {
+                        amount = cells[amountIdx].innerText.trim();
+                    } else {
+                        // Look for amount patterns in the row
+                        const amountPatterns = [
+                            /over\s+\$[\d,]+/i,
+                            /\$\d+[\s,]*to[\s,]*\$\d+/i,
+                            /\$[\d,]+\.?\d*/g
+                        ];
+                        
+                        for (const pattern of amountPatterns) {
+                            const match = rowText.match(pattern);
+                            if (match) {
+                                amount = match[0].toUpperCase();
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // If we found an entity and amount indicator, add it
+                    if (entity && entity.length > 2 && amount) {
+                        // Clean up entity name
+                        entity = entity.replace(/\s+/g, ' ').trim();
+                        
+                        data.push({
+                            entity: entity.substring(0, 200),
+                            amount: amount,
+                            details: row.innerText.substring(0, 500)
+                        });
                     }
                 });
             });
             
+            console.log(`Strategy 1 found ${data.length} results from tables`);
+            
             // Strategy 2: Look for result containers (divs, spans, etc. with dollar amounts)
+            // Only use if Strategy 1 found nothing
             if (data.length === 0) {
                 console.log('Trying Strategy 2: Looking for result containers...');
                 
