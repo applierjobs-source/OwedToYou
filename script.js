@@ -358,19 +358,26 @@ async function getInstagramProfilePicture(username) {
 async function loadLeaderboard() {
     try {
         const apiBase = window.location.origin;
+        console.log('Loading leaderboard from:', `${apiBase}/api/leaderboard`);
         const response = await fetch(`${apiBase}/api/leaderboard`);
         const data = await response.json();
         
-        if (data.success && data.leaderboard) {
+        console.log('Leaderboard response:', data);
+        
+        if (data.success && data.leaderboard && Array.isArray(data.leaderboard)) {
             leaderboardData = data.leaderboard.map(entry => ({
                 ...entry,
                 profilePic: null // Will be loaded in background
             }));
+            console.log(`Loaded ${leaderboardData.length} leaderboard entries from backend`);
             return leaderboardData;
         }
+        console.log('No leaderboard data in response');
+        leaderboardData = [];
         return [];
     } catch (error) {
         console.error('Error loading leaderboard:', error);
+        leaderboardData = [];
         return [];
     }
 }
@@ -533,9 +540,18 @@ function handleSearch() {
     searchBtn.textContent = 'Searching...';
     
     try {
-        // Generate leaderboard from loaded data
-        const users = generateLeaderboard(handle);
-        displayLeaderboard(users);
+        // Only show leaderboard if it has real entries
+        if (leaderboardData.length > 0) {
+            const users = generateLeaderboard(handle);
+            displayLeaderboard(users);
+        } else {
+            // Hide leaderboard if no entries
+            const leaderboard = document.getElementById('leaderboard');
+            if (leaderboard) {
+                leaderboard.classList.add('hidden');
+            }
+            alert('No leaderboard entries yet. Submit a claim to be added!');
+        }
         
         // Re-enable button immediately
         searchBtn.disabled = false;
