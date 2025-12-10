@@ -663,21 +663,25 @@ async function handleClaimSubmit(event) {
     
     // Close claim form modal and show progress modal
     closeClaimModal();
+    
+    // Small delay to ensure modal transition is smooth
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
     showProgressModal();
     
-    // Start progress updates
-    const progressInterval = setInterval(() => {
-        // This will be updated by the actual progress
-    }, 1000);
+    // Track start time to ensure minimum display time
+    const startTime = Date.now();
+    const MIN_DISPLAY_TIME = 5000; // Minimum 5 seconds
     
-    // Simulate progress updates with realistic timing
-    const progressTimers = [
-        setTimeout(() => updateProgressStep(1, 'Opening Missing Money website...'), 500),
-        setTimeout(() => updateProgressStep(2, 'Filling out your information...'), 3000),
-        setTimeout(() => updateProgressStep(3, 'Solving security verification... This may take 10-30 seconds...'), 8000),
-        setTimeout(() => updateProgressStep(4, 'Searching database...'), 20000),
-        setTimeout(() => updateProgressStep(5, 'Compiling results...'), 35000)
-    ];
+    // Progress update timers
+    const progressTimers = [];
+    
+    // Start progress updates immediately
+    updateProgressStep(1, 'Opening Missing Money website...');
+    progressTimers.push(setTimeout(() => updateProgressStep(2, 'Filling out your information...'), 2000));
+    progressTimers.push(setTimeout(() => updateProgressStep(3, 'Solving security verification... This may take 10-30 seconds...'), 5000));
+    progressTimers.push(setTimeout(() => updateProgressStep(4, 'Searching database...'), 15000));
+    progressTimers.push(setTimeout(() => updateProgressStep(5, 'Compiling results...'), 30000));
     
     try {
         // Search Missing Money with 2captcha API key
@@ -697,9 +701,10 @@ async function handleClaimSubmit(event) {
             })
         });
         
+        const result = await response.json();
+        
         // Clear all progress timers
         progressTimers.forEach(timer => clearTimeout(timer));
-        clearInterval(progressInterval);
         
         // Mark all steps as completed
         for (let i = 1; i <= 5; i++) {
@@ -712,13 +717,22 @@ async function handleClaimSubmit(event) {
         
         updateProgressStep(5, 'Finalizing results...');
         
-        const result = await response.json();
+        // Ensure minimum display time has passed
+        const elapsedTime = Date.now() - startTime;
+        const remainingTime = Math.max(0, MIN_DISPLAY_TIME - elapsedTime);
         
-        // Small delay to show completion
-        await new Promise(resolve => setTimeout(resolve, 500));
+        if (remainingTime > 0) {
+            await new Promise(resolve => setTimeout(resolve, remainingTime));
+        }
+        
+        // Additional small delay to show completion
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Hide progress modal
         hideProgressModal();
+        
+        // Small delay before showing result
+        await new Promise(resolve => setTimeout(resolve, 300));
         
         if (result.success && result.results && result.results.length > 0) {
             // Show results modal
@@ -730,10 +744,21 @@ async function handleClaimSubmit(event) {
     } catch (error) {
         // Clear all progress timers
         progressTimers.forEach(timer => clearTimeout(timer));
-        clearInterval(progressInterval);
         
         console.error('Error searching Missing Money:', error);
+        
+        // Ensure minimum display time even for errors
+        const elapsedTime = Date.now() - startTime;
+        const remainingTime = Math.max(0, MIN_DISPLAY_TIME - elapsedTime);
+        
+        if (remainingTime > 0) {
+            await new Promise(resolve => setTimeout(resolve, remainingTime));
+        }
+        
         hideProgressModal();
+        
+        // Small delay before showing error
+        await new Promise(resolve => setTimeout(resolve, 300));
         
         // Show error in a modal instead of alert
         showErrorModal('An error occurred while searching. Please try again.');
