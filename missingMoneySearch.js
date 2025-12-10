@@ -1754,6 +1754,21 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             cleanEntity = cleanEntity.replace(/\s+(CLAIM|VIEW|SELECT|INFO|REMOVE|SHARE)\s*$/i, '');
             cleanEntity = cleanEntity.trim();
             
+            // CRITICAL: Fix amount if it's "CLAIM" or doesn't have a dollar sign
+            let cleanAmount = r.amount;
+            if (cleanAmount && (cleanAmount === 'CLAIM' || cleanAmount === 'VIEW' || cleanAmount === 'SELECT' || !cleanAmount.includes('$'))) {
+                // Amount is wrong - try to find it in details
+                const detailsMatch = r.details.match(/(over\s+\$[\d,]+|\$\d+[\s,]*to[\s,]*\$\d+|\$[\d,]+)/i);
+                if (detailsMatch) {
+                    cleanAmount = detailsMatch[0].toUpperCase();
+                    console.log(`🔧 Fixed amount: "${r.amount}" -> "${cleanAmount}" for entity: "${cleanEntity}"`);
+                } else {
+                    // If we can't find amount, use a placeholder but still include the result
+                    cleanAmount = 'Amount not specified';
+                    console.log(`⚠️ Could not find amount for entity: "${cleanEntity}", using placeholder`);
+                }
+            }
+            
             // Only filter if entity is completely empty or just whitespace
             // DO NOT filter based on name matching (user's name should be included)
             if (!cleanEntity || cleanEntity.length < 1) {
