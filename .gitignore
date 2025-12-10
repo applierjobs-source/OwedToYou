@@ -6,4 +6,6 @@ node_modules/
 *.png
 # Allow index.html to be committed
 !index.html
+# Leaderboard data (created on server)
+leaderboard.json
 
