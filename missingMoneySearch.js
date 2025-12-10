@@ -1282,7 +1282,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                                 !cellText.match(/^(over|to|\$25|\$50|\$100)$/i) &&
                                 !cellText.match(/^[A-Z]{2}$/) &&
                                 !cellText.match(/^\d{5}$/) &&
-                                !cellText.match(/^[A-Z]+\s+ARROW$/i) && // Skip owner name if it's just "ZACH ARROW"
+                                // Include all names, including user's name
                                 (cellText.includes(' ') || 
                                  cellText.includes('LLC') || 
                                  cellText.includes('INC') || 
