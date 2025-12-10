@@ -572,7 +572,7 @@ function displayLeaderboard(users) {
 }
 
 // Handle search
-function handleSearch() {
+async function handleSearch() {
     const input = document.getElementById('instagramHandle');
     const handle = input.value.trim();
     const searchBtn = document.getElementById('searchBtn');
