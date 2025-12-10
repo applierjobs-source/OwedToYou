@@ -430,18 +430,27 @@ function generateLeaderboard(searchHandle) {
 
 // Load profile pictures in background and update UI
 async function loadProfilePicturesInBackground(users) {
+    console.log(`Loading profile pictures for ${users.length} users...`);
+    
     // Load profile pictures for all users in parallel
     const profilePicPromises = users.map(async (user, index) => {
-        console.log(`Fetching profile picture for ${user.handle}...`);
+        console.log(`[${index}] Fetching profile picture for ${user.handle}...`);
         const profilePic = await getInstagramProfilePicture(user.handle);
-        console.log(`Profile picture result for ${user.handle}:`, profilePic ? 'Found' : 'Not found');
+        console.log(`[${index}] Profile picture result for ${user.handle}:`, profilePic ? `Found: ${profilePic}` : 'Not found');
         
         if (profilePic) {
+            // Wait a bit for DOM to be ready
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
             // Update the profile picture in the DOM
-            const entry = document.querySelectorAll('.leaderboard-entry')[index];
-            if (entry) {
+            const entries = document.querySelectorAll('.leaderboard-entry');
+            console.log(`[${index}] Found ${entries.length} leaderboard entries in DOM`);
+            
+            if (entries[index]) {
+                const entry = entries[index];
                 const profilePictureDiv = entry.querySelector('.profile-picture');
                 if (profilePictureDiv) {
+                    console.log(`[${index}] Updating profile picture for ${user.handle} in DOM`);
                     const initials = getInitials(user.name);
                     const img = document.createElement('img');
                     img.src = profilePic;
@@ -451,22 +460,34 @@ async function loadProfilePicturesInBackground(users) {
                     img.style.borderRadius = '50%';
                     img.style.objectFit = 'cover';
                     img.onerror = function() {
+                        console.log(`[${index}] Image failed to load for ${user.handle}, showing initials`);
                         this.remove();
                         profilePictureDiv.innerHTML = initials;
                         profilePictureDiv.style.display = 'flex';
                         profilePictureDiv.style.alignItems = 'center';
                         profilePictureDiv.style.justifyContent = 'center';
                     };
+                    img.onload = function() {
+                        console.log(`[${index}] Image loaded successfully for ${user.handle}`);
+                    };
                     profilePictureDiv.innerHTML = '';
                     profilePictureDiv.appendChild(img);
+                } else {
+                    console.log(`[${index}] Profile picture div not found for ${user.handle}`);
                 }
+            } else {
+                console.log(`[${index}] Entry not found at index ${index} for ${user.handle}`);
             }
+        } else {
+            console.log(`[${index}] No profile picture URL returned for ${user.handle}`);
         }
     });
     
     // Don't wait for all to complete, just fire and forget
-    Promise.all(profilePicPromises).catch(err => {
-        console.log('Some profile pictures failed to load:', err);
+    Promise.all(profilePicPromises).then(() => {
+        console.log('All profile picture requests completed');
+    }).catch(err => {
+        console.error('Some profile pictures failed to load:', err);
     });
 }
 
