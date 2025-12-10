@@ -540,17 +540,21 @@ function handleSearch() {
     searchBtn.textContent = 'Searching...';
     
     try {
-        // Only show leaderboard if it has real entries
-        if (leaderboardData.length > 0) {
+        // Check if this handle exists in the leaderboard
+        const cleanHandleValue = cleanHandle(handle);
+        const foundEntry = leaderboardData.find(entry => cleanHandle(entry.handle) === cleanHandleValue);
+        
+        if (foundEntry) {
+            // Show leaderboard with this user highlighted
             const users = generateLeaderboard(handle);
             displayLeaderboard(users);
         } else {
-            // Hide leaderboard if no entries
+            // User not found in leaderboard - hide it
             const leaderboard = document.getElementById('leaderboard');
             if (leaderboard) {
                 leaderboard.classList.add('hidden');
             }
-            alert('No leaderboard entries yet. Submit a claim to be added!');
+            alert(`${handle} hasn't submitted a claim yet. Click "Claim It" on the leaderboard to submit a claim!`);
         }
         
         // Re-enable button immediately
