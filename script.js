@@ -442,12 +442,33 @@ async function loadProfilePicturesInBackground(users) {
             // Wait a bit for DOM to be ready
             await new Promise(resolve => setTimeout(resolve, 100));
             
-            // Update the profile picture in the DOM
+            // Find the entry by handle (more reliable than index)
             const entries = document.querySelectorAll('.leaderboard-entry');
-            console.log(`[${index}] Found ${entries.length} leaderboard entries in DOM`);
+            console.log(`[${index}] Found ${entries.length} leaderboard entries in DOM, looking for handle: ${user.handle}`);
             
-            if (entries[index]) {
-                const entry = entries[index];
+            let entry = null;
+            let entryIndex = -1;
+            
+            // Try to find by handle in the entry text
+            for (let i = 0; i < entries.length; i++) {
+                const entryText = entries[i].innerText || '';
+                const handleInText = entryText.includes(`@${user.handle}`) || entryText.includes(`@${cleanHandle(user.handle)}`);
+                if (handleInText) {
+                    entry = entries[i];
+                    entryIndex = i;
+                    console.log(`[${index}] Found entry at index ${i} for handle ${user.handle}`);
+                    break;
+                }
+            }
+            
+            // Fallback to index if handle match failed
+            if (!entry && entries[index]) {
+                entry = entries[index];
+                entryIndex = index;
+                console.log(`[${index}] Using index fallback for ${user.handle}`);
+            }
+            
+            if (entry) {
                 const profilePictureDiv = entry.querySelector('.profile-picture');
                 if (profilePictureDiv) {
                     console.log(`[${index}] Updating profile picture for ${user.handle} in DOM`);
@@ -468,7 +489,7 @@ async function loadProfilePicturesInBackground(users) {
                         profilePictureDiv.style.justifyContent = 'center';
                     };
                     img.onload = function() {
-                        console.log(`[${index}] Image loaded successfully for ${user.handle}`);
+                        console.log(`[${index}] Image loaded successfully for ${user.handle}: ${profilePic}`);
                     };
                     profilePictureDiv.innerHTML = '';
                     profilePictureDiv.appendChild(img);
@@ -476,7 +497,7 @@ async function loadProfilePicturesInBackground(users) {
                     console.log(`[${index}] Profile picture div not found for ${user.handle}`);
                 }
             } else {
-                console.log(`[${index}] Entry not found at index ${index} for ${user.handle}`);
+                console.log(`[${index}] Entry not found for ${user.handle} (tried index ${index} and handle matching)`);
             }
         } else {
             console.log(`[${index}] No profile picture URL returned for ${user.handle}`);
