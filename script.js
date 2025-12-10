@@ -1,31 +1,5 @@
-// Sample data for randomly generated users with Instagram handles
-const sampleUsers = [
-    { name: 'Alex Johnson', handle: 'alexjohnson' },
-    { name: 'Sarah Martinez', handle: 'sarahmartinez' },
-    { name: 'Michael Chen', handle: 'michaelchen' },
-    { name: 'Emily Davis', handle: 'emilydavis' },
-    { name: 'James Wilson', handle: 'jameswilson' },
-    { name: 'Olivia Brown', handle: 'oliviabrown' },
-    { name: 'David Lee', handle: 'davidlee' },
-    { name: 'Sophia Garcia', handle: 'sophiagarcia' },
-    { name: 'Daniel Rodriguez', handle: 'danielrodriguez' },
-    { name: 'Isabella Taylor', handle: 'isabellataylor' },
-    { name: 'Matthew Anderson', handle: 'matthewanderson' },
-    { name: 'Emma Thomas', handle: 'emmathomas' },
-    { name: 'Christopher Moore', handle: 'christophermoore' },
-    { name: 'Ava Jackson', handle: 'avajackson' },
-    { name: 'Andrew White', handle: 'andrewwhite' },
-    { name: 'Mia Harris', handle: 'miaharris' },
-    { name: 'Joshua Martin', handle: 'joshuamartin' },
-    { name: 'Charlotte Thompson', handle: 'charlottethompson' },
-    { name: 'Ryan Clark', handle: 'ryanclark' },
-    { name: 'Amelia Lewis', handle: 'amelialewis' }
-];
-
-// Generate random amount in high hundreds
-function generateRandomAmount() {
-    return Math.floor(Math.random() * 200 + 800); // 800-999
-}
+// Leaderboard data - loaded from backend
+let leaderboardData = [];
 
 // Get initials from name
 function getInitials(name) {
@@ -380,47 +354,67 @@ async function getInstagramProfilePicture(username) {
     return Promise.race([fetchPromise, timeoutPromise]);
 }
 
-// Generate random users for leaderboard (non-blocking, shows immediately)
+// Load leaderboard from backend
+async function loadLeaderboard() {
+    try {
+        const apiBase = window.location.origin;
+        const response = await fetch(`${apiBase}/api/leaderboard`);
+        const data = await response.json();
+        
+        if (data.success && data.leaderboard) {
+            leaderboardData = data.leaderboard.map(entry => ({
+                ...entry,
+                profilePic: null // Will be loaded in background
+            }));
+            return leaderboardData;
+        }
+        return [];
+    } catch (error) {
+        console.error('Error loading leaderboard:', error);
+        return [];
+    }
+}
+
+// Add entry to leaderboard
+async function addToLeaderboard(name, handle, amount) {
+    try {
+        const apiBase = window.location.origin;
+        const response = await fetch(`${apiBase}/api/leaderboard`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                name: name,
+                handle: cleanHandle(handle),
+                amount: Math.round(amount)
+            })
+        });
+        
+        const data = await response.json();
+        if (data.success && data.leaderboard) {
+            leaderboardData = data.leaderboard.map(entry => ({
+                ...entry,
+                profilePic: null
+            }));
+            // Refresh leaderboard display if it's visible
+            if (!document.getElementById('leaderboard').classList.contains('hidden')) {
+                displayLeaderboard(leaderboardData);
+            }
+        }
+    } catch (error) {
+        console.error('Error adding to leaderboard:', error);
+    }
+}
+
+// Generate leaderboard from loaded data
 function generateLeaderboard(searchHandle) {
-    const users = [];
-    const numUsers = 8;
-    
-    // Add the searched user first (if provided)
-    if (searchHandle) {
-        const cleanUsername = cleanHandle(searchHandle);
-        const handleName = cleanUsername.replace(/_/g, ' ');
-        const capitalizedName = handleName.split(' ').map(word => 
-            word.charAt(0).toUpperCase() + word.slice(1)
-        ).join(' ');
-        
-        users.push({
-            name: capitalizedName || cleanUsername,
-            handle: cleanUsername,
-            amount: generateRandomAmount(),
-            isSearched: true,
-            profilePic: null // Will be loaded in background
-        });
-    }
-    
-    // Add random users
-    const availableUsers = [...sampleUsers];
-    const numRandomUsers = numUsers - users.length;
-    
-    for (let i = 0; i < numRandomUsers; i++) {
-        const randomIndex = Math.floor(Math.random() * availableUsers.length);
-        const user = availableUsers.splice(randomIndex, 1)[0];
-        
-        users.push({
-            name: user.name,
-            handle: user.handle,
-            amount: generateRandomAmount(),
-            isSearched: false,
-            profilePic: null // Will be loaded in background
-        });
-    }
-    
-    // Sort by amount (highest first)
-    users.sort((a, b) => b.amount - a.amount);
+    // Just return the loaded leaderboard data
+    // If searchHandle is provided, highlight that user if they exist
+    const users = leaderboardData.map(entry => ({
+        ...entry,
+        isSearched: searchHandle && cleanHandle(searchHandle) === entry.handle
+    }));
     
     return users;
 }
@@ -539,7 +533,7 @@ function handleSearch() {
     searchBtn.textContent = 'Searching...';
     
     try {
-        // Generate leaderboard immediately (synchronous, fast)
+        // Generate leaderboard from loaded data
         const users = generateLeaderboard(handle);
         displayLeaderboard(users);
         
@@ -756,6 +750,10 @@ async function handleClaimSubmit(event) {
         if (result.success && result.results && result.results.length > 0) {
             console.log('✅ Showing results modal with', result.results.length, 'results');
             console.log('📊 First result:', result.results[0]);
+            
+            // Add to leaderboard
+            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), result.totalAmount);
+            
             // Show results modal
             showResultsModal(claimData, result);
         } else {

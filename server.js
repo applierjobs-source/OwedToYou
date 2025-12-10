@@ -315,6 +315,85 @@ const server = http.createServer((req, res) => {
                 res.end(JSON.stringify({ success: false, error: error.message }));
             }
         });
+    } else if (parsedUrl.pathname === '/api/leaderboard' && req.method === 'GET') {
+        // Get leaderboard entries
+        try {
+            const leaderboardPath = path.join(__dirname, 'leaderboard.json');
+            let leaderboard = [];
+            
+            if (fs.existsSync(leaderboardPath)) {
+                const data = fs.readFileSync(leaderboardPath, 'utf8');
+                leaderboard = JSON.parse(data);
+            }
+            
+            // Sort by amount (highest first)
+            leaderboard.sort((a, b) => b.amount - a.amount);
+            
+            res.writeHead(200, corsHeaders);
+            res.end(JSON.stringify({ success: true, leaderboard: leaderboard }));
+        } catch (error) {
+            res.writeHead(500, corsHeaders);
+            res.end(JSON.stringify({ success: false, error: error.message }));
+        }
+    } else if (parsedUrl.pathname === '/api/leaderboard' && req.method === 'POST') {
+        // Add entry to leaderboard
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        req.on('end', async () => {
+            try {
+                const entry = JSON.parse(body);
+                
+                // Validate entry
+                if (!entry.name || !entry.handle || !entry.amount) {
+                    res.writeHead(400, corsHeaders);
+                    res.end(JSON.stringify({ success: false, error: 'Missing required fields' }));
+                    return;
+                }
+                
+                const leaderboardPath = path.join(__dirname, 'leaderboard.json');
+                let leaderboard = [];
+                
+                // Load existing leaderboard
+                if (fs.existsSync(leaderboardPath)) {
+                    const data = fs.readFileSync(leaderboardPath, 'utf8');
+                    leaderboard = JSON.parse(data);
+                }
+                
+                // Check if entry already exists (by handle)
+                const existingIndex = leaderboard.findIndex(e => e.handle === entry.handle);
+                
+                if (existingIndex >= 0) {
+                    // Update existing entry if new amount is higher
+                    if (entry.amount > leaderboard[existingIndex].amount) {
+                        leaderboard[existingIndex] = {
+                            ...leaderboard[existingIndex],
+                            ...entry,
+                            updatedAt: new Date().toISOString()
+                        };
+                    }
+                } else {
+                    // Add new entry
+                    leaderboard.push({
+                        ...entry,
+                        createdAt: new Date().toISOString()
+                    });
+                }
+                
+                // Save leaderboard
+                fs.writeFileSync(leaderboardPath, JSON.stringify(leaderboard, null, 2));
+                
+                // Sort by amount (highest first)
+                leaderboard.sort((a, b) => b.amount - a.amount);
+                
+                res.writeHead(200, corsHeaders);
+                res.end(JSON.stringify({ success: true, leaderboard: leaderboard }));
+            } catch (error) {
+                res.writeHead(500, corsHeaders);
+                res.end(JSON.stringify({ success: false, error: error.message }));
+            }
+        });
     } else {
         // Serve static files (HTML, CSS, JS)
         const filePath = parsedUrl.pathname === '/' ? '/index.html' : parsedUrl.pathname;
