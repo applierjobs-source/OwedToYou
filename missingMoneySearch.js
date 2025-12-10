@@ -1211,18 +1211,9 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                         entity = entity.replace(/\s+(CLAIM|VIEW|SELECT|INFO|REMOVE|SHARE)\s*$/i, '');
                         entity = entity.trim();
                         
-                        // Skip if entity is just "Undisclosed" or "Not Disclosed"
-                        if (entity.match(/^(undisclosed|not disclosed)$/i)) {
-                            return;
-                        }
-                        
-                        // Skip if entity is empty after cleaning
-                        if (!entity || entity.length < 2) {
-                            return;
-                        }
-                        
-                        // Additional check: if entity looks like it's just button text, skip it
-                        if (entity.match(/^(claim|view|select|info|remove|share)$/i)) {
+                        // Only skip if entity is completely empty after cleaning
+                        // DO NOT filter based on specific names or "Undisclosed" - include everything
+                        if (!entity || entity.length < 1) {
                             return;
                         }
                         
@@ -1726,6 +1717,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         }
         
         // Clean up results and remove duplicates
+        // IMPORTANT: Be very lenient - only filter truly invalid entities
         const uniqueResults = [];
         const seen = new Set();
         let filteredCount = 0;
@@ -1734,17 +1726,28 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             let cleanEntity = r.entity.trim();
             const originalEntity = cleanEntity;
             
-            // Remove button text patterns
-            cleanEntity = cleanEntity.replace(/\s*:\s*(CLAIM|VIEW|SELECT|INFO|REMOVE|SHARE)$/i, '');
-            cleanEntity = cleanEntity.replace(/\s+(CLAIM|VIEW|SELECT|INFO|REMOVE|SHARE)$/i, '');
+            // Remove button text patterns (only at the end)
+            cleanEntity = cleanEntity.replace(/\s*:\s*(CLAIM|VIEW|SELECT|INFO|REMOVE|SHARE)\s*$/i, '');
+            cleanEntity = cleanEntity.replace(/\s+(CLAIM|VIEW|SELECT|INFO|REMOVE|SHARE)\s*$/i, '');
             cleanEntity = cleanEntity.trim();
             
-            // Skip if entity is empty or invalid after cleaning
-            if (!cleanEntity || cleanEntity.length < 2 || cleanEntity.match(/^(undisclosed|not disclosed)$/i)) {
+            // Only filter if entity is completely empty or just whitespace
+            // DO NOT filter based on name matching (user's name should be included)
+            if (!cleanEntity || cleanEntity.length < 1) {
                 filteredCount++;
                 if (filteredCount <= 5) {
-                    console.log(`Filtered out entity: "${originalEntity}" -> "${cleanEntity}" (empty or invalid)`);
+                    console.log(`Filtered out entity: "${originalEntity}" -> "${cleanEntity}" (completely empty)`);
                 }
+                return;
+            }
+            
+            // Use original entity if cleaning made it too short, but keep it if it's valid
+            if (cleanEntity.length < 2) {
+                cleanEntity = originalEntity.trim();
+            }
+            
+            // If still too short, skip only if it's truly invalid
+            if (cleanEntity.length < 1) {
                 return;
             }
             
