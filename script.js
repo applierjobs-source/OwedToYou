@@ -972,7 +972,7 @@ function handleNotify(name, amount) {
 }
 
 // Event listeners
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     const searchBtn = document.getElementById('searchBtn');
     const searchInput = document.getElementById('instagramHandle');
     
@@ -1005,6 +1005,14 @@ document.addEventListener('DOMContentLoaded', function() {
         stateInput.addEventListener('input', function(e) {
             e.target.value = e.target.value.toUpperCase();
         });
+    }
+    
+    // Load leaderboard from backend
+    await loadLeaderboard();
+    
+    // If leaderboard has entries, show it
+    if (leaderboardData.length > 0) {
+        displayLeaderboard(leaderboardData);
     }
 });
 
