@@ -1824,7 +1824,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         
         // If we have results, return them
         if (uniqueResults.length > 0) {
-            console.log(`✅ Returning ${uniqueResults.length} results`);
+            console.log(`✅✅✅ RETURNING ${uniqueResults.length} RESULTS TO FRONTEND ✅✅✅`);
             console.log(`📊 Sample results (first 3):`, uniqueResults.slice(0, 3).map(r => ({
                 entity: r.entity,
                 amount: r.amount

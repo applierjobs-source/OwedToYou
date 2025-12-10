@@ -743,10 +743,21 @@ async function handleClaimSubmit(event) {
         // Small delay before showing result
         await new Promise(resolve => setTimeout(resolve, 300));
         
+        // Debug logging
+        console.log('🔍 Frontend received result:', {
+            success: result.success,
+            resultsCount: result.results ? result.results.length : 0,
+            totalAmount: result.totalAmount,
+            hasResults: !!(result.results && result.results.length > 0),
+            sampleResults: result.results ? result.results.slice(0, 2) : null
+        });
+        
         if (result.success && result.results && result.results.length > 0) {
+            console.log('✅ Showing results modal with', result.results.length, 'results');
             // Show results modal
             showResultsModal(claimData, result);
         } else {
+            console.log('❌ No results to show. Result:', result);
             // No results found - show in a modal instead of alert
             showNoResultsModal(claimData);
         }
