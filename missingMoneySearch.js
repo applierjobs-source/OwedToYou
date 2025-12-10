@@ -1294,7 +1294,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                             }
                         }
                         
-                        // If no business name found, try owner name (but only if it's different from search name)
+                        // If no business name found, try owner name (include ALL names, including user's name)
                         if ((!entity || entity.length < 2)) {
                             for (const cellText of cellTexts) {
                                 if (cellText.length > 2 && 
