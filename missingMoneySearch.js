@@ -1126,11 +1126,117 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                             amount: amount,
                             details: row.innerText.substring(0, 500)
                         });
+                    } else {
+                        // Debug: log rows that didn't match
+                        if (rowIdx < 5) {
+                            console.log(`Row ${rowIdx} skipped:`, {
+                                hasEntity: !!entity,
+                                entityLength: entity ? entity.length : 0,
+                                hasAmount: !!amount,
+                                rowText: rowText.substring(0, 200)
+                            });
+                        }
                     }
                 });
             });
             
             console.log(`Strategy 1 found ${data.length} results from tables`);
+            
+            // If Strategy 1 found results but they're too few, try a more aggressive approach
+            if (data.length > 0 && data.length < 10) {
+                console.log('Strategy 1 found some results but fewer than expected, trying enhanced extraction...');
+                
+                tables.forEach((table, tableIdx) => {
+                    const rows = Array.from(table.querySelectorAll('tr')).slice(1);
+                    
+                    rows.forEach((row) => {
+                        const cells = Array.from(row.querySelectorAll('td, th'));
+                        if (cells.length < 3) return;
+                        
+                        const rowText = row.innerText || row.textContent || '';
+                        const lowerRowText = rowText.toLowerCase();
+                        
+                        // Skip header rows
+                        if (lowerRowText.includes('select') && lowerRowText.includes('action') && lowerRowText.includes('owner')) {
+                            return;
+                        }
+                        
+                        // Look for any amount indicator
+                        const hasAmount = /over\s+\$[\d,]+/i.test(rowText) ||
+                                        /\$\d+[\s,]*to[\s,]*\$\d+/i.test(rowText) ||
+                                        /\$[\d,]+\.?\d*/.test(rowText) ||
+                                        lowerRowText.includes('over $') ||
+                                        lowerRowText.includes('to $');
+                        
+                        if (!hasAmount) return;
+                        
+                        // Extract all cell texts
+                        const cellTexts = cells.map(cell => cell.innerText.trim()).filter(t => t.length > 0);
+                        
+                        // Find entity (usually a business name or owner name)
+                        let entity = '';
+                        let amount = '';
+                        
+                        // Look for business/company names (usually longer text, contains common business words)
+                        for (const cellText of cellTexts) {
+                            if (cellText.length > 5 && 
+                                cellText.length < 200 &&
+                                !cellText.match(/^(claim|select|view|info|undisclosed)$/i) &&
+                                !cellText.match(/^\$[\d,]+\.?\d*$/) &&
+                                !cellText.match(/^(over|to|\$25|\$50|\$100)$/i) &&
+                                !cellText.match(/^[A-Z]{2}$/) &&
+                                !cellText.match(/^\d{5}$/) &&
+                                !cellText.match(/^[A-Z]+\s+ARROW$/i) && // Skip owner name if it's just "ZACH ARROW"
+                                (cellText.includes(' ') || 
+                                 cellText.includes('LLC') || 
+                                 cellText.includes('INC') || 
+                                 cellText.includes('CORP') ||
+                                 cellText.includes('BANK') ||
+                                 cellText.includes('CO'))) {
+                                entity = cellText;
+                                break;
+                            }
+                        }
+                        
+                        // If no business name found, try owner name (but only if it's different from search name)
+                        if ((!entity || entity.length < 2)) {
+                            for (const cellText of cellTexts) {
+                                if (cellText.length > 2 && 
+                                    cellText.length < 100 &&
+                                    !cellText.match(/^(claim|select|view|info|undisclosed)$/i) &&
+                                    !cellText.match(/^\$[\d,]+\.?\d*$/) &&
+                                    !cellText.match(/^(over|to|\$25|\$50|\$100)$/i) &&
+                                    !cellText.match(/^[A-Z]{2}$/) &&
+                                    !cellText.match(/^\d{5}$/)) {
+                                    entity = cellText;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        // Extract amount
+                        const amountMatch = rowText.match(/(over\s+\$[\d,]+|\$\d+[\s,]*to[\s,]*\$\d+|\$[\d,]+\.?\d*)/i);
+                        if (amountMatch) {
+                            amount = amountMatch[0].toUpperCase().trim();
+                        }
+                        
+                        // Add if we have both
+                        if (entity && entity.length > 2 && amount) {
+                            // Check if we already have this entity-amount combination
+                            const key = `${entity}-${amount}`;
+                            if (!data.some(r => `${r.entity}-${r.amount}` === key)) {
+                                data.push({
+                                    entity: entity.substring(0, 200),
+                                    amount: amount,
+                                    details: rowText.substring(0, 500)
+                                });
+                            }
+                        }
+                    });
+                });
+                
+                console.log(`Enhanced extraction found ${data.length} total results`);
+            }
             
             // Strategy 2: Look for result containers (divs, spans, etc. with dollar amounts)
             // Only use if Strategy 1 found nothing
@@ -1437,6 +1543,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         
         // If we found explicit "no results" message and no dollar amounts, return empty results
         if (noResults && uniqueResults.length === 0) {
+            console.log('⚠️ Returning empty results: explicit "no results" message detected');
             return {
                 success: true,
                 results: [],
@@ -1445,13 +1552,46 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             };
         }
         
+        // If we have results, return them
+        if (uniqueResults.length > 0) {
+            console.log(`✅ Returning ${uniqueResults.length} results`);
+            return {
+                success: true,
+                results: uniqueResults,
+                totalAmount: uniqueResults.reduce((sum, r) => {
+                    // Handle amount ranges - use minimum value for ranges
+                    let amountStr = r.amount;
+                    if (amountStr.includes('OVER')) {
+                        // For "OVER $100", use 100 as minimum
+                        const match = amountStr.match(/\$?([\d,]+)/);
+                        if (match) {
+                            amountStr = match[1];
+                        }
+                    } else if (amountStr.includes('TO')) {
+                        // For "$25 TO $50", use the first amount
+                        const match = amountStr.match(/\$?([\d,]+)/);
+                        if (match) {
+                            amountStr = match[1];
+                        }
+                    }
+                    const amount = parseFloat(amountStr.replace(/[$,]/g, ''));
+                    return sum + (isNaN(amount) ? 0 : amount);
+                }, 0)
+            };
+        }
+        
+        // If no results but page shows results exist, log warning
+        if (!noResults && uniqueResults.length === 0) {
+            console.log('⚠️ WARNING: Page shows results exist but extraction found none!');
+            console.log('Page text sample:', pageText.substring(0, 1000));
+        }
+        
+        // Return empty results if nothing found
         return {
             success: true,
-            results: uniqueResults,
-            totalAmount: uniqueResults.reduce((sum, r) => {
-                const amount = parseFloat(r.amount.replace(/[$,]/g, ''));
-                return sum + (isNaN(amount) ? 0 : amount);
-            }, 0)
+            results: [],
+            totalAmount: 0,
+            message: 'No unclaimed funds found'
         };
         
     } catch (error) {
