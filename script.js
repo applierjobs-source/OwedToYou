@@ -422,7 +422,8 @@ function generateLeaderboard(searchHandle) {
     // If searchHandle is provided, highlight that user if they exist
     const users = leaderboardData.map(entry => ({
         ...entry,
-        isSearched: searchHandle && cleanHandle(searchHandle) === entry.handle
+        isPlaceholder: false, // Real entries are not placeholders
+        isSearched: searchHandle && cleanHandle(searchHandle) === cleanHandle(entry.handle)
     }));
     
     return users;
