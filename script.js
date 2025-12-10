@@ -582,6 +582,21 @@ function handleClaim(name, amount) {
 // Close claim modal
 function closeClaimModal() {
     const modal = document.getElementById('claimModal');
+    const form = document.getElementById('claimForm');
+    const modalContent = modal.querySelector('.modal-content');
+    
+    // Remove any message divs
+    const noResultsMsg = modalContent.querySelector('.no-results-message');
+    const errorMsg = modalContent.querySelector('.error-message');
+    if (noResultsMsg) noResultsMsg.remove();
+    if (errorMsg) errorMsg.remove();
+    
+    // Show form again
+    form.style.display = 'block';
+    
+    // Reset form
+    form.reset();
+    
     modal.classList.add('hidden');
 }
 
@@ -650,12 +665,19 @@ async function handleClaimSubmit(event) {
     closeClaimModal();
     showProgressModal();
     
-    // Simulate progress updates
-    setTimeout(() => updateProgressStep(1, 'Opening Missing Money website...'), 500);
-    setTimeout(() => updateProgressStep(2, 'Filling out your information...'), 2000);
-    setTimeout(() => updateProgressStep(3, 'Solving security verification...'), 5000);
-    setTimeout(() => updateProgressStep(4, 'Searching database...'), 10000);
-    setTimeout(() => updateProgressStep(5, 'Compiling results...'), 15000);
+    // Start progress updates
+    const progressInterval = setInterval(() => {
+        // This will be updated by the actual progress
+    }, 1000);
+    
+    // Simulate progress updates with realistic timing
+    const progressTimers = [
+        setTimeout(() => updateProgressStep(1, 'Opening Missing Money website...'), 500),
+        setTimeout(() => updateProgressStep(2, 'Filling out your information...'), 3000),
+        setTimeout(() => updateProgressStep(3, 'Solving security verification... This may take 10-30 seconds...'), 8000),
+        setTimeout(() => updateProgressStep(4, 'Searching database...'), 20000),
+        setTimeout(() => updateProgressStep(5, 'Compiling results...'), 35000)
+    ];
     
     try {
         // Search Missing Money with 2captcha API key
@@ -675,6 +697,10 @@ async function handleClaimSubmit(event) {
             })
         });
         
+        // Clear all progress timers
+        progressTimers.forEach(timer => clearTimeout(timer));
+        clearInterval(progressInterval);
+        
         // Mark all steps as completed
         for (let i = 1; i <= 5; i++) {
             const step = document.getElementById(`step${i}`);
@@ -688,6 +714,9 @@ async function handleClaimSubmit(event) {
         
         const result = await response.json();
         
+        // Small delay to show completion
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         // Hide progress modal
         hideProgressModal();
         
@@ -695,16 +724,82 @@ async function handleClaimSubmit(event) {
             // Show results modal
             showResultsModal(claimData, result);
         } else {
-            // No results found
-            alert(`No unclaimed funds found for ${claimData.firstName} ${claimData.lastName} in ${claimData.city}, ${claimData.state}.`);
+            // No results found - show in a modal instead of alert
+            showNoResultsModal(claimData);
         }
     } catch (error) {
+        // Clear all progress timers
+        progressTimers.forEach(timer => clearTimeout(timer));
+        clearInterval(progressInterval);
+        
         console.error('Error searching Missing Money:', error);
         hideProgressModal();
-        alert('An error occurred while searching. Please try again.');
-        submitButton.disabled = false;
-        submitButton.textContent = 'Submit Claim';
+        
+        // Show error in a modal instead of alert
+        showErrorModal('An error occurred while searching. Please try again.');
     }
+}
+
+// Show no results modal
+function showNoResultsModal(claimData) {
+    const modal = document.getElementById('claimModal');
+    const form = document.getElementById('claimForm');
+    
+    // Hide the form and show message
+    form.style.display = 'none';
+    
+    const modalContent = modal.querySelector('.modal-content');
+    const existingMessage = modalContent.querySelector('.no-results-message');
+    
+    if (!existingMessage) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'no-results-message';
+        messageDiv.style.cssText = 'padding: 40px; text-align: center;';
+        messageDiv.innerHTML = `
+            <div style="font-size: 3rem; margin-bottom: 20px;">😔</div>
+            <h2 style="margin-bottom: 16px; color: #333;">No Unclaimed Funds Found</h2>
+            <p style="color: #666; margin-bottom: 30px;">
+                No unclaimed funds were found for <strong>${claimData.firstName} ${claimData.lastName}</strong> in <strong>${claimData.city}, ${claimData.state}</strong>.
+            </p>
+            <button class="btn btn-submit" onclick="closeClaimModal(); location.reload();" style="margin: 0 auto;">
+                Close
+            </button>
+        `;
+        modalContent.appendChild(messageDiv);
+    }
+    
+    modal.classList.remove('hidden');
+}
+
+// Show error modal
+function showErrorModal(message) {
+    const modal = document.getElementById('claimModal');
+    const form = document.getElementById('claimForm');
+    
+    // Hide the form and show message
+    form.style.display = 'none';
+    
+    const modalContent = modal.querySelector('.modal-content');
+    const existingMessage = modalContent.querySelector('.error-message');
+    
+    if (!existingMessage) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'error-message';
+        messageDiv.style.cssText = 'padding: 40px; text-align: center;';
+        messageDiv.innerHTML = `
+            <div style="font-size: 3rem; margin-bottom: 20px;">⚠️</div>
+            <h2 style="margin-bottom: 16px; color: #d32f2f;">Error</h2>
+            <p style="color: #666; margin-bottom: 30px;">
+                ${message}
+            </p>
+            <button class="btn btn-submit" onclick="closeClaimModal(); location.reload();" style="margin: 0 auto;">
+                Close
+            </button>
+        `;
+        modalContent.appendChild(messageDiv);
+    }
+    
+    modal.classList.remove('hidden');
 }
 
 // Show results modal with unclaimed funds
