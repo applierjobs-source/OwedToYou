@@ -1045,6 +1045,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 
                 // Find indices by looking for cells with specific headers attributes
                 let reportingBusinessIdx = -1;
+                let ownerNameIdx = -1;
                 let amountIdx = -1;
                 
                 firstRowCells.forEach((cell, idx) => {
@@ -1054,12 +1055,16 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                     // Check headers attribute first (most reliable)
                     if (headers.includes('propholderName') || headers.includes('holderName') || headers.includes('holder')) {
                         reportingBusinessIdx = idx;
+                    } else if (headers.includes('propownerName') || headers.includes('ownerName') || headers.includes('owner')) {
+                        ownerNameIdx = idx;
                     } else if (headers.includes('proppropertyValueDescription') || headers.includes('amount') || headers.includes('value')) {
                         amountIdx = idx;
                     }
                     // Fallback: check cell text for header-like content
                     else if (cellText.includes('reporting business') || cellText.includes('business name') || cellText.includes('holder')) {
                         if (reportingBusinessIdx === -1) reportingBusinessIdx = idx;
+                    } else if (cellText.includes('owner name') || (cellText.includes('owner') && !cellText.includes('co-owner'))) {
+                        if (ownerNameIdx === -1) ownerNameIdx = idx;
                     } else if (cellText.includes('amount') || cellText.includes('value')) {
                         if (amountIdx === -1) amountIdx = idx;
                     }
@@ -1076,6 +1081,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 
                 console.log(`Table ${tableIdx} column indices (via headers):`, {
                     reportingBusiness: reportingBusinessIdx,
+                    ownerName: ownerNameIdx,
                     amount: amountIdx,
                     totalCells: firstRowCells.length
                 });
@@ -1104,14 +1110,44 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                     let entity = '';
                     let amount = '';
                     
-                    // Try to get Reporting Business Name first
+                    // Try to get Reporting Business Name first using index
                     if (reportingBusinessIdx >= 0 && cells[reportingBusinessIdx]) {
                         entity = cells[reportingBusinessIdx].innerText.trim();
                     }
                     
+                    // Also try to find by headers attribute as fallback
+                    if ((!entity || entity.length < 2)) {
+                        for (const cell of cells) {
+                            const headers = cell.getAttribute('headers') || '';
+                            if (headers.includes('propholderName') || headers.includes('holderName')) {
+                                entity = cell.innerText.trim();
+                                break;
+                            }
+                        }
+                    }
+                    
                     // Fallback to Owner Name if no Reporting Business
                     if ((!entity || entity.length < 2) && ownerNameIdx >= 0 && cells[ownerNameIdx]) {
-                        entity = cells[ownerNameIdx].innerText.trim();
+                        const ownerName = cells[ownerNameIdx].innerText.trim();
+                        // Only use if it's not just the search name (e.g., "ZACH ARROW")
+                        if (ownerName && ownerName.length > 2 && !ownerName.match(/^[A-Z]+\s+ARROW$/i)) {
+                            entity = ownerName;
+                        }
+                    }
+                    
+                    // Also try to find Owner Name by headers attribute
+                    if ((!entity || entity.length < 2)) {
+                        for (const cell of cells) {
+                            const headers = cell.getAttribute('headers') || '';
+                            if (headers.includes('propownerName') || headers.includes('ownerName')) {
+                                const ownerName = cell.innerText.trim();
+                                // Only use if it's not just the search name
+                                if (ownerName && ownerName.length > 2 && !ownerName.match(/^[A-Z]+\s+ARROW$/i)) {
+                                    entity = ownerName;
+                                    break;
+                                }
+                            }
+                        }
                     }
                     
                     // If still no entity, try first few cells
@@ -1132,11 +1168,22 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                         }
                     }
                     
-                    // Extract amount - look for amount column or ranges
+                    // Extract amount - look for amount column using index or headers
                     if (amountIdx >= 0 && cells[amountIdx]) {
-                        amount = cells[amountIdx].innerText.trim();
+                        amount = cells[amountIdx].innerText.trim().toUpperCase();
                     } else {
-                        // Look for amount patterns in the row
+                        // Try to find by headers attribute
+                        for (const cell of cells) {
+                            const headers = cell.getAttribute('headers') || '';
+                            if (headers.includes('proppropertyValueDescription') || headers.includes('amount')) {
+                                amount = cell.innerText.trim().toUpperCase();
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Fallback: search in row text for amount patterns
+                    if (!amount) {
                         const amountPatterns = [
                             /over\s+\$[\d,]+/i,
                             /\$\d+[\s,]*to[\s,]*\$\d+/i,
@@ -1154,8 +1201,14 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                     
                     // If we found an entity and amount indicator, add it
                     if (entity && entity.length > 2 && amount) {
-                        // Clean up entity name
+                        // Clean up entity name - handle HTML entities like &amp;
                         entity = entity.replace(/\s+/g, ' ').trim();
+                        entity = entity.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+                        
+                        // Skip if entity is just "Undisclosed" or "Not Disclosed"
+                        if (entity.match(/^(undisclosed|not disclosed)$/i)) {
+                            return;
+                        }
                         
                         data.push({
                             entity: entity.substring(0, 200),
