@@ -444,30 +444,38 @@ async function loadProfilePicturesInBackground(users) {
             // Wait a bit for DOM to be ready
             await new Promise(resolve => setTimeout(resolve, 100));
             
-            // Find the entry by handle (more reliable than index)
-            const entries = document.querySelectorAll('.leaderboard-entry');
-            console.log(`[${index}] Found ${entries.length} leaderboard entries in DOM, looking for handle: ${user.handle}`);
+            // Find the entry by data-handle attribute (most reliable)
+            const cleanUserHandle = cleanHandle(user.handle);
+            let entry = document.querySelector(`.leaderboard-entry[data-handle="${cleanUserHandle}"]`);
             
-            let entry = null;
-            let entryIndex = -1;
-            
-            // Try to find by handle in the entry text
-            for (let i = 0; i < entries.length; i++) {
-                const entryText = entries[i].innerText || '';
-                const handleInText = entryText.includes(`@${user.handle}`) || entryText.includes(`@${cleanHandle(user.handle)}`);
-                if (handleInText) {
-                    entry = entries[i];
-                    entryIndex = i;
-                    console.log(`[${index}] Found entry at index ${i} for handle ${user.handle}`);
-                    break;
+            if (!entry) {
+                // Fallback: try to find by handle in the entry text
+                const entries = document.querySelectorAll('.leaderboard-entry');
+                console.log(`[${index}] Found ${entries.length} leaderboard entries in DOM, looking for handle: ${user.handle}`);
+                
+                for (let i = 0; i < entries.length; i++) {
+                    const entryHandle = entries[i].getAttribute('data-handle') || '';
+                    const entryText = entries[i].innerText || '';
+                    const handleInText = entryText.includes(`@${user.handle}`) || 
+                                        entryText.includes(`@${cleanUserHandle}`) ||
+                                        cleanHandle(entryHandle) === cleanUserHandle;
+                    if (handleInText) {
+                        entry = entries[i];
+                        console.log(`[${index}] Found entry at index ${i} for handle ${user.handle} via text match`);
+                        break;
+                    }
                 }
+            } else {
+                console.log(`[${index}] Found entry for handle ${user.handle} via data-handle attribute`);
             }
             
-            // Fallback to index if handle match failed
-            if (!entry && entries[index]) {
-                entry = entries[index];
-                entryIndex = index;
-                console.log(`[${index}] Using index fallback for ${user.handle}`);
+            // Last fallback: use index if still not found
+            if (!entry) {
+                const entries = document.querySelectorAll('.leaderboard-entry');
+                if (entries[index]) {
+                    entry = entries[index];
+                    console.log(`[${index}] Using index fallback for ${user.handle}`);
+                }
             }
             
             if (entry) {
@@ -530,7 +538,7 @@ function createEntryHTML(user, rank) {
     }
     
     return `
-        <div class="leaderboard-entry ${user.isSearched ? 'searched-user' : ''}">
+        <div class="leaderboard-entry ${user.isSearched ? 'searched-user' : ''}" data-handle="${user.handle}">
             <div class="rank-number">${rank}</div>
             <div class="profile-picture">
                 ${profilePicHtml}
