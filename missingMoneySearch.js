@@ -1127,22 +1127,22 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                     }
                     
                     // Fallback to Owner Name if no Reporting Business
+                    // IMPORTANT: Include ALL owner names, including the user's name
                     if ((!entity || entity.length < 2) && ownerNameIdx >= 0 && cells[ownerNameIdx]) {
                         const ownerName = cells[ownerNameIdx].innerText.trim();
-                        // Only use if it's not just the search name (e.g., "ZACH ARROW")
-                        if (ownerName && ownerName.length > 2 && !ownerName.match(/^[A-Z]+\s+ARROW$/i)) {
+                        if (ownerName && ownerName.length > 2) {
                             entity = ownerName;
                         }
                     }
                     
                     // Also try to find Owner Name by headers attribute
+                    // IMPORTANT: Include ALL owner names, including the user's name
                     if ((!entity || entity.length < 2)) {
                         for (const cell of cells) {
                             const headers = cell.getAttribute('headers') || '';
                             if (headers.includes('propownerName') || headers.includes('ownerName')) {
                                 const ownerName = cell.innerText.trim();
-                                // Only use if it's not just the search name
-                                if (ownerName && ownerName.length > 2 && !ownerName.match(/^[A-Z]+\s+ARROW$/i)) {
+                                if (ownerName && ownerName.length > 2) {
                                     entity = ownerName;
                                     break;
                                 }
@@ -1874,7 +1874,46 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         }
         
         // If we still have no results, return empty
+        // CRITICAL: If we still have no results after cleaning, return the original results
+        // This ensures we ALWAYS return something if results were found
+        if (uniqueResults.length === 0 && results.length > 0) {
+            console.log('⚠️⚠️⚠️ WARNING: All results filtered out during cleaning! Returning original results ⚠️⚠️⚠️');
+            console.log('📊 Original results count:', results.length);
+            console.log('🔍 Returning original results without cleaning to ensure frontend gets data');
+            
+            // Return original results with minimal cleaning (just remove obvious button text)
+            const fallbackResults = results.map(r => {
+                let entity = r.entity.trim();
+                entity = entity.replace(/\s*:\s*(CLAIM|VIEW|SELECT|INFO|REMOVE|SHARE)\s*$/i, '');
+                entity = entity.replace(/\s+(CLAIM|VIEW|SELECT|INFO|REMOVE|SHARE)\s*$/i, '');
+                return {
+                    entity: entity || r.entity || 'Unclaimed Property',
+                    amount: r.amount,
+                    details: r.details
+                };
+            });
+            
+            return {
+                success: true,
+                results: fallbackResults,
+                totalAmount: fallbackResults.reduce((sum, r) => {
+                    let amountStr = r.amount;
+                    if (amountStr.includes('OVER')) {
+                        const match = amountStr.match(/\$?([\d,]+)/);
+                        if (match) amountStr = match[1];
+                    } else if (amountStr.includes('TO')) {
+                        const match = amountStr.match(/\$?([\d,]+)/);
+                        if (match) amountStr = match[1];
+                    }
+                    const amount = parseFloat(amountStr.replace(/[$,]/g, ''));
+                    return sum + (isNaN(amount) ? 0 : amount);
+                }, 0)
+            };
+        }
+        
+        // If we truly have no results at all, return empty
         if (uniqueResults.length === 0) {
+            console.log('❌❌❌ NO RESULTS FOUND AT ALL ❌❌❌');
             return {
                 success: true,
                 results: [],
