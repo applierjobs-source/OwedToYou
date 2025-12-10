@@ -585,6 +585,50 @@ function closeClaimModal() {
     modal.classList.add('hidden');
 }
 
+// Show progress modal
+function showProgressModal() {
+    const progressModal = document.getElementById('progressModal');
+    progressModal.classList.remove('hidden');
+    
+    // Reset all steps
+    for (let i = 1; i <= 5; i++) {
+        const step = document.getElementById(`step${i}`);
+        step.classList.remove('active', 'completed');
+    }
+    
+    // Start with step 1
+    updateProgressStep(1, 'Opening Missing Money website...');
+}
+
+// Update progress step
+function updateProgressStep(stepNumber, message) {
+    const progressMessage = document.getElementById('progressMessage');
+    if (progressMessage) {
+        progressMessage.textContent = message;
+    }
+    
+    // Mark previous steps as completed
+    for (let i = 1; i < stepNumber; i++) {
+        const step = document.getElementById(`step${i}`);
+        if (step) {
+            step.classList.remove('active');
+            step.classList.add('completed');
+        }
+    }
+    
+    // Mark current step as active
+    const currentStep = document.getElementById(`step${stepNumber}`);
+    if (currentStep) {
+        currentStep.classList.add('active');
+    }
+}
+
+// Hide progress modal
+function hideProgressModal() {
+    const progressModal = document.getElementById('progressModal');
+    progressModal.classList.add('hidden');
+}
+
 // Handle claim form submission
 async function handleClaimSubmit(event) {
     event.preventDefault();
@@ -602,9 +646,16 @@ async function handleClaimSubmit(event) {
         amount: formData.get('amount')
     };
     
-    // Disable submit button and show loading
-    submitButton.disabled = true;
-    submitButton.textContent = 'Searching...';
+    // Close claim form modal and show progress modal
+    closeClaimModal();
+    showProgressModal();
+    
+    // Simulate progress updates
+    setTimeout(() => updateProgressStep(1, 'Opening Missing Money website...'), 500);
+    setTimeout(() => updateProgressStep(2, 'Filling out your information...'), 2000);
+    setTimeout(() => updateProgressStep(3, 'Solving security verification...'), 5000);
+    setTimeout(() => updateProgressStep(4, 'Searching database...'), 10000);
+    setTimeout(() => updateProgressStep(5, 'Compiling results...'), 15000);
     
     try {
         // Search Missing Money with 2captcha API key
@@ -624,7 +675,21 @@ async function handleClaimSubmit(event) {
             })
         });
         
+        // Mark all steps as completed
+        for (let i = 1; i <= 5; i++) {
+            const step = document.getElementById(`step${i}`);
+            if (step) {
+                step.classList.remove('active');
+                step.classList.add('completed');
+            }
+        }
+        
+        updateProgressStep(5, 'Finalizing results...');
+        
         const result = await response.json();
+        
+        // Hide progress modal
+        hideProgressModal();
         
         if (result.success && result.results && result.results.length > 0) {
             // Show results modal
@@ -632,10 +697,10 @@ async function handleClaimSubmit(event) {
         } else {
             // No results found
             alert(`No unclaimed funds found for ${claimData.firstName} ${claimData.lastName} in ${claimData.city}, ${claimData.state}.`);
-            closeClaimModal();
         }
     } catch (error) {
         console.error('Error searching Missing Money:', error);
+        hideProgressModal();
         alert('An error occurred while searching. Please try again.');
         submitButton.disabled = false;
         submitButton.textContent = 'Submit Claim';

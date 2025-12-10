@@ -495,6 +495,136 @@ h1 {
     justify-content: center;
 }
 
+/* Progress Modal Styles */
+.progress-modal-content {
+    max-width: 500px;
+    text-align: center;
+}
+
+.progress-header {
+    padding: 24px 30px;
+    border-bottom: 2px solid #f0f0f0;
+}
+
+.progress-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: #333;
+}
+
+.progress-body {
+    padding: 40px 30px;
+}
+
+.progress-spinner {
+    margin-bottom: 30px;
+}
+
+.spinner {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.progress-status {
+    margin-bottom: 30px;
+}
+
+.progress-message {
+    font-size: 1.1rem;
+    color: #666;
+    font-weight: 500;
+    margin: 0;
+}
+
+.progress-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    text-align: left;
+}
+
+.progress-step {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px;
+    border-radius: 8px;
+    background: #f8f9fa;
+    transition: all 0.3s;
+}
+
+.progress-step.active {
+    background: #e8f0fe;
+    border-left: 4px solid #667eea;
+}
+
+.progress-step.completed {
+    background: #e8f5e9;
+    border-left: 4px solid #4caf50;
+}
+
+.progress-step.completed .step-icon {
+    background: #4caf50;
+    color: white;
+}
+
+.progress-step.active .step-icon {
+    background: #667eea;
+    color: white;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+.step-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #e0e0e0;
+    color: #999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+    transition: all 0.3s;
+}
+
+.step-text {
+    flex: 1;
+    color: #666;
+    font-size: 0.95rem;
+}
+
+.progress-step.active .step-text {
+    color: #667eea;
+    font-weight: 600;
+}
+
+.progress-step.completed .step-text {
+    color: #4caf50;
+    font-weight: 600;
+}
+
+.progress-step.completed .step-icon::after {
+    content: '✓';
+    font-size: 1.2rem;
+}
+
 @media (max-width: 768px) {
     h1 {
         font-size: 2rem;
@@ -540,6 +670,14 @@ h1 {
     .modal-header,
     #claimForm {
         padding: 20px;
+    }
+
+    .progress-body {
+        padding: 30px 20px;
+    }
+
+    .progress-steps {
+        gap: 12px;
     }
 }
 

@@ -69,6 +69,45 @@
         </div>
     </div>
 
+    <!-- Progress Modal -->
+    <div id="progressModal" class="modal hidden">
+        <div class="modal-content progress-modal-content">
+            <div class="progress-header">
+                <h2>Searching for Unclaimed Funds</h2>
+            </div>
+            <div class="progress-body">
+                <div class="progress-spinner">
+                    <div class="spinner"></div>
+                </div>
+                <div class="progress-status">
+                    <p id="progressMessage" class="progress-message">Initializing search...</p>
+                </div>
+                <div class="progress-steps">
+                    <div class="progress-step" id="step1">
+                        <div class="step-icon">1</div>
+                        <div class="step-text">Opening Missing Money website</div>
+                    </div>
+                    <div class="progress-step" id="step2">
+                        <div class="step-icon">2</div>
+                        <div class="step-text">Filling out your information</div>
+                    </div>
+                    <div class="progress-step" id="step3">
+                        <div class="step-icon">3</div>
+                        <div class="step-text">Solving security verification</div>
+                    </div>
+                    <div class="progress-step" id="step4">
+                        <div class="step-icon">4</div>
+                        <div class="step-text">Searching database</div>
+                    </div>
+                    <div class="progress-step" id="step5">
+                        <div class="step-icon">5</div>
+                        <div class="step-text">Compiling results</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>
