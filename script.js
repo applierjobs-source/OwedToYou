@@ -906,15 +906,25 @@ async function handleClaimSubmit(event) {
             console.log('✅ Showing results modal with', result.results.length, 'results');
             console.log('📊 First result:', result.results[0]);
             
-            // Add to leaderboard
+            // Add to leaderboard with real amount
             await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), result.totalAmount, false);
             
             // Show results modal
             showResultsModal(claimData, result);
+        } else if (result.success) {
+            // Search completed successfully but no results found - still save to leaderboard with $0
+            console.log('✅ Search completed successfully but no results found');
+            console.log('💾 Saving claim to leaderboard with $0 amount');
+            
+            // Add to leaderboard with $0 amount (still a successful claim)
+            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 0, false);
+            
+            // Show "no results" modal
+            showNoResultsModal(claimData);
         } else {
-            console.log('❌ No results to show. Result:', result);
+            console.log('❌ Search failed. Result:', result);
             console.log('⚠️ Showing "no results" modal instead');
-            // No results found - show in a modal instead of alert
+            // Search failed - show in a modal instead of alert
             showNoResultsModal(claimData);
         }
         

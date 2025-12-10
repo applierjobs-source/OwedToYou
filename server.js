@@ -345,10 +345,10 @@ const server = http.createServer((req, res) => {
             try {
                 const entry = JSON.parse(body);
                 
-                // Validate entry
-                if (!entry.name || !entry.handle || !entry.amount) {
+                // Validate entry (amount can be 0, but must be a number)
+                if (!entry.name || !entry.handle || typeof entry.amount !== 'number') {
                     res.writeHead(400, corsHeaders);
-                    res.end(JSON.stringify({ success: false, error: 'Missing required fields' }));
+                    res.end(JSON.stringify({ success: false, error: 'Missing required fields or invalid amount' }));
                     return;
                 }
                 
@@ -367,12 +367,15 @@ const server = http.createServer((req, res) => {
                 if (existingIndex >= 0) {
                     // Update existing entry if:
                     // 1. New amount is higher, OR
-                    // 2. Existing is placeholder and new is not (real claim replaces placeholder)
+                    // 2. Existing is placeholder and new is not (real claim replaces placeholder), OR
+                    // 3. Both are real claims (not placeholders) - always update with latest
                     const existingIsPlaceholder = leaderboard[existingIndex].isPlaceholder || false;
                     const newIsPlaceholder = entry.isPlaceholder || false;
                     
                     if (entry.amount > leaderboard[existingIndex].amount || 
-                        (existingIsPlaceholder && !newIsPlaceholder)) {
+                        (existingIsPlaceholder && !newIsPlaceholder) ||
+                        (!existingIsPlaceholder && !newIsPlaceholder)) {
+                        // Always update real claims (even if amount is same or lower, to update timestamp)
                         leaderboard[existingIndex] = {
                             ...leaderboard[existingIndex],
                             ...entry,
@@ -380,7 +383,7 @@ const server = http.createServer((req, res) => {
                         };
                     }
                 } else {
-                    // Add new entry
+                    // Add new entry (always add, even if amount is 0)
                     leaderboard.push({
                         ...entry,
                         createdAt: new Date().toISOString()
