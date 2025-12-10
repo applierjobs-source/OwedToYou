@@ -1169,21 +1169,32 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                     }
                     
                     // Extract amount - look for amount column using index or headers
+                    // CRITICAL: Must find the actual dollar amount, not button text
                     if (amountIdx >= 0 && cells[amountIdx]) {
-                        amount = cells[amountIdx].innerText.trim().toUpperCase();
-                    } else {
-                        // Try to find by headers attribute
+                        const amountCellText = cells[amountIdx].innerText.trim().toUpperCase();
+                        // Only use if it contains a dollar sign or amount pattern
+                        if (amountCellText.includes('$') || /over|to\s+\$|\$\d+/i.test(amountCellText)) {
+                            amount = amountCellText;
+                        }
+                    }
+                    
+                    // Try to find by headers attribute (most reliable)
+                    if (!amount || !amount.includes('$')) {
                         for (const cell of cells) {
                             const headers = cell.getAttribute('headers') || '';
                             if (headers.includes('proppropertyValueDescription') || headers.includes('amount')) {
-                                amount = cell.innerText.trim().toUpperCase();
-                                break;
+                                const cellText = cell.innerText.trim().toUpperCase();
+                                // Only use if it contains a dollar sign or amount pattern
+                                if (cellText.includes('$') || /over|to\s+\$|\$\d+/i.test(cellText)) {
+                                    amount = cellText;
+                                    break;
+                                }
                             }
                         }
                     }
                     
-                    // Fallback: search in row text for amount patterns
-                    if (!amount) {
+                    // Fallback: search in row text for amount patterns (MUST have dollar sign)
+                    if (!amount || !amount.includes('$')) {
                         const amountPatterns = [
                             /over\s+\$[\d,]+/i,
                             /\$\d+[\s,]*to[\s,]*\$\d+/i,
@@ -1192,8 +1203,20 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                         
                         for (const pattern of amountPatterns) {
                             const match = rowText.match(pattern);
-                            if (match) {
+                            if (match && match[0].includes('$')) {
                                 amount = match[0].toUpperCase();
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // CRITICAL: If amount is still "CLAIM" or doesn't have $, search entire row more aggressively
+                    if (!amount || amount === 'CLAIM' || !amount.includes('$')) {
+                        // Search all cells for amount patterns
+                        for (const cell of cells) {
+                            const cellText = cell.innerText.trim().toUpperCase();
+                            if (cellText.includes('$') && (cellText.includes('OVER') || cellText.includes('TO') || /\$\d+/.test(cellText))) {
+                                amount = cellText;
                                 break;
                             }
                         }
@@ -1751,12 +1774,12 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 return;
             }
             
-            const key = `${cleanEntity}-${r.amount}`;
+            const key = `${cleanEntity}-${cleanAmount}`;
             if (!seen.has(key)) {
                 seen.add(key);
                 uniqueResults.push({
                     entity: cleanEntity,
-                    amount: r.amount,
+                    amount: cleanAmount,
                     details: r.details
                 });
             }
