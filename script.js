@@ -540,27 +540,39 @@ function handleSearch() {
     searchBtn.textContent = 'Searching...';
     
     try {
-        // Check if this handle exists in the leaderboard
-        const cleanHandleValue = cleanHandle(handle);
-        const foundEntry = leaderboardData.find(entry => cleanHandle(entry.handle) === cleanHandleValue);
-        
-        if (foundEntry) {
-            // Show leaderboard with this user highlighted
+        // Always show the leaderboard (if it has entries)
+        // If leaderboard has entries, show them
+        if (leaderboardData.length > 0) {
+            // Highlight the searched user if they exist
             const users = generateLeaderboard(handle);
             displayLeaderboard(users);
         } else {
-            // User not found - show message but keep leaderboard visible if it has entries
-            if (leaderboardData.length > 0) {
-                // Show leaderboard anyway, just highlight that user isn't in it
-                displayLeaderboard(leaderboardData);
-                alert(`${handle} isn't on the leaderboard yet. They need to submit a claim first!`);
-            } else {
-                // Hide leaderboard if empty
-                const leaderboard = document.getElementById('leaderboard');
-                if (leaderboard) {
-                    leaderboard.classList.add('hidden');
+            // Leaderboard is empty - show it anyway so user can see the structure
+            // They can click "Claim It" on any entry to start the process
+            // For now, just show empty leaderboard or create a placeholder entry
+            const leaderboard = document.getElementById('leaderboard');
+            if (leaderboard) {
+                leaderboard.classList.remove('hidden');
+                // Show empty state or allow them to proceed
+                const listContainer = document.getElementById('leaderboardList');
+                if (listContainer) {
+                    // Create a placeholder entry for the searched user so they can click "Claim It"
+                    const cleanHandleValue = cleanHandle(handle);
+                    const handleName = cleanHandleValue.replace(/_/g, ' ');
+                    const capitalizedName = handleName.split(' ').map(word => 
+                        word.charAt(0).toUpperCase() + word.slice(1)
+                    ).join(' ');
+                    
+                    const placeholderUser = {
+                        name: capitalizedName || cleanHandleValue,
+                        handle: cleanHandleValue,
+                        amount: 0,
+                        isSearched: true,
+                        profilePic: null
+                    };
+                    
+                    displayLeaderboard([placeholderUser]);
                 }
-                alert(`No one has submitted a claim yet. Be the first!`);
             }
         }
         
