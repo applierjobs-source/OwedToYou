@@ -549,12 +549,19 @@ function handleSearch() {
             const users = generateLeaderboard(handle);
             displayLeaderboard(users);
         } else {
-            // User not found in leaderboard - hide it
-            const leaderboard = document.getElementById('leaderboard');
-            if (leaderboard) {
-                leaderboard.classList.add('hidden');
+            // User not found - show message but keep leaderboard visible if it has entries
+            if (leaderboardData.length > 0) {
+                // Show leaderboard anyway, just highlight that user isn't in it
+                displayLeaderboard(leaderboardData);
+                alert(`${handle} isn't on the leaderboard yet. They need to submit a claim first!`);
+            } else {
+                // Hide leaderboard if empty
+                const leaderboard = document.getElementById('leaderboard');
+                if (leaderboard) {
+                    leaderboard.classList.add('hidden');
+                }
+                alert(`No one has submitted a claim yet. Be the first!`);
             }
-            alert(`${handle} hasn't submitted a claim yet. Click "Claim It" on the leaderboard to submit a claim!`);
         }
         
         // Re-enable button immediately
@@ -1030,9 +1037,15 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Load leaderboard from backend
     await loadLeaderboard();
     
-    // If leaderboard has entries, show it
+    // Always show leaderboard if it has entries (on page load)
     if (leaderboardData.length > 0) {
         displayLeaderboard(leaderboardData);
+    } else {
+        // Hide leaderboard if empty
+        const leaderboard = document.getElementById('leaderboard');
+        if (leaderboard) {
+            leaderboard.classList.add('hidden');
+        }
     }
 });
 
