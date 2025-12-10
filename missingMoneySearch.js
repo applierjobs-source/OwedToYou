@@ -69,8 +69,10 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
     let browser = null;
     try {
         // Launch browser with stealth settings
+        // Note: Must use headless: true on Railway (no display server available)
+        // The stealth techniques (user agent, viewport, etc.) still work in headless mode
         browser = await chromium.launch({ 
-            headless: false, // Run in headed mode to avoid detection (required for Cloudflare)
+            headless: true, // Required for Railway deployment (no X server)
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
