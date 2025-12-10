@@ -1206,8 +1206,9 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                         entity = entity.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
                         
                         // Remove button text and action words (CLAIM, VIEW, SELECT, INFO, etc.)
-                        entity = entity.replace(/\s*:\s*(CLAIM|VIEW|SELECT|INFO|REMOVE|SHARE)$/i, '');
-                        entity = entity.replace(/\s+(CLAIM|VIEW|SELECT|INFO|REMOVE|SHARE)$/i, '');
+                        // Be careful - only remove if it's at the end, not if it's part of the entity name
+                        entity = entity.replace(/\s*:\s*(CLAIM|VIEW|SELECT|INFO|REMOVE|SHARE)\s*$/i, '');
+                        entity = entity.replace(/\s+(CLAIM|VIEW|SELECT|INFO|REMOVE|SHARE)\s*$/i, '');
                         entity = entity.trim();
                         
                         // Skip if entity is just "Undisclosed" or "Not Disclosed"
@@ -1217,6 +1218,11 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                         
                         // Skip if entity is empty after cleaning
                         if (!entity || entity.length < 2) {
+                            return;
+                        }
+                        
+                        // Additional check: if entity looks like it's just button text, skip it
+                        if (entity.match(/^(claim|view|select|info|remove|share)$/i)) {
                             return;
                         }
                         
@@ -1722,15 +1728,23 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         // Clean up results and remove duplicates
         const uniqueResults = [];
         const seen = new Set();
+        let filteredCount = 0;
         results.forEach(r => {
             // Clean entity name one more time to remove any remaining button text
             let cleanEntity = r.entity.trim();
+            const originalEntity = cleanEntity;
+            
+            // Remove button text patterns
             cleanEntity = cleanEntity.replace(/\s*:\s*(CLAIM|VIEW|SELECT|INFO|REMOVE|SHARE)$/i, '');
             cleanEntity = cleanEntity.replace(/\s+(CLAIM|VIEW|SELECT|INFO|REMOVE|SHARE)$/i, '');
             cleanEntity = cleanEntity.trim();
             
             // Skip if entity is empty or invalid after cleaning
             if (!cleanEntity || cleanEntity.length < 2 || cleanEntity.match(/^(undisclosed|not disclosed)$/i)) {
+                filteredCount++;
+                if (filteredCount <= 5) {
+                    console.log(`Filtered out entity: "${originalEntity}" -> "${cleanEntity}" (empty or invalid)`);
+                }
                 return;
             }
             
@@ -1745,7 +1759,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             }
         });
         
-        console.log(`Final results count: ${uniqueResults.length}`);
+        console.log(`Final results count: ${uniqueResults.length} (filtered out ${filteredCount} invalid entities)`);
         if (uniqueResults.length > 0) {
             console.log('Sample results:', uniqueResults.slice(0, 3).map(r => `${r.entity}: ${r.amount}`));
         } else if (noResults) {
