@@ -752,14 +752,26 @@ async function handleClaimSubmit(event) {
             sampleResults: result.results ? result.results.slice(0, 2) : null
         });
         
+        // CRITICAL: Always show something - never just close the modal
         if (result.success && result.results && result.results.length > 0) {
             console.log('✅ Showing results modal with', result.results.length, 'results');
+            console.log('📊 First result:', result.results[0]);
             // Show results modal
             showResultsModal(claimData, result);
         } else {
             console.log('❌ No results to show. Result:', result);
+            console.log('⚠️ Showing "no results" modal instead');
             // No results found - show in a modal instead of alert
             showNoResultsModal(claimData);
+        }
+        
+        // Ensure modal is visible
+        const modal = document.getElementById('claimModal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            console.log('✅ Modal should now be visible');
+        } else {
+            console.error('❌ CRITICAL: claimModal element not found!');
         }
     } catch (error) {
         // Clear all progress timers
@@ -787,20 +799,34 @@ async function handleClaimSubmit(event) {
 
 // Show no results modal
 function showNoResultsModal(claimData) {
-    const modal = document.getElementById('claimModal');
-    const form = document.getElementById('claimForm');
+    console.log('🎯 showNoResultsModal called');
     
-    // Hide the form and show message
-    form.style.display = 'none';
+    const modal = document.getElementById('claimModal');
+    if (!modal) {
+        console.error('❌ CRITICAL: claimModal element not found!');
+        alert(`No unclaimed funds were found for ${claimData.firstName} ${claimData.lastName} in ${claimData.city}, ${claimData.state}.`);
+        return;
+    }
+    
+    const form = document.getElementById('claimForm');
+    if (form) {
+        form.style.display = 'none';
+    }
     
     const modalContent = modal.querySelector('.modal-content');
-    const existingMessage = modalContent.querySelector('.no-results-message');
+    if (!modalContent) {
+        console.error('❌ CRITICAL: modal-content element not found!');
+        alert(`No unclaimed funds were found for ${claimData.firstName} ${claimData.lastName} in ${claimData.city}, ${claimData.state}.`);
+        return;
+    }
     
-    if (!existingMessage) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = 'no-results-message';
-        messageDiv.style.cssText = 'padding: 40px; text-align: center;';
-        messageDiv.innerHTML = `
+    // Clear existing content and show message
+    modalContent.innerHTML = `
+        <div class="modal-header">
+            <h2>Claim Your Funds</h2>
+            <button class="modal-close" onclick="closeClaimModal()">&times;</button>
+        </div>
+        <div class="no-results-message" style="padding: 40px; text-align: center;">
             <div style="font-size: 3rem; margin-bottom: 20px;">😔</div>
             <h2 style="margin-bottom: 16px; color: #333;">No Unclaimed Funds Found</h2>
             <p style="color: #666; margin-bottom: 30px;">
@@ -809,11 +835,12 @@ function showNoResultsModal(claimData) {
             <button class="btn btn-submit" onclick="closeClaimModal(); location.reload();" style="margin: 0 auto;">
                 Close
             </button>
-        `;
-        modalContent.appendChild(messageDiv);
-    }
+        </div>
+    `;
     
+    // CRITICAL: Make sure modal is visible
     modal.classList.remove('hidden');
+    console.log('✅ No results modal HTML set and modal made visible');
 }
 
 // Show error modal
@@ -849,8 +876,25 @@ function showErrorModal(message) {
 
 // Show results modal with unclaimed funds
 function showResultsModal(claimData, searchResult) {
+    console.log('🎯 showResultsModal called with:', {
+        claimData: claimData,
+        resultsCount: searchResult.results ? searchResult.results.length : 0,
+        totalAmount: searchResult.totalAmount
+    });
+    
     const modal = document.getElementById('claimModal');
+    if (!modal) {
+        console.error('❌ CRITICAL: claimModal element not found!');
+        alert(`Found ${searchResult.results.length} unclaimed funds totaling $${searchResult.totalAmount.toLocaleString()}`);
+        return;
+    }
+    
     const modalContent = modal.querySelector('.modal-content');
+    if (!modalContent) {
+        console.error('❌ CRITICAL: modal-content element not found!');
+        alert(`Found ${searchResult.results.length} unclaimed funds totaling $${searchResult.totalAmount.toLocaleString()}`);
+        return;
+    }
     
     // Create results display
     let resultsHTML = `
@@ -897,6 +941,12 @@ function showResultsModal(claimData, searchResult) {
     `;
     
     modalContent.innerHTML = resultsHTML;
+    
+    // CRITICAL: Make sure modal is visible
+    modal.classList.remove('hidden');
+    console.log('✅ Results modal HTML set and modal made visible');
+    console.log('📊 Modal element:', modal);
+    console.log('📊 Modal classes:', modal.className);
 }
 
 // Helper function to escape HTML
