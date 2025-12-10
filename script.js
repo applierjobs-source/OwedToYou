@@ -383,8 +383,8 @@ async function loadLeaderboard() {
     }
 }
 
-// Add entry to leaderboard
-async function addToLeaderboard(name, handle, amount) {
+// Add entry to leaderboard (or update if exists)
+async function addToLeaderboard(name, handle, amount, isPlaceholder = false) {
     try {
         const apiBase = window.location.origin;
         const response = await fetch(`${apiBase}/api/leaderboard`, {
@@ -395,7 +395,8 @@ async function addToLeaderboard(name, handle, amount) {
             body: JSON.stringify({
                 name: name,
                 handle: cleanHandle(handle),
-                amount: Math.round(amount)
+                amount: Math.round(amount),
+                isPlaceholder: isPlaceholder
             })
         });
         
@@ -404,7 +405,7 @@ async function addToLeaderboard(name, handle, amount) {
             leaderboardData = data.leaderboard.map(entry => ({
                 ...entry,
                 profilePic: null,
-                isPlaceholder: false // Real entries are not placeholders
+                isPlaceholder: entry.isPlaceholder || false
             }));
             // Refresh leaderboard display if it's visible
             if (!document.getElementById('leaderboard').classList.contains('hidden')) {
@@ -897,7 +898,7 @@ async function handleClaimSubmit(event) {
             console.log('📊 First result:', result.results[0]);
             
             // Add to leaderboard
-            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), result.totalAmount);
+            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), result.totalAmount, false);
             
             // Show results modal
             showResultsModal(claimData, result);

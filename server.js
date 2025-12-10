@@ -365,8 +365,14 @@ const server = http.createServer((req, res) => {
                 const existingIndex = leaderboard.findIndex(e => e.handle === entry.handle);
                 
                 if (existingIndex >= 0) {
-                    // Update existing entry if new amount is higher
-                    if (entry.amount > leaderboard[existingIndex].amount) {
+                    // Update existing entry if:
+                    // 1. New amount is higher, OR
+                    // 2. Existing is placeholder and new is not (real claim replaces placeholder)
+                    const existingIsPlaceholder = leaderboard[existingIndex].isPlaceholder || false;
+                    const newIsPlaceholder = entry.isPlaceholder || false;
+                    
+                    if (entry.amount > leaderboard[existingIndex].amount || 
+                        (existingIsPlaceholder && !newIsPlaceholder)) {
                         leaderboard[existingIndex] = {
                             ...leaderboard[existingIndex],
                             ...entry,
