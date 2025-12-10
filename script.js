@@ -384,7 +384,7 @@ async function loadLeaderboard() {
 }
 
 // Add entry to leaderboard (or update if exists)
-async function addToLeaderboard(name, handle, amount, isPlaceholder = false) {
+async function addToLeaderboard(name, handle, amount, isPlaceholder = false, refreshDisplay = false) {
     try {
         const apiBase = window.location.origin;
         const response = await fetch(`${apiBase}/api/leaderboard`, {
@@ -407,8 +407,9 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false) {
                 profilePic: null,
                 isPlaceholder: entry.isPlaceholder || false
             }));
-            // Refresh leaderboard display if it's visible
-            if (!document.getElementById('leaderboard').classList.contains('hidden')) {
+            // Only refresh display if explicitly requested (e.g., after a claim submission)
+            // Don't refresh during search operations to preserve displayed placeholders
+            if (refreshDisplay && !document.getElementById('leaderboard').classList.contains('hidden')) {
                 displayLeaderboard(leaderboardData);
             }
         }
@@ -635,9 +636,10 @@ async function handleSearch() {
             };
             
             // Save placeholder to backend so it persists for all visitors
+            // Don't refresh display - we'll build the display manually below
             try {
-                await addToLeaderboard(placeholderUser.name, placeholderUser.handle, placeholderUser.amount, true);
-                // Reload leaderboard data after saving
+                await addToLeaderboard(placeholderUser.name, placeholderUser.handle, placeholderUser.amount, true, false);
+                // Reload leaderboard data after saving (but don't refresh display)
                 await loadLeaderboard();
             } catch (error) {
                 console.error('Error saving placeholder to leaderboard:', error);
@@ -924,8 +926,8 @@ async function handleClaimSubmit(event) {
             console.log('✅ Search completed successfully but no results found');
             console.log('💾 Saving claim to leaderboard with $0 amount');
             
-            // Add to leaderboard with $0 amount (still a successful claim)
-            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 0, false);
+            // Add to leaderboard with $0 amount (still a successful claim) and refresh display
+            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 0, false, true);
             
             // Show "no results" modal
             showNoResultsModal(claimData);
