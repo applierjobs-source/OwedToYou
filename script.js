@@ -367,7 +367,8 @@ async function loadLeaderboard() {
         if (data.success && data.leaderboard && Array.isArray(data.leaderboard)) {
             leaderboardData = data.leaderboard.map(entry => ({
                 ...entry,
-                profilePic: null // Will be loaded in background
+                profilePic: null, // Will be loaded in background
+                isPlaceholder: false // Real entries from backend are not placeholders
             }));
             console.log(`Loaded ${leaderboardData.length} leaderboard entries from backend`);
             return leaderboardData;
@@ -402,7 +403,8 @@ async function addToLeaderboard(name, handle, amount) {
         if (data.success && data.leaderboard) {
             leaderboardData = data.leaderboard.map(entry => ({
                 ...entry,
-                profilePic: null
+                profilePic: null,
+                isPlaceholder: false // Real entries are not placeholders
             }));
             // Refresh leaderboard display if it's visible
             if (!document.getElementById('leaderboard').classList.contains('hidden')) {
@@ -494,7 +496,7 @@ function createEntryHTML(user, rank) {
             </div>
             <div class="entry-amount">${formattedAmount}</div>
             <div class="entry-actions">
-                <button class="btn btn-claim" onclick="handleClaim('${escapedName}', ${user.amount})">
+                <button class="btn btn-claim" onclick="handleClaim('${escapedName}', ${user.isPlaceholder ? 500 : user.amount})">
                     Claim It
                 </button>
                 <button class="btn btn-notify" onclick="handleNotify('${escapedName}', ${user.amount})">
@@ -566,7 +568,8 @@ function handleSearch() {
                     const placeholderUser = {
                         name: capitalizedName || cleanHandleValue,
                         handle: cleanHandleValue,
-                        amount: 0,
+                        amount: 500, // Placeholder amount - will be updated with real amount after claim
+                        isPlaceholder: true, // Flag to show $500+ instead of exact amount
                         isSearched: true,
                         profilePic: null
                     };
