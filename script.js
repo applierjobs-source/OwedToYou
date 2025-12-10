@@ -703,6 +703,15 @@ async function handleClaimSubmit(event) {
         
         const result = await response.json();
         
+        // Debug: Log the response
+        console.log('🔍 API Response:', {
+            success: result.success,
+            resultsCount: result.results ? result.results.length : 0,
+            totalAmount: result.totalAmount,
+            message: result.message,
+            sampleResults: result.results ? result.results.slice(0, 3) : null
+        });
+        
         // Clear all progress timers
         progressTimers.forEach(timer => clearTimeout(timer));
         

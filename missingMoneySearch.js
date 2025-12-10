@@ -1784,28 +1784,34 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         // If we have results, return them
         if (uniqueResults.length > 0) {
             console.log(`✅ Returning ${uniqueResults.length} results`);
+            console.log(`📊 Sample results (first 3):`, uniqueResults.slice(0, 3).map(r => ({
+                entity: r.entity,
+                amount: r.amount
+            })));
+            const totalAmount = uniqueResults.reduce((sum, r) => {
+                // Handle amount ranges - use minimum value for ranges
+                let amountStr = r.amount;
+                if (amountStr.includes('OVER')) {
+                    // For "OVER $100", use 100 as minimum
+                    const match = amountStr.match(/\$?([\d,]+)/);
+                    if (match) {
+                        amountStr = match[1];
+                    }
+                } else if (amountStr.includes('TO')) {
+                    // For "$25 TO $50", use the first amount
+                    const match = amountStr.match(/\$?([\d,]+)/);
+                    if (match) {
+                        amountStr = match[1];
+                    }
+                }
+                const amount = parseFloat(amountStr.replace(/[$,]/g, ''));
+                return sum + (isNaN(amount) ? 0 : amount);
+            }, 0);
+            console.log(`💰 Total amount calculated: $${totalAmount}`);
             return {
                 success: true,
                 results: uniqueResults,
-                totalAmount: uniqueResults.reduce((sum, r) => {
-                    // Handle amount ranges - use minimum value for ranges
-                    let amountStr = r.amount;
-                    if (amountStr.includes('OVER')) {
-                        // For "OVER $100", use 100 as minimum
-                        const match = amountStr.match(/\$?([\d,]+)/);
-                        if (match) {
-                            amountStr = match[1];
-                        }
-                    } else if (amountStr.includes('TO')) {
-                        // For "$25 TO $50", use the first amount
-                        const match = amountStr.match(/\$?([\d,]+)/);
-                        if (match) {
-                            amountStr = match[1];
-                        }
-                    }
-                    const amount = parseFloat(amountStr.replace(/[$,]/g, ''));
-                    return sum + (isNaN(amount) ? 0 : amount);
-                }, 0)
+                totalAmount: totalAmount
             };
         }
         
