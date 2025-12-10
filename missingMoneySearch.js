@@ -1205,8 +1205,18 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                         entity = entity.replace(/\s+/g, ' ').trim();
                         entity = entity.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
                         
+                        // Remove button text and action words (CLAIM, VIEW, SELECT, INFO, etc.)
+                        entity = entity.replace(/\s*:\s*(CLAIM|VIEW|SELECT|INFO|REMOVE|SHARE)$/i, '');
+                        entity = entity.replace(/\s+(CLAIM|VIEW|SELECT|INFO|REMOVE|SHARE)$/i, '');
+                        entity = entity.trim();
+                        
                         // Skip if entity is just "Undisclosed" or "Not Disclosed"
                         if (entity.match(/^(undisclosed|not disclosed)$/i)) {
+                            return;
+                        }
+                        
+                        // Skip if entity is empty after cleaning
+                        if (!entity || entity.length < 2) {
                             return;
                         }
                         
@@ -1709,14 +1719,29 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             }
         }
         
-        // Remove duplicates
+        // Clean up results and remove duplicates
         const uniqueResults = [];
         const seen = new Set();
         results.forEach(r => {
-            const key = `${r.entity}-${r.amount}`;
+            // Clean entity name one more time to remove any remaining button text
+            let cleanEntity = r.entity.trim();
+            cleanEntity = cleanEntity.replace(/\s*:\s*(CLAIM|VIEW|SELECT|INFO|REMOVE|SHARE)$/i, '');
+            cleanEntity = cleanEntity.replace(/\s+(CLAIM|VIEW|SELECT|INFO|REMOVE|SHARE)$/i, '');
+            cleanEntity = cleanEntity.trim();
+            
+            // Skip if entity is empty or invalid after cleaning
+            if (!cleanEntity || cleanEntity.length < 2 || cleanEntity.match(/^(undisclosed|not disclosed)$/i)) {
+                return;
+            }
+            
+            const key = `${cleanEntity}-${r.amount}`;
             if (!seen.has(key)) {
                 seen.add(key);
-                uniqueResults.push(r);
+                uniqueResults.push({
+                    entity: cleanEntity,
+                    amount: r.amount,
+                    details: r.details
+                });
             }
         });
         
