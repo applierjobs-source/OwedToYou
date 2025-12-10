@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClaimIt - Find Money You're Owed</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Find Money You're Owed</h1>
+            <p class="subtext">Search any Instagram username to discover unclaimed funds. Share discoveries and help friends claim what's theirs.</p>
+        </header>
+
+        <div class="search-section">
+            <div class="search-container">
+                <input 
+                    type="text" 
+                    id="instagramHandle" 
+                    placeholder="@username" 
+                    class="search-input"
+                >
+                <button id="searchBtn" class="search-button">Search</button>
+            </div>
+        </div>
+
+        <div id="leaderboard" class="leaderboard hidden">
+            <div class="leaderboard-header">
+                <h2>Top Discoveries Leaderboard</h2>
+            </div>
+            <div id="leaderboardList" class="leaderboard-list">
+                <!-- Leaderboard entries will be generated here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Claim Form Modal -->
+    <div id="claimModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Claim Your Funds</h2>
+                <button class="modal-close" onclick="closeClaimModal()">&times;</button>
+            </div>
+            <form id="claimForm" onsubmit="handleClaimSubmit(event)">
+                <div class="form-group">
+                    <label for="firstName">First Name *</label>
+                    <input type="text" id="firstName" name="firstName" required>
+                </div>
+                <div class="form-group">
+                    <label for="lastName">Last Name *</label>
+                    <input type="text" id="lastName" name="lastName" required>
+                </div>
+                <div class="form-group">
+                    <label for="city">City *</label>
+                    <input type="text" id="city" name="city" required>
+                </div>
+                <div class="form-group">
+                    <label for="state">State *</label>
+                    <input type="text" id="state" name="state" required maxlength="2" placeholder="e.g., CA" style="text-transform: uppercase;">
+                </div>
+                <input type="hidden" id="claimAmount" name="amount">
+                <input type="hidden" id="claimName" name="name">
+                <div class="form-actions">
+                    <button type="button" class="btn btn-cancel" onclick="closeClaimModal()">Cancel</button>
+                    <button type="submit" class="btn btn-submit">Submit Claim</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
