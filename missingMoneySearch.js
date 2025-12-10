@@ -1027,121 +1027,56 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 })));
             }
             tables.forEach((table, tableIdx) => {
-                // Get header row to find column indices
-                // Try to find header row - it might be the first row or a row with "th" elements
-                let headerRow = table.querySelector('tr:has(th)') || table.querySelector('tr');
-                if (!headerRow) {
-                    // If no header row found, check if first row looks like a header
-                    const firstRow = table.querySelector('tr');
-                    if (firstRow) {
-                        const firstRowText = (firstRow.innerText || '').toLowerCase();
-                        if (firstRowText.includes('select') && firstRowText.includes('action') && firstRowText.includes('owner')) {
-                            headerRow = firstRow;
-                        }
+                // Strategy: Use the `headers` attribute on td elements to find columns
+                // This is more reliable than parsing header rows, especially when headers are hidden
+                
+                // Get all data rows (skip thead if present)
+                const tbody = table.querySelector('tbody');
+                const rows = tbody ? Array.from(tbody.querySelectorAll('tr')) : Array.from(table.querySelectorAll('tr')).slice(1);
+                console.log(`Table ${tableIdx} has ${rows.length} data rows`);
+                
+                if (rows.length === 0) return;
+                
+                // Use first row to determine column structure via headers attribute
+                const firstRow = rows[0];
+                const firstRowCells = Array.from(firstRow.querySelectorAll('td, th'));
+                
+                // Find indices by looking for cells with specific headers attributes
+                let reportingBusinessIdx = -1;
+                let amountIdx = -1;
+                
+                firstRowCells.forEach((cell, idx) => {
+                    const headers = cell.getAttribute('headers') || '';
+                    const cellText = (cell.innerText || cell.textContent || '').toLowerCase();
+                    
+                    // Check headers attribute first (most reliable)
+                    if (headers.includes('propholderName') || headers.includes('holderName') || headers.includes('holder')) {
+                        reportingBusinessIdx = idx;
+                    } else if (headers.includes('proppropertyValueDescription') || headers.includes('amount') || headers.includes('value')) {
+                        amountIdx = idx;
                     }
-                }
-                
-                if (!headerRow) {
-                    console.log(`Table ${tableIdx}: No header row found, trying to infer columns from first data row`);
-                    // Try to infer from first data row
-                    const firstDataRow = table.querySelector('tr:nth-child(2)');
-                    if (firstDataRow) {
-                        const cells = Array.from(firstDataRow.querySelectorAll('td, th'));
-                        console.log(`Table ${tableIdx}: First data row has ${cells.length} cells`);
-                        // Assume standard structure: [Select, Owner, Co-Owner, Business, Address, City, State, ZIP, Held In, Amount]
-                        // Business is usually around index 3-4, Amount is usually last
-                        const reportingBusinessIdx = cells.length > 3 ? 3 : -1;
-                        const amountIdx = cells.length > 0 ? cells.length - 1 : -1;
-                        
-                        // Process all rows
-                        const rows = Array.from(table.querySelectorAll('tr')).slice(1);
-                        console.log(`Table ${tableIdx} has ${rows.length} data rows (inferred structure)`);
-                        
-                        rows.forEach((row, rowIdx) => {
-                            const rowCells = Array.from(row.querySelectorAll('td, th'));
-                            if (rowCells.length < 3) return;
-                            
-                            const rowText = (row.innerText || row.textContent || '').toLowerCase();
-                            
-                            // Skip header rows
-                            if (rowText.includes('select') && rowText.includes('action') && rowText.includes('owner')) {
-                                return;
-                            }
-                            
-                            // Check for amount
-                            const hasAmount = rowText.includes('$') || 
-                                             rowText.includes('over') || 
-                                             rowText.includes('to $') ||
-                                             /over\s+\$[\d,]+/i.test(rowText) ||
-                                             /\$\d+\s+to\s+\$\d+/i.test(rowText);
-                            
-                            if (!hasAmount) return;
-                            
-                            // Extract entity from business column (usually index 3)
-                            let entity = '';
-                            if (reportingBusinessIdx >= 0 && rowCells[reportingBusinessIdx]) {
-                                entity = rowCells[reportingBusinessIdx].innerText.trim();
-                            }
-                            
-                            // Extract amount from last column
-                            let amount = '';
-                            if (amountIdx >= 0 && rowCells[amountIdx]) {
-                                amount = rowCells[amountIdx].innerText.trim().toUpperCase();
-                            } else {
-                                // Fallback: search in row text
-                                const amountMatch = rowText.match(/(over\s+\$[\d,]+|\$\d+[\s,]*to[\s,]*\$\d+|\$[\d,]+)/i);
-                                if (amountMatch) {
-                                    amount = amountMatch[0].toUpperCase();
-                                }
-                            }
-                            
-                            // Add if we have both
-                            if (entity && entity.length > 2 && amount) {
-                                entity = entity.replace(/\s+/g, ' ').trim();
-                                data.push({
-                                    entity: entity.substring(0, 200),
-                                    amount: amount,
-                                    details: row.innerText.substring(0, 500)
-                                });
-                            }
-                        });
-                        
-                        // Skip the normal processing for this table since we handled it
-                        return;
+                    // Fallback: check cell text for header-like content
+                    else if (cellText.includes('reporting business') || cellText.includes('business name') || cellText.includes('holder')) {
+                        if (reportingBusinessIdx === -1) reportingBusinessIdx = idx;
+                    } else if (cellText.includes('amount') || cellText.includes('value')) {
+                        if (amountIdx === -1) amountIdx = idx;
                     }
-                }
-                
-                const headerCells = Array.from(headerRow.querySelectorAll('th, td'));
-                const headerTexts = headerCells.map(cell => (cell.innerText || cell.textContent || '').toLowerCase());
-                
-                // Find column indices - be more flexible with matching
-                const reportingBusinessIdx = headerTexts.findIndex(h => 
-                    h.includes('reporting business') || 
-                    h.includes('business name') || 
-                    h.includes('holder') ||
-                    h.includes('reporting')
-                );
-                const ownerNameIdx = headerTexts.findIndex(h => 
-                    h.includes('owner name') || 
-                    h.includes('owner') ||
-                    (h.includes('name') && !h.includes('business'))
-                );
-                const amountIdx = headerTexts.findIndex(h => 
-                    h.includes('amount') || 
-                    h.includes('value') ||
-                    h.includes('held in')
-                );
-                
-                console.log(`Table ${tableIdx} column indices:`, {
-                    reportingBusiness: reportingBusinessIdx,
-                    ownerName: ownerNameIdx,
-                    amount: amountIdx,
-                    headerTexts: headerTexts
                 });
                 
-                // Get all data rows (skip header)
-                const rows = Array.from(table.querySelectorAll('tr')).slice(1);
-                console.log(`Table ${tableIdx} has ${rows.length} data rows`);
+                // If we couldn't find via headers, try to infer from structure
+                // Standard structure: [Select, Owner, Co-Owner, Business, Address, City, State, ZIP, Held In, Amount]
+                if (reportingBusinessIdx === -1 && firstRowCells.length > 3) {
+                    reportingBusinessIdx = 3; // Usually index 3
+                }
+                if (amountIdx === -1 && firstRowCells.length > 0) {
+                    amountIdx = firstRowCells.length - 1; // Usually last column
+                }
+                
+                console.log(`Table ${tableIdx} column indices (via headers):`, {
+                    reportingBusiness: reportingBusinessIdx,
+                    amount: amountIdx,
+                    totalCells: firstRowCells.length
+                });
                 
                 rows.forEach((row, rowIdx) => {
                     const cells = Array.from(row.querySelectorAll('td, th'));
