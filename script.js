@@ -616,7 +616,7 @@ function handleSearch() {
             // Placeholder already exists in display - just show current leaderboard
             usersToShow = generateLeaderboard();
         } else {
-            // User doesn't exist - create placeholder entry and add it to the leaderboard display
+            // User doesn't exist - create placeholder entry and save it to backend
             const placeholderUser = {
                 name: capitalizedName || cleanHandleValue,
                 handle: cleanHandleValue,
@@ -625,6 +625,15 @@ function handleSearch() {
                 isSearched: true,
                 profilePic: null
             };
+            
+            // Save placeholder to backend so it persists for all visitors
+            try {
+                await addToLeaderboard(placeholderUser.name, placeholderUser.handle, placeholderUser.amount, true);
+                // Reload leaderboard data after saving
+                await loadLeaderboard();
+            } catch (error) {
+                console.error('Error saving placeholder to leaderboard:', error);
+            }
             
             // Get all current displayed entries (including placeholders)
             const currentDisplayedUsers = [];
