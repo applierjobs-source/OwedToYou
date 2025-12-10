@@ -916,8 +916,8 @@ async function handleClaimSubmit(event) {
             console.log('✅ Showing results modal with', result.results.length, 'results');
             console.log('📊 First result:', result.results[0]);
             
-            // Add to leaderboard with real amount
-            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), result.totalAmount, false);
+            // Add to leaderboard with real amount and refresh display
+            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), result.totalAmount, false, true);
             
             // Show results modal
             showResultsModal(claimData, result);
