@@ -1227,6 +1227,49 @@ function handleClaimFree(firstName, lastName, amount) {
     alert('Free claim option coming soon! You\'ll need to notify 3 friends about their unclaimed funds.');
 }
 
+// Show name search modal (alternative to Instagram search)
+function showNameSearchModal() {
+    // For now, just show an alert. You can implement a full modal later if needed.
+    const firstName = prompt('Enter First Name:');
+    if (!firstName) return;
+    
+    const lastName = prompt('Enter Last Name:');
+    if (!lastName) return;
+    
+    const city = prompt('Enter City:');
+    if (!city) return;
+    
+    const state = prompt('Enter State (2 letters, e.g., TX):');
+    if (!state) return;
+    
+    // Create a temporary claim data object and trigger the claim form
+    const claimData = {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        city: city.trim(),
+        state: state.trim().toUpperCase(),
+        name: (firstName + lastName).toLowerCase().replace(/\s+/g, ''),
+        amount: 0
+    };
+    
+    // Show the claim form modal with pre-filled data
+    const modal = document.getElementById('claimModal');
+    const form = document.getElementById('claimForm');
+    
+    if (form) {
+        document.getElementById('firstName').value = claimData.firstName;
+        document.getElementById('lastName').value = claimData.lastName;
+        document.getElementById('city').value = claimData.city;
+        document.getElementById('state').value = claimData.state;
+        document.getElementById('claimName').value = claimData.name;
+        document.getElementById('claimAmount').value = claimData.amount;
+    }
+    
+    if (modal) {
+        modal.classList.remove('hidden');
+    }
+}
+
 // Make functions available globally for onclick handlers
 window.handleClaim = handleClaim;
 window.handleNotify = handleNotify;
@@ -1235,4 +1278,5 @@ window.closeResultsModal = closeResultsModal;
 window.handleClaimSubmit = handleClaimSubmit;
 window.handleClaimPaid = handleClaimPaid;
 window.handleClaimFree = handleClaimFree;
+window.showNameSearchModal = showNameSearchModal;
 
