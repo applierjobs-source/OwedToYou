@@ -321,17 +321,27 @@ const server = http.createServer((req, res) => {
             const leaderboardPath = path.join(__dirname, 'leaderboard.json');
             let leaderboard = [];
             
+            console.log(`[LEADERBOARD] GET request - checking file at: ${leaderboardPath}`);
+            
             if (fs.existsSync(leaderboardPath)) {
                 const data = fs.readFileSync(leaderboardPath, 'utf8');
                 leaderboard = JSON.parse(data);
+                console.log(`[LEADERBOARD] Loaded ${leaderboard.length} entries from file`);
+            } else {
+                console.log(`[LEADERBOARD] File does not exist, returning empty array`);
             }
             
-            // Sort by amount (highest first)
-            leaderboard.sort((a, b) => b.amount - a.amount);
+            // Sort by amount (highest first), placeholders to bottom
+            leaderboard.sort((a, b) => {
+                if (a.isPlaceholder && !b.isPlaceholder) return 1;
+                if (!a.isPlaceholder && b.isPlaceholder) return -1;
+                return b.amount - a.amount;
+            });
             
             res.writeHead(200, corsHeaders);
             res.end(JSON.stringify({ success: true, leaderboard: leaderboard }));
         } catch (error) {
+            console.error(`[LEADERBOARD] GET error:`, error);
             res.writeHead(500, corsHeaders);
             res.end(JSON.stringify({ success: false, error: error.message }));
         }
@@ -364,6 +374,15 @@ const server = http.createServer((req, res) => {
                 // Check if entry already exists (by handle)
                 const existingIndex = leaderboard.findIndex(e => e.handle === entry.handle);
                 
+                console.log(`[LEADERBOARD] Processing entry:`, {
+                    handle: entry.handle,
+                    name: entry.name,
+                    amount: entry.amount,
+                    isPlaceholder: entry.isPlaceholder,
+                    existingIndex: existingIndex,
+                    currentLeaderboardSize: leaderboard.length
+                });
+                
                 if (existingIndex >= 0) {
                     // Update existing entry if:
                     // 1. New amount is higher, OR
@@ -371,8 +390,16 @@ const server = http.createServer((req, res) => {
                     // 3. Both are real claims (not placeholders) - always update with latest
                     const existingIsPlaceholder = leaderboard[existingIndex].isPlaceholder || false;
                     const newIsPlaceholder = entry.isPlaceholder || false;
+                    const existingAmount = leaderboard[existingIndex].amount || 0;
                     
-                    if (entry.amount > leaderboard[existingIndex].amount || 
+                    console.log(`[LEADERBOARD] Existing entry found:`, {
+                        existingAmount: existingAmount,
+                        newAmount: entry.amount,
+                        existingIsPlaceholder: existingIsPlaceholder,
+                        newIsPlaceholder: newIsPlaceholder
+                    });
+                    
+                    if (entry.amount > existingAmount || 
                         (existingIsPlaceholder && !newIsPlaceholder) ||
                         (!existingIsPlaceholder && !newIsPlaceholder)) {
                         // Always update real claims (even if amount is same or lower, to update timestamp)
@@ -381,6 +408,9 @@ const server = http.createServer((req, res) => {
                             ...entry,
                             updatedAt: new Date().toISOString()
                         };
+                        console.log(`[LEADERBOARD] Updated existing entry at index ${existingIndex}`);
+                    } else {
+                        console.log(`[LEADERBOARD] Skipping update - conditions not met`);
                     }
                 } else {
                     // Add new entry (always add, even if amount is 0)
@@ -388,10 +418,34 @@ const server = http.createServer((req, res) => {
                         ...entry,
                         createdAt: new Date().toISOString()
                     });
+                    console.log(`[LEADERBOARD] Added new entry. Total entries: ${leaderboard.length}`);
                 }
                 
+                // Sort by amount (highest first) before saving
+                leaderboard.sort((a, b) => {
+                    // Placeholders go to bottom
+                    if (a.isPlaceholder && !b.isPlaceholder) return 1;
+                    if (!a.isPlaceholder && b.isPlaceholder) return -1;
+                    return b.amount - a.amount;
+                });
+                
                 // Save leaderboard
-                fs.writeFileSync(leaderboardPath, JSON.stringify(leaderboard, null, 2));
+                try {
+                    fs.writeFileSync(leaderboardPath, JSON.stringify(leaderboard, null, 2), 'utf8');
+                    console.log(`[LEADERBOARD] Successfully saved ${leaderboard.length} entries to ${leaderboardPath}`);
+                    
+                    // Verify the file was written
+                    if (fs.existsSync(leaderboardPath)) {
+                        const verifyData = fs.readFileSync(leaderboardPath, 'utf8');
+                        const verifyLeaderboard = JSON.parse(verifyData);
+                        console.log(`[LEADERBOARD] Verified: File contains ${verifyLeaderboard.length} entries`);
+                    } else {
+                        console.error(`[LEADERBOARD] ERROR: File was not created at ${leaderboardPath}`);
+                    }
+                } catch (writeError) {
+                    console.error(`[LEADERBOARD] ERROR writing file:`, writeError);
+                    throw writeError;
+                }
                 
                 // Sort by amount (highest first)
                 leaderboard.sort((a, b) => b.amount - a.amount);
