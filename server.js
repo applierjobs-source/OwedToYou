@@ -399,19 +399,14 @@ const server = http.createServer((req, res) => {
                         newIsPlaceholder: newIsPlaceholder
                     });
                     
-                    if (entry.amount > existingAmount || 
-                        (existingIsPlaceholder && !newIsPlaceholder) ||
-                        (!existingIsPlaceholder && !newIsPlaceholder)) {
-                        // Always update real claims (even if amount is same or lower, to update timestamp)
-                        leaderboard[existingIndex] = {
-                            ...leaderboard[existingIndex],
-                            ...entry,
-                            updatedAt: new Date().toISOString()
-                        };
-                        console.log(`[LEADERBOARD] Updated existing entry at index ${existingIndex}`);
-                    } else {
-                        console.log(`[LEADERBOARD] Skipping update - conditions not met`);
-                    }
+                    // ALWAYS UPDATE - no conditions, just update the entry
+                    // This ensures all updates persist, regardless of amount or placeholder status
+                    leaderboard[existingIndex] = {
+                        ...leaderboard[existingIndex],
+                        ...entry,
+                        updatedAt: new Date().toISOString()
+                    };
+                    console.log(`[LEADERBOARD] Updated existing entry at index ${existingIndex}`);
                 } else {
                     // Add new entry (always add, even if amount is 0)
                     leaderboard.push({
