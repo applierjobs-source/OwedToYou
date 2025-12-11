@@ -1296,15 +1296,17 @@ function showShareModal(firstName, lastName, amount) {
             <p style="text-align: center; color: #666; margin-bottom: 30px; font-size: 1rem;">
                 Share this card on Instagram to claim your funds for free!
             </p>
-            <div class="share-card" id="shareCard" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 16px; padding: 40px; color: white; text-align: center; max-width: 500px; margin: 0 auto; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);">
-                ${userRank ? `<p style="font-size: 1rem; opacity: 0.9; margin-bottom: 12px; font-weight: 500;">Rank #${userRank} on Leaderboard</p>` : ''}
-                <h2 style="font-size: 2rem; font-weight: 700; margin: 0 0 8px 0; color: white;">${escapeHtml(firstName)} ${escapeHtml(lastName)}</h2>
+            <div class="share-card" id="shareCard" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 16px; padding: 40px; color: white; text-align: center; max-width: 500px; margin: 0 auto; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); min-height: 400px; display: flex; flex-direction: column; justify-content: space-between;">
+                <div>
+                    ${userRank ? `<p style="font-size: 1.2rem; opacity: 0.95; margin-bottom: 16px; font-weight: 600; color: white;">Rank #${userRank} on Leaderboard</p>` : ''}
+                    <h2 style="font-size: 2.5rem; font-weight: 700; margin: 0 0 8px 0; color: white;">${escapeHtml(firstName)} ${escapeHtml(lastName)}</h2>
+                </div>
                 <div style="margin-top: 30px; padding-top: 30px; border-top: 2px solid rgba(255, 255, 255, 0.3);">
-                    <p style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 8px;">Total Unclaimed:</p>
-                    <p style="font-size: 3rem; font-weight: 700; margin: 0; color: white;">$${amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                    <p style="font-size: 1rem; opacity: 0.95; margin-bottom: 12px; font-weight: 500;">Total Unclaimed:</p>
+                    <p style="font-size: 3.5rem; font-weight: 700; margin: 0; color: white;">$${amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
                 </div>
                 <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.3);">
-                    <p style="font-size: 0.85rem; opacity: 0.85; margin: 0;">OwedToYou.ai</p>
+                    <p style="font-size: 1.5rem; font-weight: 700; margin: 0; color: white; letter-spacing: 0.5px;">OwedToYou.ai</p>
                 </div>
             </div>
             <div class="share-actions" style="margin-top: 30px; display: flex; flex-direction: column; gap: 15px; align-items: center;">
