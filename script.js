@@ -1069,6 +1069,30 @@ function showResultsModal(claimData, searchResult) {
         return;
     }
     
+    // Find user's rank on leaderboard
+    let userRank = null;
+    const userHandle = claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, '');
+    
+    if (leaderboardData && leaderboardData.length > 0) {
+        // Sort leaderboard by amount (highest first), placeholders to bottom
+        const sortedLeaderboard = [...leaderboardData].sort((a, b) => {
+            if (a.isPlaceholder && !b.isPlaceholder) return 1;
+            if (!a.isPlaceholder && b.isPlaceholder) return -1;
+            return b.amount - a.amount;
+        });
+        
+        // Find the user's position
+        const userIndex = sortedLeaderboard.findIndex(entry => {
+            const entryHandle = cleanHandle(entry.handle);
+            const searchHandle = cleanHandle(userHandle);
+            return entryHandle === searchHandle;
+        });
+        
+        if (userIndex >= 0) {
+            userRank = userIndex + 1; // Rank is 1-based
+        }
+    }
+    
     // Create results display
     let resultsHTML = `
         <div class="results-header">
@@ -1077,6 +1101,7 @@ function showResultsModal(claimData, searchResult) {
         </div>
         <div class="results-content">
             <div class="results-summary">
+                ${userRank ? `<p class="results-rank" style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 8px;">Rank #${userRank} on Leaderboard</p>` : ''}
                 <p class="results-name">${escapeHtml(claimData.firstName)} ${escapeHtml(claimData.lastName)}</p>
                 <p class="results-location">${escapeHtml(claimData.city)}, ${escapeHtml(claimData.state)}</p>
                 <div class="total-amount">
