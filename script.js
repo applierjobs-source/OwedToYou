@@ -1318,11 +1318,25 @@ function showShareModal(firstName, lastName, amount, results = []) {
                     ${userRank ? `<p style="font-size: 1.2rem; opacity: 0.95; margin-bottom: 16px; font-weight: 600; color: white;">Rank #${userRank} on Leaderboard</p>` : ''}
                     <h2 style="font-size: 2.5rem; font-weight: 700; margin: 0 0 8px 0; color: white;">${escapeHtml(firstName)} ${escapeHtml(lastName)}</h2>
                 </div>
-                <div style="margin-top: 30px; padding-top: 30px; border-top: 2px solid rgba(255, 255, 255, 0.3);">
+                <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.3);">
                     <p style="font-size: 1rem; opacity: 0.95; margin-bottom: 12px; font-weight: 500;">Total Unclaimed:</p>
-                    <p style="font-size: 3.5rem; font-weight: 700; margin: 0; color: white;">$${amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                    <p style="font-size: 3rem; font-weight: 700; margin: 0 0 20px 0; color: white;">$${amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                    ${results && results.length > 0 ? `
+                        <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.3); max-height: 200px; overflow-y: auto;">
+                            <p style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 12px; font-weight: 500;">Funds by Company:</p>
+                            <div style="text-align: left; font-size: 0.85rem;">
+                                ${results.slice(0, 10).map(result => `
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px; padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                                        <span style="flex: 1; opacity: 0.95;">${escapeHtml(result.entity || 'Unknown')}</span>
+                                        <span style="font-weight: 600; margin-left: 12px; white-space: nowrap;">${escapeHtml(result.amount || '$0')}</span>
+                                    </div>
+                                `).join('')}
+                                ${results.length > 10 ? `<p style="font-size: 0.8rem; opacity: 0.8; margin-top: 8px; font-style: italic;">+ ${results.length - 10} more companies</p>` : ''}
+                            </div>
+                        </div>
+                    ` : ''}
                 </div>
-                <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.3);">
+                <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.3);">
                     <p style="font-size: 1.5rem; font-weight: 700; margin: 0; color: white; letter-spacing: 0.5px;">OwedToYou.ai</p>
                 </div>
             </div>
