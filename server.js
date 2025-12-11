@@ -365,48 +365,50 @@ const server = http.createServer((req, res) => {
         });
     } else if (parsedUrl.pathname === '/api/leaderboard' && req.method === 'GET') {
         // Get leaderboard entries from PostgreSQL
-        try {
-            if (!pool) {
-                console.warn(`[LEADERBOARD] GET request - database not available, returning empty array`);
+        (async () => {
+            try {
+                if (!pool) {
+                    console.warn(`[LEADERBOARD] GET request - database not available, returning empty array`);
+                    res.writeHead(200, corsHeaders);
+                    res.end(JSON.stringify({ success: true, leaderboard: [] }));
+                    return;
+                }
+                
+                console.log(`[LEADERBOARD] GET request - fetching from database`);
+                
+                const result = await pool.query(`
+                    SELECT 
+                        name,
+                        handle,
+                        amount,
+                        is_placeholder as "isPlaceholder",
+                        created_at as "createdAt",
+                        updated_at as "updatedAt"
+                    FROM leaderboard
+                    ORDER BY 
+                        CASE WHEN is_placeholder THEN 1 ELSE 0 END,
+                        amount DESC
+                `);
+                
+                const leaderboard = result.rows.map(row => ({
+                    name: row.name,
+                    handle: row.handle,
+                    amount: row.amount,
+                    isPlaceholder: row.isPlaceholder,
+                    createdAt: row.createdAt,
+                    updatedAt: row.updatedAt
+                }));
+                
+                console.log(`[LEADERBOARD] Loaded ${leaderboard.length} entries from database`);
+                
                 res.writeHead(200, corsHeaders);
-                res.end(JSON.stringify({ success: true, leaderboard: [] }));
-                return;
+                res.end(JSON.stringify({ success: true, leaderboard: leaderboard }));
+            } catch (error) {
+                console.error(`[LEADERBOARD] GET error:`, error);
+                res.writeHead(500, corsHeaders);
+                res.end(JSON.stringify({ success: false, error: error.message }));
             }
-            
-            console.log(`[LEADERBOARD] GET request - fetching from database`);
-            
-            const result = await pool.query(`
-                SELECT 
-                    name,
-                    handle,
-                    amount,
-                    is_placeholder as "isPlaceholder",
-                    created_at as "createdAt",
-                    updated_at as "updatedAt"
-                FROM leaderboard
-                ORDER BY 
-                    CASE WHEN is_placeholder THEN 1 ELSE 0 END,
-                    amount DESC
-            `);
-            
-            const leaderboard = result.rows.map(row => ({
-                name: row.name,
-                handle: row.handle,
-                amount: row.amount,
-                isPlaceholder: row.isPlaceholder,
-                createdAt: row.createdAt,
-                updatedAt: row.updatedAt
-            }));
-            
-            console.log(`[LEADERBOARD] Loaded ${leaderboard.length} entries from database`);
-            
-            res.writeHead(200, corsHeaders);
-            res.end(JSON.stringify({ success: true, leaderboard: leaderboard }));
-        } catch (error) {
-            console.error(`[LEADERBOARD] GET error:`, error);
-            res.writeHead(500, corsHeaders);
-            res.end(JSON.stringify({ success: false, error: error.message }));
-        }
+        })();
     } else if (parsedUrl.pathname === '/api/leaderboard' && req.method === 'POST') {
         // Add entry to leaderboard
         let body = '';
