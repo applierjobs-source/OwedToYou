@@ -52,12 +52,19 @@ git push -u origin main
 4. Choose your repository
 5. Railway will automatically detect the project and start building
 
-### Step 3: Configure Environment Variables
+### Step 3: Add PostgreSQL Database
+
+1. In Railway dashboard, go to your project
+2. Click "New" → "Database" → "Add PostgreSQL"
+3. Railway will automatically create a PostgreSQL database
+4. The `DATABASE_URL` environment variable will be automatically set
+
+### Step 4: Configure Environment Variables
 
 In Railway dashboard:
 
 1. Go to your project
-2. Click on your service
+2. Click on your service (not the database)
 3. Go to "Variables" tab
 4. Add the following environment variables:
 
@@ -66,9 +73,11 @@ PORT=3000
 CAPTCHA_API_KEY=your_2captcha_api_key_here
 ```
 
-**Note**: Railway will automatically set `PORT`, but you can override it if needed.
+**Note**: 
+- Railway will automatically set `PORT` and `DATABASE_URL` (from the PostgreSQL service)
+- The database table will be created automatically on first startup
 
-### Step 4: Connect Custom Domain (GoDaddy)
+### Step 5: Connect Custom Domain (Squarespace)
 
 1. In Railway, go to your service → Settings → Networking
 2. Click "Generate Domain" to get a Railway domain first (for testing)
@@ -84,7 +93,7 @@ CAPTCHA_API_KEY=your_2captcha_api_key_here
      - TTL: 3600
 7. Wait for DNS propagation (can take a few minutes to 48 hours)
 
-### Step 5: Update Frontend API URLs
+### Step 6: Update Frontend API URLs
 
 The frontend (`script.js`) is already configured to use relative URLs, so it will automatically work with your domain. No changes needed!
 
@@ -105,7 +114,8 @@ npm start
 
 ## Environment Variables
 
-- `PORT`: Server port (default: 3000)
+- `PORT`: Server port (default: 3000, automatically set by Railway)
+- `DATABASE_URL`: PostgreSQL connection string (automatically set by Railway when you add PostgreSQL)
 - `CAPTCHA_API_KEY`: Your 2captcha API key
 
 ## Project Structure

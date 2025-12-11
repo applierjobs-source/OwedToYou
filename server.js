@@ -4,9 +4,46 @@ const url = require('url');
 const zlib = require('zlib');
 const fs = require('fs');
 const path = require('path');
+const { Pool } = require('pg');
 const { searchMissingMoney } = require('./missingMoneySearch');
 
 const PORT = process.env.PORT || 3000;
+
+// PostgreSQL connection pool
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
+});
+
+// Initialize database table
+async function initializeDatabase() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS leaderboard (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                handle VARCHAR(255) UNIQUE NOT NULL,
+                amount INTEGER NOT NULL DEFAULT 0,
+                is_placeholder BOOLEAN NOT NULL DEFAULT false,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
+        // Create index on handle for faster lookups
+        await pool.query(`
+            CREATE INDEX IF NOT EXISTS idx_leaderboard_handle ON leaderboard(handle)
+        `);
+        
+        console.log('[DATABASE] Leaderboard table initialized successfully');
+    } catch (error) {
+        console.error('[DATABASE] Error initializing database:', error);
+        // Don't crash if database isn't available - app can still run
+    }
+}
+
+// Initialize on startup
+initializeDatabase();
 
 // Simple CORS headers
 const corsHeaders = {
@@ -316,27 +353,34 @@ const server = http.createServer((req, res) => {
             }
         });
     } else if (parsedUrl.pathname === '/api/leaderboard' && req.method === 'GET') {
-        // Get leaderboard entries
+        // Get leaderboard entries from PostgreSQL
         try {
-            const leaderboardPath = path.join(__dirname, 'leaderboard.json');
-            let leaderboard = [];
+            console.log(`[LEADERBOARD] GET request - fetching from database`);
             
-            console.log(`[LEADERBOARD] GET request - checking file at: ${leaderboardPath}`);
+            const result = await pool.query(`
+                SELECT 
+                    name,
+                    handle,
+                    amount,
+                    is_placeholder as "isPlaceholder",
+                    created_at as "createdAt",
+                    updated_at as "updatedAt"
+                FROM leaderboard
+                ORDER BY 
+                    CASE WHEN is_placeholder THEN 1 ELSE 0 END,
+                    amount DESC
+            `);
             
-            if (fs.existsSync(leaderboardPath)) {
-                const data = fs.readFileSync(leaderboardPath, 'utf8');
-                leaderboard = JSON.parse(data);
-                console.log(`[LEADERBOARD] Loaded ${leaderboard.length} entries from file`);
-            } else {
-                console.log(`[LEADERBOARD] File does not exist, returning empty array`);
-            }
+            const leaderboard = result.rows.map(row => ({
+                name: row.name,
+                handle: row.handle,
+                amount: row.amount,
+                isPlaceholder: row.isPlaceholder,
+                createdAt: row.createdAt,
+                updatedAt: row.updatedAt
+            }));
             
-            // Sort by amount (highest first), placeholders to bottom
-            leaderboard.sort((a, b) => {
-                if (a.isPlaceholder && !b.isPlaceholder) return 1;
-                if (!a.isPlaceholder && b.isPlaceholder) return -1;
-                return b.amount - a.amount;
-            });
+            console.log(`[LEADERBOARD] Loaded ${leaderboard.length} entries from database`);
             
             res.writeHead(200, corsHeaders);
             res.end(JSON.stringify({ success: true, leaderboard: leaderboard }));
@@ -362,92 +406,78 @@ const server = http.createServer((req, res) => {
                     return;
                 }
                 
-                const leaderboardPath = path.join(__dirname, 'leaderboard.json');
-                let leaderboard = [];
-                
-                // Load existing leaderboard
-                if (fs.existsSync(leaderboardPath)) {
-                    const data = fs.readFileSync(leaderboardPath, 'utf8');
-                    leaderboard = JSON.parse(data);
-                }
-                
-                // Check if entry already exists (by handle)
-                const existingIndex = leaderboard.findIndex(e => e.handle === entry.handle);
-                
                 console.log(`[LEADERBOARD] Processing entry:`, {
                     handle: entry.handle,
                     name: entry.name,
                     amount: entry.amount,
-                    isPlaceholder: entry.isPlaceholder,
-                    existingIndex: existingIndex,
-                    currentLeaderboardSize: leaderboard.length
+                    isPlaceholder: entry.isPlaceholder || false
                 });
                 
-                if (existingIndex >= 0) {
-                    // Update existing entry if:
-                    // 1. New amount is higher, OR
-                    // 2. Existing is placeholder and new is not (real claim replaces placeholder), OR
-                    // 3. Both are real claims (not placeholders) - always update with latest
-                    const existingIsPlaceholder = leaderboard[existingIndex].isPlaceholder || false;
-                    const newIsPlaceholder = entry.isPlaceholder || false;
-                    const existingAmount = leaderboard[existingIndex].amount || 0;
-                    
+                // Check if entry already exists
+                const existingResult = await pool.query(
+                    'SELECT id, amount, is_placeholder FROM leaderboard WHERE handle = $1',
+                    [entry.handle]
+                );
+                
+                if (existingResult.rows.length > 0) {
+                    // Update existing entry
+                    const existing = existingResult.rows[0];
                     console.log(`[LEADERBOARD] Existing entry found:`, {
-                        existingAmount: existingAmount,
+                        id: existing.id,
+                        existingAmount: existing.amount,
                         newAmount: entry.amount,
-                        existingIsPlaceholder: existingIsPlaceholder,
-                        newIsPlaceholder: newIsPlaceholder
+                        existingIsPlaceholder: existing.is_placeholder,
+                        newIsPlaceholder: entry.isPlaceholder || false
                     });
                     
                     // ALWAYS UPDATE - no conditions, just update the entry
-                    // This ensures all updates persist, regardless of amount or placeholder status
-                    leaderboard[existingIndex] = {
-                        ...leaderboard[existingIndex],
-                        ...entry,
-                        updatedAt: new Date().toISOString()
-                    };
-                    console.log(`[LEADERBOARD] Updated existing entry at index ${existingIndex}`);
+                    await pool.query(
+                        `UPDATE leaderboard 
+                         SET name = $1, amount = $2, is_placeholder = $3, updated_at = CURRENT_TIMESTAMP
+                         WHERE handle = $4`,
+                        [entry.name, entry.amount, entry.isPlaceholder || false, entry.handle]
+                    );
+                    console.log(`[LEADERBOARD] Updated existing entry for handle: ${entry.handle}`);
                 } else {
-                    // Add new entry (always add, even if amount is 0)
-                    leaderboard.push({
-                        ...entry,
-                        createdAt: new Date().toISOString()
-                    });
-                    console.log(`[LEADERBOARD] Added new entry. Total entries: ${leaderboard.length}`);
+                    // Insert new entry
+                    await pool.query(
+                        `INSERT INTO leaderboard (name, handle, amount, is_placeholder)
+                         VALUES ($1, $2, $3, $4)`,
+                        [entry.name, entry.handle, entry.amount, entry.isPlaceholder || false]
+                    );
+                    console.log(`[LEADERBOARD] Added new entry for handle: ${entry.handle}`);
                 }
                 
-                // Sort by amount (highest first) before saving
-                leaderboard.sort((a, b) => {
-                    // Placeholders go to bottom
-                    if (a.isPlaceholder && !b.isPlaceholder) return 1;
-                    if (!a.isPlaceholder && b.isPlaceholder) return -1;
-                    return b.amount - a.amount;
-                });
+                // Fetch updated leaderboard
+                const result = await pool.query(`
+                    SELECT 
+                        name,
+                        handle,
+                        amount,
+                        is_placeholder as "isPlaceholder",
+                        created_at as "createdAt",
+                        updated_at as "updatedAt"
+                    FROM leaderboard
+                    ORDER BY 
+                        CASE WHEN is_placeholder THEN 1 ELSE 0 END,
+                        amount DESC
+                `);
                 
-                // Save leaderboard
-                try {
-                    fs.writeFileSync(leaderboardPath, JSON.stringify(leaderboard, null, 2), 'utf8');
-                    console.log(`[LEADERBOARD] Successfully saved ${leaderboard.length} entries to ${leaderboardPath}`);
-                    
-                    // Verify the file was written
-                    if (fs.existsSync(leaderboardPath)) {
-                        const verifyData = fs.readFileSync(leaderboardPath, 'utf8');
-                        const verifyLeaderboard = JSON.parse(verifyData);
-                        console.log(`[LEADERBOARD] Verified: File contains ${verifyLeaderboard.length} entries`);
-                    } else {
-                        console.error(`[LEADERBOARD] ERROR: File was not created at ${leaderboardPath}`);
-                    }
-                } catch (writeError) {
-                    console.error(`[LEADERBOARD] ERROR writing file:`, writeError);
-                    throw writeError;
-                }
+                const leaderboard = result.rows.map(row => ({
+                    name: row.name,
+                    handle: row.handle,
+                    amount: row.amount,
+                    isPlaceholder: row.isPlaceholder,
+                    createdAt: row.createdAt,
+                    updatedAt: row.updatedAt
+                }));
                 
-                // Sort by amount (highest first)
-                leaderboard.sort((a, b) => b.amount - a.amount);
+                console.log(`[LEADERBOARD] Returning ${leaderboard.length} entries`);
                 
                 res.writeHead(200, corsHeaders);
                 res.end(JSON.stringify({ success: true, leaderboard: leaderboard }));
             } catch (error) {
+                console.error(`[LEADERBOARD] POST error:`, error);
                 res.writeHead(500, corsHeaders);
                 res.end(JSON.stringify({ success: false, error: error.message }));
             }
