@@ -1120,7 +1120,7 @@ function showResultsModal(claimData, searchResult) {
                         <span style="color: white; font-weight: 600; font-size: 0.9rem; opacity: 0.9;">OR</span>
                         <div style="flex: 1; height: 1px; background: rgba(255, 255, 255, 0.3);"></div>
                     </div>
-                    <button class="btn btn-claim-free" onclick="handleClaimFree('${escapeHtml(claimData.firstName)}', '${escapeHtml(claimData.lastName)}', ${searchResult.totalAmount}, ${JSON.stringify(searchResult.results || []).replace(/'/g, "\\'")})" style="width: 100%; padding: 14px; font-size: 1.1rem; font-weight: 600; background: rgba(255, 255, 255, 0.2); color: white; border: 2px solid white; border-radius: 8px; cursor: pointer; margin-bottom: 12px; transition: all 0.2s;">
+                    <button class="btn btn-claim-free" data-first-name="${escapeHtml(claimData.firstName)}" data-last-name="${escapeHtml(claimData.lastName)}" data-amount="${searchResult.totalAmount}" data-results="${escapeHtml(JSON.stringify(searchResult.results || []))}" onclick="handleClaimFreeClick(this)" style="width: 100%; padding: 14px; font-size: 1.1rem; font-weight: 600; background: rgba(255, 255, 255, 0.2); color: white; border: 2px solid white; border-radius: 8px; cursor: pointer; margin-bottom: 12px; transition: all 0.2s;">
                         Claim for Free
                     </button>
                     <p style="text-align: center; margin: 0; font-size: 0.85rem; opacity: 0.85; line-height: 1.4;">
@@ -1245,7 +1245,28 @@ function handleClaimPaid(firstName, lastName, amount) {
     alert('Payment processing coming soon! This will charge $9.99 to handle your paperwork.');
 }
 
-// Handle free claim (share on Instagram)
+// Handle free claim button click (wrapper to get data from data attributes)
+function handleClaimFreeClick(button) {
+    const firstName = button.getAttribute('data-first-name');
+    const lastName = button.getAttribute('data-last-name');
+    const amount = parseFloat(button.getAttribute('data-amount')) || 0;
+    const resultsJson = button.getAttribute('data-results');
+    
+    let results = [];
+    try {
+        if (resultsJson) {
+            results = JSON.parse(resultsJson);
+        }
+    } catch (e) {
+        console.error('Error parsing results:', e);
+        results = [];
+    }
+    
+    console.log('Free claim requested:', { firstName, lastName, amount, resultsCount: results.length });
+    showShareModal(firstName, lastName, amount, results);
+}
+
+// Handle free claim (share on Instagram) - direct call version
 function handleClaimFree(firstName, lastName, amount, resultsJson) {
     console.log('Free claim requested:', { firstName, lastName, amount });
     let results = [];
@@ -1503,6 +1524,7 @@ window.closeResultsModal = closeResultsModal;
 window.handleClaimSubmit = handleClaimSubmit;
 window.handleClaimPaid = handleClaimPaid;
 window.handleClaimFree = handleClaimFree;
+window.handleClaimFreeClick = handleClaimFreeClick;
 window.showNameSearchModal = showNameSearchModal;
 window.showShareModal = showShareModal;
 window.shareToInstagram = shareToInstagram;
