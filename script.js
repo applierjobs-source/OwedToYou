@@ -1340,7 +1340,7 @@ function showShareModal(firstName, lastName, amount, results = []) {
                     <h2 style="font-size: 2.5rem; font-weight: 700; margin: 0 0 8px 0; color: white;">${escapeHtml(firstName)} ${escapeHtml(lastName)}</h2>
                 </div>
                 <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.3);">
-                    <p style="font-size: 1rem; opacity: 0.95; margin-bottom: 12px; font-weight: 500;">Total Unclaimed:</p>
+                    <p style="font-size: 1rem; opacity: 0.95; margin-bottom: 12px; font-weight: 500;">Total Claimed:</p>
                     <p style="font-size: 3rem; font-weight: 700; margin: 0 0 20px 0; color: white;">$${amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
                     ${results && results.length > 0 ? `
                         <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.3); max-height: 200px; overflow-y: auto;">
@@ -1358,6 +1358,7 @@ function showShareModal(firstName, lastName, amount, results = []) {
                     ` : ''}
                 </div>
                 <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.3);">
+                    <p style="font-size: 0.95rem; opacity: 0.9; margin: 0 0 12px 0; color: white; line-height: 1.4;">Companies owe you money. Claim what's yours</p>
                     <p style="font-size: 1.5rem; font-weight: 700; margin: 0; color: white; letter-spacing: 0.5px;">OwedToYou.ai</p>
                 </div>
             </div>
