@@ -17,8 +17,11 @@ if (process.env.DATABASE_URL) {
         ssl: { rejectUnauthorized: false }
     });
     console.log('[DATABASE] PostgreSQL connection pool created');
+    console.log('[DATABASE] DATABASE_URL:', process.env.DATABASE_URL.substring(0, 20) + '...');
 } else {
-    console.warn('[DATABASE] WARNING: DATABASE_URL not set. Leaderboard will not persist. Add PostgreSQL database in Railway.');
+    console.warn('[DATABASE] WARNING: DATABASE_URL not set.');
+    console.warn('[DATABASE] To fix: In Railway, link PostgreSQL service to your app service, or manually add DATABASE_URL variable.');
+    console.warn('[DATABASE] Leaderboard will not persist until database is connected.');
 }
 
 // Initialize database table
