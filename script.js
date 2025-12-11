@@ -1124,7 +1124,7 @@ function showResultsModal(claimData, searchResult) {
                         Claim for Free
                     </button>
                     <p style="text-align: center; margin: 0; font-size: 0.85rem; opacity: 0.85; line-height: 1.4;">
-                        Notify 3 friends of their unclaimed funds and we will submit the paperwork for free.
+                        Share your rank on Instagram to claim for free.
                     </p>
                 </div>
             </div>
