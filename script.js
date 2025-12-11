@@ -1083,6 +1083,20 @@ function showResultsModal(claimData, searchResult) {
                     <span class="total-label">Total Unclaimed:</span>
                     <span class="total-value">$${searchResult.totalAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
+                <div class="claim-options" style="margin-top: 30px; padding-top: 30px; border-top: 2px solid rgba(255, 255, 255, 0.3);">
+                    <button class="btn btn-claim-paid" onclick="handleClaimPaid('${escapeHtml(claimData.firstName)}', '${escapeHtml(claimData.lastName)}', ${searchResult.totalAmount})" style="width: 100%; padding: 14px; font-size: 1.1rem; font-weight: 600; background: white; color: #667eea; border: none; border-radius: 8px; cursor: pointer; margin-bottom: 12px; transition: all 0.2s;">
+                        Claim Your Funds
+                    </button>
+                    <p style="text-align: center; margin: 0 0 20px 0; font-size: 0.9rem; opacity: 0.9;">
+                        Let us handle the paper work - $9.99
+                    </p>
+                    <button class="btn btn-claim-free" onclick="handleClaimFree('${escapeHtml(claimData.firstName)}', '${escapeHtml(claimData.lastName)}', ${searchResult.totalAmount})" style="width: 100%; padding: 14px; font-size: 1.1rem; font-weight: 600; background: rgba(255, 255, 255, 0.2); color: white; border: 2px solid white; border-radius: 8px; cursor: pointer; margin-bottom: 12px; transition: all 0.2s;">
+                        Claim for Free
+                    </button>
+                    <p style="text-align: center; margin: 0; font-size: 0.85rem; opacity: 0.85; line-height: 1.4;">
+                        Notify 3 friends of their unclaimed funds and we will submit the paperwork for free.
+                    </p>
+                </div>
             </div>
             <div class="results-list">
                 <h3>Funds by Entity:</h3>

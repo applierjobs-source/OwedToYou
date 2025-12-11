@@ -495,6 +495,18 @@ h1 {
     justify-content: center;
 }
 
+.btn-claim-paid:hover {
+    background: #f0f0f0 !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn-claim-free:hover {
+    background: rgba(255, 255, 255, 0.3) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
+}
+
 /* Progress Modal Styles */
 .progress-modal-content {
     max-width: 500px;
