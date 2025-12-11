@@ -1120,7 +1120,7 @@ function showResultsModal(claimData, searchResult) {
                         <span style="color: white; font-weight: 600; font-size: 0.9rem; opacity: 0.9;">OR</span>
                         <div style="flex: 1; height: 1px; background: rgba(255, 255, 255, 0.3);"></div>
                     </div>
-                    <button class="btn btn-claim-free" onclick="handleClaimFree('${escapeHtml(claimData.firstName)}', '${escapeHtml(claimData.lastName)}', ${searchResult.totalAmount})" style="width: 100%; padding: 14px; font-size: 1.1rem; font-weight: 600; background: rgba(255, 255, 255, 0.2); color: white; border: 2px solid white; border-radius: 8px; cursor: pointer; margin-bottom: 12px; transition: all 0.2s;">
+                    <button class="btn btn-claim-free" onclick="handleClaimFree('${escapeHtml(claimData.firstName)}', '${escapeHtml(claimData.lastName)}', ${searchResult.totalAmount}, ${JSON.stringify(searchResult.results || []).replace(/'/g, "\\'")})" style="width: 100%; padding: 14px; font-size: 1.1rem; font-weight: 600; background: rgba(255, 255, 255, 0.2); color: white; border: 2px solid white; border-radius: 8px; cursor: pointer; margin-bottom: 12px; transition: all 0.2s;">
                         Claim for Free
                     </button>
                     <p style="text-align: center; margin: 0; font-size: 0.85rem; opacity: 0.85; line-height: 1.4;">
@@ -1246,13 +1246,24 @@ function handleClaimPaid(firstName, lastName, amount) {
 }
 
 // Handle free claim (share on Instagram)
-function handleClaimFree(firstName, lastName, amount) {
+function handleClaimFree(firstName, lastName, amount, resultsJson) {
     console.log('Free claim requested:', { firstName, lastName, amount });
-    showShareModal(firstName, lastName, amount);
+    let results = [];
+    try {
+        if (typeof resultsJson === 'string') {
+            results = JSON.parse(resultsJson);
+        } else {
+            results = resultsJson || [];
+        }
+    } catch (e) {
+        console.error('Error parsing results:', e);
+        results = [];
+    }
+    showShareModal(firstName, lastName, amount, results);
 }
 
 // Show share modal with shareable card
-function showShareModal(firstName, lastName, amount) {
+function showShareModal(firstName, lastName, amount, results = []) {
     // Find user's rank
     const userHandle = (firstName + lastName).toLowerCase().replace(/\s+/g, '');
     let userRank = null;
@@ -1316,7 +1327,7 @@ function showShareModal(firstName, lastName, amount) {
                 </div>
             </div>
             <div class="share-actions" style="margin-top: 30px; display: flex; flex-direction: column; gap: 15px; align-items: center;">
-                <button class="btn btn-share-instagram" onclick="shareToInstagram('${escapeHtml(firstName)}', '${escapeHtml(lastName)}', ${amount}, ${userRank || 'null'})" style="width: 100%; max-width: 400px; padding: 14px; font-size: 1.1rem; font-weight: 600; background: linear-gradient(135deg, #E4405F 0%, #C13584 100%); color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                <button class="btn btn-share-instagram" onclick="shareToInstagram('${escapeHtml(firstName)}', '${escapeHtml(lastName)}', ${amount}, ${userRank || 'null'}, ${JSON.stringify(results || []).replace(/'/g, "\\'")})" style="width: 100%; max-width: 400px; padding: 14px; font-size: 1.1rem; font-weight: 600; background: linear-gradient(135deg, #E4405F 0%, #C13584 100%); color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
                     Share on Instagram
                 </button>
                 <button class="btn btn-download-card" onclick="downloadShareCard()" style="width: 100%; max-width: 400px; padding: 14px; font-size: 1.1rem; font-weight: 600; background: white; color: #667eea; border: 2px solid #667eea; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
