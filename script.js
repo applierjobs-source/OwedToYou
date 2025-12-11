@@ -1245,11 +1245,176 @@ function handleClaimPaid(firstName, lastName, amount) {
     alert('Payment processing coming soon! This will charge $9.99 to handle your paperwork.');
 }
 
-// Handle free claim (notify 3 friends)
+// Handle free claim (share on Instagram)
 function handleClaimFree(firstName, lastName, amount) {
     console.log('Free claim requested:', { firstName, lastName, amount });
-    // TODO: Implement friend notification system
-    alert('Free claim option coming soon! You\'ll need to notify 3 friends about their unclaimed funds.');
+    showShareModal(firstName, lastName, amount);
+}
+
+// Show share modal with shareable card
+function showShareModal(firstName, lastName, amount) {
+    // Find user's rank
+    const userHandle = (firstName + lastName).toLowerCase().replace(/\s+/g, '');
+    let userRank = null;
+    
+    if (leaderboardData && leaderboardData.length > 0) {
+        const sortedLeaderboard = [...leaderboardData].sort((a, b) => {
+            if (a.isPlaceholder && !b.isPlaceholder) return 1;
+            if (!a.isPlaceholder && b.isPlaceholder) return -1;
+            return b.amount - a.amount;
+        });
+        
+        const userIndex = sortedLeaderboard.findIndex(entry => {
+            const entryHandle = cleanHandle(entry.handle);
+            const searchHandle = cleanHandle(userHandle);
+            return entryHandle === searchHandle;
+        });
+        
+        if (userIndex >= 0) {
+            userRank = userIndex + 1;
+        }
+    }
+    
+    const modal = document.getElementById('claimModal');
+    if (!modal) {
+        console.error('Modal not found');
+        return;
+    }
+    
+    const modalContent = modal.querySelector('.modal-content');
+    if (!modalContent) {
+        console.error('Modal content not found');
+        return;
+    }
+    
+    const shareHTML = `
+        <div class="results-header">
+            <h2>Share Your Rank</h2>
+            <button class="modal-close" onclick="closeShareModal()">&times;</button>
+        </div>
+        <div class="share-content" style="padding: 30px;">
+            <p style="text-align: center; color: #666; margin-bottom: 30px; font-size: 1rem;">
+                Share this card on Instagram to claim your funds for free!
+            </p>
+            <div class="share-card" id="shareCard" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 16px; padding: 40px; color: white; text-align: center; max-width: 500px; margin: 0 auto; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);">
+                ${userRank ? `<p style="font-size: 1rem; opacity: 0.9; margin-bottom: 12px; font-weight: 500;">Rank #${userRank} on Leaderboard</p>` : ''}
+                <h2 style="font-size: 2rem; font-weight: 700; margin: 0 0 8px 0; color: white;">${escapeHtml(firstName)} ${escapeHtml(lastName)}</h2>
+                <div style="margin-top: 30px; padding-top: 30px; border-top: 2px solid rgba(255, 255, 255, 0.3);">
+                    <p style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 8px;">Total Unclaimed:</p>
+                    <p style="font-size: 3rem; font-weight: 700; margin: 0; color: white;">$${amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                </div>
+                <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.3);">
+                    <p style="font-size: 0.85rem; opacity: 0.85; margin: 0;">OwedToYou.ai</p>
+                </div>
+            </div>
+            <div class="share-actions" style="margin-top: 30px; display: flex; flex-direction: column; gap: 15px; align-items: center;">
+                <button class="btn btn-share-instagram" onclick="shareToInstagram('${escapeHtml(firstName)}', '${escapeHtml(lastName)}', ${amount}, ${userRank || 'null'})" style="width: 100%; max-width: 400px; padding: 14px; font-size: 1.1rem; font-weight: 600; background: linear-gradient(135deg, #E4405F 0%, #C13584 100%); color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                    Share on Instagram
+                </button>
+                <button class="btn btn-download-card" onclick="downloadShareCard()" style="width: 100%; max-width: 400px; padding: 14px; font-size: 1.1rem; font-weight: 600; background: white; color: #667eea; border: 2px solid #667eea; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                    Download Card Image
+                </button>
+                <p style="text-align: center; color: #666; font-size: 0.85rem; margin-top: 10px;">
+                    After sharing, your claim will be processed for free!
+                </p>
+            </div>
+        </div>
+    `;
+    
+    modalContent.innerHTML = shareHTML;
+    modal.classList.remove('hidden');
+}
+
+// Share to Instagram
+function shareToInstagram(firstName, lastName, amount, rank) {
+    const rankText = rank ? `Rank #${rank} on Leaderboard! ` : '';
+    const text = `I found $${amount.toLocaleString()} in unclaimed funds! ${rankText}Check yours at OwedToYou.ai`;
+    
+    // Try to use Web Share API if available (mobile)
+    if (navigator.share) {
+        navigator.share({
+            title: 'Unclaimed Funds Found',
+            text: text,
+            url: window.location.origin
+        }).then(() => {
+            console.log('Shared successfully');
+            // Mark as shared and process free claim
+            processFreeClaim(firstName, lastName, amount);
+        }).catch((error) => {
+            console.log('Error sharing:', error);
+            // Fallback to copy link
+            copyShareLink(text);
+        });
+    } else {
+        // Fallback: copy text to clipboard
+        copyShareLink(text);
+    }
+}
+
+// Copy share link to clipboard
+function copyShareLink(text) {
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text + ' ' + window.location.origin).then(() => {
+            alert('Share text copied to clipboard! Paste it in your Instagram post. After sharing, your claim will be processed for free.');
+            processFreeClaim(text.split(' ')[3]?.replace('$', '').replace(',', '') || '0', text.split(' ')[0], text.split(' ')[1]);
+        }).catch(err => {
+            console.error('Failed to copy:', err);
+            alert('Please manually copy and share: ' + text + ' ' + window.location.origin);
+        });
+    } else {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = text + ' ' + window.location.origin;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            alert('Share text copied to clipboard! Paste it in your Instagram post.');
+        } catch (err) {
+            alert('Please manually copy and share: ' + text + ' ' + window.location.origin);
+        }
+        document.body.removeChild(textArea);
+    }
+}
+
+// Process free claim after sharing
+function processFreeClaim(firstName, lastName, amount) {
+    console.log('Processing free claim after share:', { firstName, lastName, amount });
+    // TODO: Implement backend call to process free claim
+    // For now, just show a success message
+    alert('Thank you for sharing! Your claim is being processed for free. You will receive an email confirmation shortly.');
+    closeShareModal();
+}
+
+// Download share card as image
+function downloadShareCard() {
+    const card = document.getElementById('shareCard');
+    if (!card) return;
+    
+    // Use html2canvas library if available, or prompt user to screenshot
+    if (typeof html2canvas !== 'undefined') {
+        html2canvas(card, {
+            backgroundColor: null,
+            scale: 2,
+            logging: false
+        }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = 'unclaimed-funds-card.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        });
+    } else {
+        // Fallback: instruct user to take screenshot
+        alert('Please take a screenshot of the card above and share it on Instagram. After sharing, your claim will be processed for free.');
+    }
+}
+
+// Close share modal
+function closeShareModal() {
+    const modal = document.getElementById('claimModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
 }
 
 // Show name search modal (alternative to Instagram search)
@@ -1304,4 +1469,8 @@ window.handleClaimSubmit = handleClaimSubmit;
 window.handleClaimPaid = handleClaimPaid;
 window.handleClaimFree = handleClaimFree;
 window.showNameSearchModal = showNameSearchModal;
+window.showShareModal = showShareModal;
+window.shareToInstagram = shareToInstagram;
+window.downloadShareCard = downloadShareCard;
+window.closeShareModal = closeShareModal;
 
