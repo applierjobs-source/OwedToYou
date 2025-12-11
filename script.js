@@ -1289,13 +1289,19 @@ function showShareModal(firstName, lastName, amount) {
     
     const shareHTML = `
         <div class="results-header">
-            <h2>Share Your Rank</h2>
+            <h2>Claim Your Funds</h2>
             <button class="modal-close" onclick="closeShareModal()">&times;</button>
         </div>
         <div class="share-content" style="padding: 30px;">
-            <p style="text-align: center; color: #666; margin-bottom: 30px; font-size: 1rem;">
-                Share this card on Instagram to claim your funds for free!
-            </p>
+            <div style="background: #f8f9fa; border-radius: 12px; padding: 20px; margin-bottom: 30px;">
+                <h3 style="margin: 0 0 15px 0; color: #333; font-size: 1.1rem; font-weight: 600;">How to Claim Your Funds:</h3>
+                <ol style="margin: 0; padding-left: 20px; color: #666; line-height: 1.8;">
+                    <li style="margin-bottom: 8px;">Download image</li>
+                    <li style="margin-bottom: 8px;">Upload on Instagram</li>
+                    <li style="margin-bottom: 8px;">Tag <strong style="color: #667eea;">@OwedToYou</strong></li>
+                    <li style="margin-bottom: 0;">Receive your funds!</li>
+                </ol>
+            </div>
             <div class="share-card" id="shareCard" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 16px; padding: 40px; color: white; text-align: center; max-width: 500px; margin: 0 auto; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); min-height: 400px; display: flex; flex-direction: column; justify-content: space-between;">
                 <div>
                     ${userRank ? `<p style="font-size: 1.2rem; opacity: 0.95; margin-bottom: 16px; font-weight: 600; color: white;">Rank #${userRank} on Leaderboard</p>` : ''}
