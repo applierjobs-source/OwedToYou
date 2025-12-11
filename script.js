@@ -1126,9 +1126,6 @@ function showResultsModal(claimData, searchResult) {
     
     resultsHTML += `
             </div>
-            <div class="results-actions">
-                <button class="btn btn-submit" onclick="closeResultsModal()">Close</button>
-            </div>
         </div>
     `;
     
