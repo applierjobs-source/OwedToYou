@@ -1211,10 +1211,26 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 });
 
+// Handle paid claim ($9.99)
+function handleClaimPaid(firstName, lastName, amount) {
+    console.log('Paid claim requested:', { firstName, lastName, amount });
+    // TODO: Implement payment processing
+    alert('Payment processing coming soon! This will charge $9.99 to handle your paperwork.');
+}
+
+// Handle free claim (notify 3 friends)
+function handleClaimFree(firstName, lastName, amount) {
+    console.log('Free claim requested:', { firstName, lastName, amount });
+    // TODO: Implement friend notification system
+    alert('Free claim option coming soon! You\'ll need to notify 3 friends about their unclaimed funds.');
+}
+
 // Make functions available globally for onclick handlers
 window.handleClaim = handleClaim;
 window.handleNotify = handleNotify;
 window.closeClaimModal = closeClaimModal;
 window.closeResultsModal = closeResultsModal;
 window.handleClaimSubmit = handleClaimSubmit;
+window.handleClaimPaid = handleClaimPaid;
+window.handleClaimFree = handleClaimFree;
 
