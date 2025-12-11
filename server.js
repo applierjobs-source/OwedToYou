@@ -9,14 +9,25 @@ const { searchMissingMoney } = require('./missingMoneySearch');
 
 const PORT = process.env.PORT || 3000;
 
-// PostgreSQL connection pool
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
-});
+// PostgreSQL connection pool (only if DATABASE_URL is set)
+let pool = null;
+if (process.env.DATABASE_URL) {
+    pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+    });
+    console.log('[DATABASE] PostgreSQL connection pool created');
+} else {
+    console.warn('[DATABASE] WARNING: DATABASE_URL not set. Leaderboard will not persist. Add PostgreSQL database in Railway.');
+}
 
 // Initialize database table
 async function initializeDatabase() {
+    if (!pool) {
+        console.warn('[DATABASE] Skipping initialization - no database connection');
+        return;
+    }
+    
     try {
         await pool.query(`
             CREATE TABLE IF NOT EXISTS leaderboard (
@@ -355,6 +366,13 @@ const server = http.createServer((req, res) => {
     } else if (parsedUrl.pathname === '/api/leaderboard' && req.method === 'GET') {
         // Get leaderboard entries from PostgreSQL
         try {
+            if (!pool) {
+                console.warn(`[LEADERBOARD] GET request - database not available, returning empty array`);
+                res.writeHead(200, corsHeaders);
+                res.end(JSON.stringify({ success: true, leaderboard: [] }));
+                return;
+            }
+            
             console.log(`[LEADERBOARD] GET request - fetching from database`);
             
             const result = await pool.query(`
@@ -412,6 +430,13 @@ const server = http.createServer((req, res) => {
                     amount: entry.amount,
                     isPlaceholder: entry.isPlaceholder || false
                 });
+                
+                if (!pool) {
+                    console.warn(`[LEADERBOARD] Database not available, cannot save entry`);
+                    res.writeHead(503, corsHeaders);
+                    res.end(JSON.stringify({ success: false, error: 'Database not available. Please add PostgreSQL database in Railway.' }));
+                    return;
+                }
                 
                 // Check if entry already exists
                 const existingResult = await pool.query(
