@@ -1090,6 +1090,11 @@ function showResultsModal(claimData, searchResult) {
                     <p style="text-align: center; margin: 0 0 20px 0; font-size: 0.9rem; opacity: 0.9;">
                         Let us handle the paper work - $9.99
                     </p>
+                    <div style="display: flex; align-items: center; margin: 20px 0; gap: 15px;">
+                        <div style="flex: 1; height: 1px; background: rgba(255, 255, 255, 0.3);"></div>
+                        <span style="color: white; font-weight: 600; font-size: 0.9rem; opacity: 0.9;">OR</span>
+                        <div style="flex: 1; height: 1px; background: rgba(255, 255, 255, 0.3);"></div>
+                    </div>
                     <button class="btn btn-claim-free" onclick="handleClaimFree('${escapeHtml(claimData.firstName)}', '${escapeHtml(claimData.lastName)}', ${searchResult.totalAmount})" style="width: 100%; padding: 14px; font-size: 1.1rem; font-weight: 600; background: rgba(255, 255, 255, 0.2); color: white; border: 2px solid white; border-radius: 8px; cursor: pointer; margin-bottom: 12px; transition: all 0.2s;">
                         Claim for Free
                     </button>
