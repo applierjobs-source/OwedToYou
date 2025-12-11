@@ -1343,35 +1343,37 @@ function shareToInstagram(firstName, lastName, amount, rank) {
         }).catch((error) => {
             console.log('Error sharing:', error);
             // Fallback to copy link
-            copyShareLink(text);
+            copyShareLink(text, firstName, lastName, amount);
         });
     } else {
         // Fallback: copy text to clipboard
-        copyShareLink(text);
+        copyShareLink(text, firstName, lastName, amount);
     }
 }
 
 // Copy share link to clipboard
-function copyShareLink(text) {
+function copyShareLink(text, firstName, lastName, amount) {
+    const fullText = text + ' ' + window.location.origin;
     if (navigator.clipboard) {
-        navigator.clipboard.writeText(text + ' ' + window.location.origin).then(() => {
+        navigator.clipboard.writeText(fullText).then(() => {
             alert('Share text copied to clipboard! Paste it in your Instagram post. After sharing, your claim will be processed for free.');
-            processFreeClaim(text.split(' ')[3]?.replace('$', '').replace(',', '') || '0', text.split(' ')[0], text.split(' ')[1]);
+            processFreeClaim(firstName, lastName, amount);
         }).catch(err => {
             console.error('Failed to copy:', err);
-            alert('Please manually copy and share: ' + text + ' ' + window.location.origin);
+            alert('Please manually copy and share: ' + fullText);
         });
     } else {
         // Fallback for older browsers
         const textArea = document.createElement('textarea');
-        textArea.value = text + ' ' + window.location.origin;
+        textArea.value = fullText;
         document.body.appendChild(textArea);
         textArea.select();
         try {
             document.execCommand('copy');
-            alert('Share text copied to clipboard! Paste it in your Instagram post.');
+            alert('Share text copied to clipboard! Paste it in your Instagram post. After sharing, your claim will be processed for free.');
+            processFreeClaim(firstName, lastName, amount);
         } catch (err) {
-            alert('Please manually copy and share: ' + text + ' ' + window.location.origin);
+            alert('Please manually copy and share: ' + fullText);
         }
         document.body.removeChild(textArea);
     }
