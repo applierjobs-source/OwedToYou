@@ -416,9 +416,18 @@ h1 {
     text-align: center;
 }
 
-/* Regular Progress Modal (Searching for Unclaimed Funds) - no extra padding */
-#progressModal .modal-content {
+/* Regular Progress Modal (Searching for Unclaimed Funds) - no extra padding, use default */
+#progressModal .modal-content.progress-modal-content {
     padding: 0;
+}
+
+#progressModal .progress-header {
+    padding: 24px 30px;
+    border-bottom: 2px solid #f0f0f0;
+}
+
+#progressModal .progress-body {
+    padding: 40px 30px;
 }
 
 .progress-header {
