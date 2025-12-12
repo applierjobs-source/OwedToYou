@@ -342,39 +342,72 @@ h1 {
     padding: 30px;
 }
 
+/* Phone Modal Specific Styles */
+#phoneModal .modal-content {
+    padding: 0;
+}
+
+#phoneModal .modal-header {
+    padding: 30px 40px 24px 40px;
+    border-bottom: 2px solid #f0f0f0;
+}
+
+#phoneModal #phoneForm {
+    padding: 30px 40px 40px 40px;
+}
+
 .form-group {
     margin-bottom: 24px;
 }
 
 .form-group label {
     display: block;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
     font-weight: 600;
     color: #333;
-    font-size: 0.95rem;
+    font-size: 1rem;
 }
 
 .form-group input[type="tel"],
 .form-group input[type="text"] {
     width: 100%;
-    padding: 12px 16px;
+    padding: 14px 18px;
     border: 2px solid #e0e0e0;
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 1rem;
     transition: all 0.2s;
     box-sizing: border-box;
+    background: #fafafa;
 }
 
 .form-group input[type="tel"]:focus,
 .form-group input[type="text"]:focus {
     outline: none;
     border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    background: white;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
 }
 
 .form-group input[type="tel"]::placeholder,
 .form-group input[type="text"]::placeholder {
     color: #999;
+}
+
+.form-group small {
+    display: block;
+    margin-top: 8px;
+    color: #666;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+#phoneModal .form-actions {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid #f0f0f0;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
 }
 
 /* Phone Progress Modal Styles */
