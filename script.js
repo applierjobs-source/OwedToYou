@@ -1,6 +1,10 @@
 // Leaderboard data - loaded from backend
 let leaderboardData = [];
 
+// Immediate test to verify script is loading
+console.log('✅ script.js loaded successfully');
+console.log('✅ Current time:', new Date().toISOString());
+
 // Get initials from name
 function getInitials(name) {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();

@@ -245,6 +245,30 @@
         </div>
     </div>
 
+    <script>
+        // Test script loading
+        console.log('✅ HTML script tag executed');
+        window.addEventListener('load', function() {
+            console.log('✅ Window loaded');
+            const btn = document.getElementById('searchBtn');
+            const input = document.getElementById('instagramHandle');
+            console.log('✅ Search button found:', !!btn);
+            console.log('✅ Search input found:', !!input);
+            
+            if (btn) {
+                console.log('✅ Adding click listener to search button');
+                btn.addEventListener('click', function() {
+                    console.log('🖱️ Button clicked (inline handler)');
+                    if (typeof handleSearch === 'function') {
+                        console.log('✅ handleSearch function exists, calling it');
+                        handleSearch();
+                    } else {
+                        console.error('❌ handleSearch function not found!');
+                    }
+                });
+            }
+        });
+    </script>
     <script src="script.js"></script>
 </body>
 </html>
