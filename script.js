@@ -386,6 +386,40 @@ async function loadLeaderboard() {
     }
 }
 
+// Delete entry from leaderboard
+async function deleteFromLeaderboard(handle) {
+    try {
+        const apiBase = window.location.origin;
+        const response = await fetch(`${apiBase}/api/leaderboard?handle=${encodeURIComponent(handle)}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        if (data.success && data.leaderboard) {
+            // Filter out placeholders
+            leaderboardData = data.leaderboard
+                .filter(entry => !entry.isPlaceholder)
+                .map(entry => ({
+                    ...entry,
+                    profilePic: null,
+                    isPlaceholder: false
+                }));
+            // Refresh display if leaderboard is visible
+            if (!document.getElementById('leaderboard').classList.contains('hidden')) {
+                displayLeaderboard(leaderboardData);
+            }
+            return true;
+        }
+        return false;
+    } catch (error) {
+        console.error('Error deleting from leaderboard:', error);
+        return false;
+    }
+}
+
 // Add entry to leaderboard (or update if exists)
 async function addToLeaderboard(name, handle, amount, isPlaceholder = false, refreshDisplay = false) {
     try {

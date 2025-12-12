@@ -412,6 +412,66 @@ const server = http.createServer((req, res) => {
                 res.end(JSON.stringify({ success: false, error: error.message }));
             }
         })();
+    } else if (parsedUrl.pathname === '/api/leaderboard' && parsedUrl.query.handle && req.method === 'DELETE') {
+        // Delete entry from leaderboard
+        (async () => {
+            try {
+                if (!pool) {
+                    console.warn(`[LEADERBOARD] DELETE request - database not available`);
+                    res.writeHead(503, corsHeaders);
+                    res.end(JSON.stringify({ success: false, error: 'Database not available' }));
+                    return;
+                }
+                
+                const handle = decodeURIComponent(parsedUrl.query.handle);
+                console.log(`[LEADERBOARD] DELETE request for handle: ${handle}`);
+                
+                const result = await pool.query(
+                    'DELETE FROM leaderboard WHERE handle = $1 RETURNING *',
+                    [handle]
+                );
+                
+                if (result.rows.length > 0) {
+                    console.log(`[LEADERBOARD] Deleted entry: ${handle}`);
+                    
+                    // Fetch updated leaderboard
+                    const leaderboardResult = await pool.query(`
+                        SELECT 
+                            name,
+                            handle,
+                            amount,
+                            is_placeholder as "isPlaceholder",
+                            created_at as "createdAt",
+                            updated_at as "updatedAt"
+                        FROM leaderboard
+                        WHERE is_placeholder = false
+                        ORDER BY 
+                            CASE WHEN is_placeholder THEN 1 ELSE 0 END,
+                            amount DESC
+                    `);
+                    
+                    const leaderboard = leaderboardResult.rows.map(row => ({
+                        name: row.name,
+                        handle: row.handle,
+                        amount: row.amount,
+                        isPlaceholder: row.isPlaceholder,
+                        createdAt: row.createdAt,
+                        updatedAt: row.updatedAt
+                    }));
+                    
+                    res.writeHead(200, corsHeaders);
+                    res.end(JSON.stringify({ success: true, leaderboard: leaderboard }));
+                } else {
+                    console.log(`[LEADERBOARD] Entry not found: ${handle}`);
+                    res.writeHead(404, corsHeaders);
+                    res.end(JSON.stringify({ success: false, error: 'Entry not found' }));
+                }
+            } catch (error) {
+                console.error(`[LEADERBOARD] DELETE error:`, error);
+                res.writeHead(500, corsHeaders);
+                res.end(JSON.stringify({ success: false, error: error.message }));
+            }
+        })();
     } else if (parsedUrl.pathname === '/api/leaderboard' && req.method === 'POST') {
         // Add entry to leaderboard
         let body = '';
