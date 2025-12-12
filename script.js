@@ -829,17 +829,42 @@ async function handleSearch() {
                         // Start search with fallback name
                         await startMissingMoneySearch(fallbackFirstName, fallbackLastName, cleanHandleValue);
                     } else {
-                        // Last resort: show form
-                        showClaimForm(cleanHandleValue, '', '');
+                        // Use handle as last name if we can't split it
+                        const handleAsName = cleanHandleValue.charAt(0).toUpperCase() + cleanHandleValue.slice(1).toLowerCase();
+                        console.log(`Starting search with handle as name: ${handleAsName}`);
                         searchBtn.disabled = false;
                         searchBtn.textContent = 'Search';
+                        // Split handle into first and last (use first word as first name, rest as last)
+                        const handleParts = handleAsName.split(/\s+|_/).filter(p => p.length > 0);
+                        if (handleParts.length >= 2) {
+                            await startMissingMoneySearch(handleParts[0], handleParts.slice(1).join(' '), cleanHandleValue);
+                        } else {
+                            // Use handle as last name, "User" as first name
+                            await startMissingMoneySearch('User', handleAsName, cleanHandleValue);
+                        }
                     }
                 } else {
-                    // Last resort: show form
-                    console.log('Could not extract name, showing form');
-                    showClaimForm(cleanHandleValue, '', '');
+                    // Use handle as name - split it or use as last name
+                    const handleAsName = cleanHandleValue.charAt(0).toUpperCase() + cleanHandleValue.slice(1).toLowerCase();
+                    console.log(`Starting search with handle as name: ${handleAsName}`);
                     searchBtn.disabled = false;
                     searchBtn.textContent = 'Search';
+                    // Try to split handle - use first part as first name, rest as last
+                    const handleParts = handleAsName.split(/\s+|_/).filter(p => p.length > 0);
+                    if (handleParts.length >= 2) {
+                        await startMissingMoneySearch(handleParts[0], handleParts.slice(1).join(' '), cleanHandleValue);
+                    } else if (handleParts.length === 1 && handleParts[0].length > 6) {
+                        // Try to split long single word
+                        const mid = Math.floor(handleParts[0].length / 2);
+                        await startMissingMoneySearch(
+                            handleParts[0].substring(0, mid).charAt(0).toUpperCase() + handleParts[0].substring(1, mid).toLowerCase(),
+                            handleParts[0].substring(mid).charAt(0).toUpperCase() + handleParts[0].substring(mid + 1).toLowerCase(),
+                            cleanHandleValue
+                        );
+                    } else {
+                        // Use handle as last name, "User" as first name
+                        await startMissingMoneySearch('User', handleAsName, cleanHandleValue);
+                    }
                 }
             }
         }
