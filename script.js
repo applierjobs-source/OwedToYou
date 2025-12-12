@@ -1592,6 +1592,127 @@ function closeShareModal() {
     }
 }
 
+// Show mailing address modal
+function showMailingAddressModal() {
+    const modal = document.getElementById('mailingAddressModal');
+    if (modal) {
+        // Initialize date dropdowns
+        initializeDateDropdowns();
+        
+        modal.classList.remove('hidden');
+        // Focus on first field
+        setTimeout(() => {
+            document.getElementById('mailingLastName').focus();
+        }, 100);
+    }
+}
+
+// Close mailing address modal
+function closeMailingAddressModal() {
+    const modal = document.getElementById('mailingAddressModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
+// Toggle SSN visibility
+function toggleSSNVisibility() {
+    const ssnInput = document.getElementById('mailingSSN');
+    const toggleIcon = document.getElementById('ssnToggleIcon');
+    if (ssnInput && toggleIcon) {
+        if (ssnInput.type === 'password') {
+            ssnInput.type = 'text';
+            toggleIcon.textContent = '🙈';
+        } else {
+            ssnInput.type = 'password';
+            toggleIcon.textContent = '👁️';
+        }
+    }
+}
+
+// Initialize date dropdowns when modal opens
+function initializeDateDropdowns() {
+    const monthSelect = document.getElementById('mailingMonth');
+    const daySelect = document.getElementById('mailingDay');
+    const yearSelect = document.getElementById('mailingYear');
+    
+    if (monthSelect && monthSelect.options.length <= 1) {
+        // Populate months
+        for (let i = 1; i <= 12; i++) {
+            const option = document.createElement('option');
+            option.value = String(i).padStart(2, '0');
+            option.textContent = String(i).padStart(2, '0');
+            monthSelect.appendChild(option);
+        }
+    }
+    
+    if (daySelect && daySelect.options.length <= 1) {
+        // Populate days
+        for (let i = 1; i <= 31; i++) {
+            const option = document.createElement('option');
+            option.value = String(i).padStart(2, '0');
+            option.textContent = String(i).padStart(2, '0');
+            daySelect.appendChild(option);
+        }
+    }
+    
+    if (yearSelect && yearSelect.options.length <= 1) {
+        // Populate years (last 100 years)
+        const currentYear = new Date().getFullYear();
+        for (let i = 0; i < 100; i++) {
+            const year = currentYear - i;
+            const option = document.createElement('option');
+            option.value = year;
+            option.textContent = year;
+            yearSelect.appendChild(option);
+        }
+    }
+}
+
+// Handle mailing address form submission
+function handleMailingAddressSubmit(event) {
+    event.preventDefault();
+    const form = event.target;
+    const formData = new FormData(form);
+    
+    // Validate email confirmation
+    const email = formData.get('email');
+    const emailConfirm = formData.get('emailConfirm');
+    if (email !== emailConfirm) {
+        alert('Email addresses do not match. Please try again.');
+        return;
+    }
+    
+    // Collect all form data
+    const mailingData = {
+        lastName: formData.get('lastName'),
+        firstName: formData.get('firstName'),
+        dateOfBirth: {
+            month: formData.get('month'),
+            day: formData.get('day'),
+            year: formData.get('year')
+        },
+        email: email,
+        phone: formData.get('phone'),
+        phone2: formData.get('phone2'),
+        ssn: formData.get('ssn'),
+        country: formData.get('country'),
+        address1: formData.get('address1'),
+        city: formData.get('city'),
+        state: formData.get('state'),
+        zipCode: formData.get('zipCode')
+    };
+    
+    console.log('Mailing address submitted:', mailingData);
+    
+    // TODO: Send to backend for processing
+    // For now, just show success message
+    alert('Thank you! Your mailing address has been submitted. You will receive your check at the provided address after verification.');
+    
+    // Close modal
+    closeMailingAddressModal();
+}
+
 // Show name search modal (alternative to Instagram search)
 function showNameSearchModal() {
     // For now, just show an alert. You can implement a full modal later if needed.
