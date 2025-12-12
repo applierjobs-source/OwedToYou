@@ -614,6 +614,47 @@ async function deleteFromLeaderboard(handle) {
     }
 }
 
+// Clear all Instagram handles from leaderboard
+async function clearLeaderboardHandles() {
+    try {
+        const apiBase = window.location.origin;
+        const response = await fetch(`${apiBase}/api/leaderboard/clear-handles`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            console.log(`✅ Cleared ${data.cleared} handles from leaderboard`);
+            if (data.leaderboard) {
+                leaderboardData = data.leaderboard
+                    .filter(entry => !entry.isPlaceholder)
+                    .map(entry => ({
+                        ...entry,
+                        profilePic: null,
+                        isPlaceholder: false
+                    }));
+                // Refresh display if leaderboard is visible
+                if (!document.getElementById('leaderboard').classList.contains('hidden')) {
+                    displayLeaderboard(leaderboardData);
+                }
+            }
+            alert(`Successfully cleared ${data.cleared} Instagram handles from the leaderboard.`);
+            return true;
+        } else {
+            console.error('Error clearing handles:', data.error);
+            alert(`Error: ${data.error}`);
+            return false;
+        }
+    } catch (error) {
+        console.error('Error clearing handles:', error);
+        alert(`Error clearing handles: ${error.message}`);
+        return false;
+    }
+}
+
 // Add entry to leaderboard (or update if exists)
 async function addToLeaderboard(name, handle, amount, isPlaceholder = false, refreshDisplay = false, entities = null) {
     try {
@@ -2222,6 +2263,7 @@ window.handleClaim = handleClaim;
 window.handleView = handleView;
 window.closeViewModal = closeViewModal;
 window.handleNotify = handleNotify;
+window.clearLeaderboardHandles = clearLeaderboardHandles;
 window.closeClaimModal = closeClaimModal;
 window.closeResultsModal = closeResultsModal;
 window.handleClaimSubmit = handleClaimSubmit;

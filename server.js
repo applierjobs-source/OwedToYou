@@ -606,6 +606,88 @@ const server = http.createServer((req, res) => {
                 res.end(JSON.stringify({ success: false, error: error.message }));
             }
         })();
+    } else if (parsedUrl.pathname === '/api/leaderboard/clear-handles' && req.method === 'POST') {
+        // Clear all Instagram handles from leaderboard
+        (async () => {
+            try {
+                if (!pool) {
+                    console.warn(`[LEADERBOARD] CLEAR HANDLES request - database not available`);
+                    res.writeHead(503, corsHeaders);
+                    res.end(JSON.stringify({ success: false, error: 'Database not available' }));
+                    return;
+                }
+                
+                console.log(`[LEADERBOARD] Clearing all handles from leaderboard`);
+                
+                // First, drop the UNIQUE constraint on handle
+                try {
+                    await pool.query(`
+                        ALTER TABLE leaderboard 
+                        DROP CONSTRAINT IF EXISTS leaderboard_handle_key
+                    `);
+                    console.log(`[LEADERBOARD] Dropped UNIQUE constraint on handle`);
+                } catch (e) {
+                    console.log(`[LEADERBOARD] No UNIQUE constraint to drop or error:`, e.message);
+                }
+                
+                // Update all handles to empty string
+                const updateResult = await pool.query(
+                    'UPDATE leaderboard SET handle = $1 WHERE handle != $1',
+                    ['']
+                );
+                
+                console.log(`[LEADERBOARD] Cleared ${updateResult.rowCount} handles`);
+                
+                // Re-add UNIQUE constraint (will work now that all are empty, but won't enforce uniqueness for empty strings)
+                // Actually, let's not re-add it since empty strings can't be unique
+                // We'll just leave it without the constraint, or add a non-unique index
+                try {
+                    await pool.query(`
+                        CREATE INDEX IF NOT EXISTS idx_leaderboard_handle ON leaderboard(handle)
+                    `);
+                } catch (e) {
+                    console.log(`[LEADERBOARD] Index creation note:`, e.message);
+                }
+                
+                // Fetch updated leaderboard
+                const leaderboardResult = await pool.query(`
+                    SELECT 
+                        name,
+                        handle,
+                        amount,
+                        is_placeholder as "isPlaceholder",
+                        entities,
+                        created_at as "createdAt",
+                        updated_at as "updatedAt"
+                    FROM leaderboard
+                    WHERE is_placeholder = false
+                    ORDER BY 
+                        CASE WHEN is_placeholder THEN 1 ELSE 0 END,
+                        amount DESC
+                `);
+                
+                const leaderboard = leaderboardResult.rows.map(row => ({
+                    name: row.name,
+                    handle: row.handle,
+                    amount: row.amount,
+                    isPlaceholder: row.isPlaceholder || false,
+                    entities: typeof row.entities === 'string' ? JSON.parse(row.entities) : row.entities,
+                    createdAt: row.createdAt,
+                    updatedAt: row.updatedAt
+                }));
+                
+                res.writeHead(200, corsHeaders);
+                res.end(JSON.stringify({ 
+                    success: true, 
+                    cleared: updateResult.rowCount,
+                    leaderboard: leaderboard 
+                }));
+            } catch (error) {
+                console.error(`[LEADERBOARD] CLEAR HANDLES error:`, error);
+                res.writeHead(500, corsHeaders);
+                res.end(JSON.stringify({ success: false, error: error.message }));
+            }
+        })();
     } else if (parsedUrl.pathname === '/api/leaderboard' && parsedUrl.query.handle && req.method === 'DELETE') {
         // Delete entry from leaderboard
         (async () => {
