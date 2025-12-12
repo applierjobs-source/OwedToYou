@@ -1173,28 +1173,38 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                     }
                     
                     // Fallback: search in row text for amount patterns (MUST have dollar sign)
+                    // Also check for "UNDISCLOSED"
                     if (!amount || !amount.includes('$')) {
-                        const amountPatterns = [
-                            /over\s+\$[\d,]+/i,
-                            /\$\d+[\s,]*to[\s,]*\$\d+/i,
-                            /\$[\d,]+\.?\d*/g
-                        ];
-                        
-                        for (const pattern of amountPatterns) {
-                            const match = rowText.match(pattern);
-                            if (match && match[0].includes('$')) {
-                                amount = match[0].toUpperCase();
-                                break;
+                        // Check for "UNDISCLOSED" first
+                        if (rowText.toUpperCase().includes('UNDISCLOSED')) {
+                            amount = '$100';
+                        } else {
+                            const amountPatterns = [
+                                /over\s+\$[\d,]+/i,
+                                /\$\d+[\s,]*to[\s,]*\$\d+/i,
+                                /\$[\d,]+\.?\d*/g
+                            ];
+                            
+                            for (const pattern of amountPatterns) {
+                                const match = rowText.match(pattern);
+                                if (match && match[0].includes('$')) {
+                                    amount = match[0].toUpperCase();
+                                    break;
+                                }
                             }
                         }
                     }
                     
                     // CRITICAL: If amount is still "CLAIM" or doesn't have $, search entire row more aggressively
                     if (!amount || amount === 'CLAIM' || !amount.includes('$')) {
-                        // Search all cells for amount patterns
+                        // Search all cells for amount patterns or UNDISCLOSED
                         for (const cell of cells) {
                             const cellText = cell.innerText.trim().toUpperCase();
-                            if (cellText.includes('$') && (cellText.includes('OVER') || cellText.includes('TO') || /\$\d+/.test(cellText))) {
+                            // Check for UNDISCLOSED first
+                            if (cellText === 'UNDISCLOSED') {
+                                amount = '$100';
+                                break;
+                            } else if (cellText.includes('$') && (cellText.includes('OVER') || cellText.includes('TO') || /\$\d+/.test(cellText))) {
                                 amount = cellText;
                                 break;
                             }
