@@ -1447,8 +1447,8 @@ async function showShareModal(firstName, lastName, amount, results = []) {
                     <ol style="margin: 0 0 12px 0; padding-left: 20px; color: #666; line-height: 1.8;">
                         <li style="margin-bottom: 8px;">Download your claim image</li>
                         <li style="margin-bottom: 8px;">Post it on Instagram</li>
-                        <li style="margin-bottom: 8px;">Tag <strong style="color: #667eea;">@OwedToYou</strong></li>
-                        <li style="margin-bottom: 0;">Funds are released after verification ✅</li>
+                        <li style="margin-bottom: 8px;">Tag <strong style="color: #667eea;">@OwedToYou</strong> for validation</li>
+                        <li style="margin-bottom: 0;">Enter your mailing address <a href="#" onclick="showMailingAddressModal(); return false;" style="color: #667eea; text-decoration: underline; font-weight: 600;">here</a> to receive your check!</li>
                     </ol>
                     <p style="margin: 0; padding-top: 12px; border-top: 1px solid #e0e0e0; color: #888; font-size: 0.9rem; line-height: 1.5; font-style: italic;">Your post may help someone else find money they didn't know they had.</p>
                 </div>
@@ -1655,4 +1655,8 @@ window.closePhoneModal = closePhoneModal;
 window.deleteFromLeaderboard = deleteFromLeaderboard;
 window.showPhoneProgressModal = showPhoneProgressModal;
 window.hidePhoneProgressModal = hidePhoneProgressModal;
+window.showMailingAddressModal = showMailingAddressModal;
+window.closeMailingAddressModal = closeMailingAddressModal;
+window.handleMailingAddressSubmit = handleMailingAddressSubmit;
+window.toggleSSNVisibility = toggleSSNVisibility;
 
