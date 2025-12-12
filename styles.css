@@ -411,9 +411,14 @@ h1 {
 }
 
 /* Phone Progress Modal Styles */
-.progress-modal-content {
+#phoneProgressModal .progress-modal-content {
     padding: 40px;
     text-align: center;
+}
+
+/* Regular Progress Modal (Searching for Unclaimed Funds) - no extra padding */
+#progressModal .modal-content {
+    padding: 0;
 }
 
 .progress-header {
