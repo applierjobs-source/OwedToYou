@@ -1355,7 +1355,7 @@ function handleClaimFreeClick(button) {
 }
 
 // Handle free claim (share on Instagram) - direct call version
-function handleClaimFree(firstName, lastName, amount, resultsJson) {
+async function handleClaimFree(firstName, lastName, amount, resultsJson) {
     console.log('Free claim requested:', { firstName, lastName, amount });
     let results = [];
     try {
@@ -1368,11 +1368,14 @@ function handleClaimFree(firstName, lastName, amount, resultsJson) {
         console.error('Error parsing results:', e);
         results = [];
     }
-    showShareModal(firstName, lastName, amount, results);
+    await showShareModal(firstName, lastName, amount, results);
 }
 
 // Show share modal with shareable card
-function showShareModal(firstName, lastName, amount, results = []) {
+async function showShareModal(firstName, lastName, amount, results = []) {
+    // Reload leaderboard to ensure we have the latest data including the user's entry
+    await loadLeaderboard();
+    
     // Find user's rank
     const userHandle = (firstName + lastName).toLowerCase().replace(/\s+/g, '');
     let userRank = null;
@@ -1392,7 +1395,19 @@ function showShareModal(firstName, lastName, amount, results = []) {
         
         if (userIndex >= 0) {
             userRank = userIndex + 1;
+        } else {
+            // If user not found, calculate rank based on amount (where they would rank)
+            const rankByAmount = sortedLeaderboard.findIndex(entry => entry.amount < amount) + 1;
+            userRank = rankByAmount > 0 ? rankByAmount : sortedLeaderboard.length + 1;
         }
+    } else {
+        // If no leaderboard data, user is rank #1
+        userRank = 1;
+    }
+    
+    // Ensure rank is always displayed (never null)
+    if (!userRank) {
+        userRank = 1;
     }
     
     const modal = document.getElementById('claimModal');
@@ -1425,7 +1440,7 @@ function showShareModal(firstName, lastName, amount, results = []) {
                 </div>
             <div class="share-card" id="shareCard" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 16px; padding: 40px; color: white; text-align: center; max-width: 500px; margin: 0 auto; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); min-height: 400px; display: flex; flex-direction: column; justify-content: space-between;">
                 <div>
-                    ${userRank ? `<p style="font-size: 1.2rem; opacity: 0.95; margin-bottom: 16px; font-weight: 600; color: white;">Rank #${userRank} on Leaderboard</p>` : ''}
+                    <p style="font-size: 1.2rem; opacity: 0.95; margin-bottom: 16px; font-weight: 600; color: white;">Rank #${userRank} on Leaderboard</p>
                     <h2 style="font-size: 2.5rem; font-weight: 700; margin: 0 0 8px 0; color: white;">${escapeHtml(firstName)} ${escapeHtml(lastName)}</h2>
                 </div>
                 <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.3);">
