@@ -1574,4 +1574,5 @@ window.closeShareModal = closeShareModal;
 window.showPhoneModal = showPhoneModal;
 window.handlePhoneSubmit = handlePhoneSubmit;
 window.closePhoneModal = closePhoneModal;
+window.deleteFromLeaderboard = deleteFromLeaderboard;
 
