@@ -20,7 +20,7 @@ async function getInstagramFullName(username) {
         const proxyUrl = 'https://api.allorigins.win/raw?url=';
         
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
         
         const response = await fetch(`${proxyUrl}${encodeURIComponent(apiUrl)}`, {
             method: 'GET',
@@ -67,6 +67,37 @@ async function getInstagramFullName(username) {
                         console.log(`Failed to parse _sharedData for name:`, e.message);
                         continue;
                     }
+                }
+            }
+            
+            // Try alternative method: look for meta tags or title
+            const metaNameMatch = html.match(/<meta\s+property="og:title"\s+content="([^"]+)"/i) ||
+                                        html.match(/<title>([^<]+)<\/title>/i);
+            if (metaNameMatch && metaNameMatch[1]) {
+                const title = metaNameMatch[1].trim();
+                // Extract name from title (format is usually "Name (@username) • Instagram")
+                const nameMatch = title.match(/^([^(]+)/);
+                if (nameMatch && nameMatch[1]) {
+                    const extractedName = nameMatch[1].trim();
+                    // Only return if it doesn't look like just a username
+                    if (extractedName && !extractedName.startsWith('@') && extractedName.length > 0) {
+                        console.log(`Found Instagram name from title: ${extractedName}`);
+                        return extractedName;
+                    }
+                }
+            }
+            
+            // Try to find name in JSON-LD structured data
+            const jsonLdMatch = html.match(/<script[^>]*type="application\/ld\+json"[^>]*>(.*?)<\/script>/is);
+            if (jsonLdMatch) {
+                try {
+                    const jsonLd = JSON.parse(jsonLdMatch[1]);
+                    if (jsonLd.name && typeof jsonLd.name === 'string' && !jsonLd.name.startsWith('@')) {
+                        console.log(`Found Instagram name from JSON-LD: ${jsonLd.name}`);
+                        return jsonLd.name.trim();
+                    }
+                } catch (e) {
+                    // Not valid JSON, continue
                 }
             }
         }
@@ -715,7 +746,7 @@ async function handleSearch() {
             searchBtn.disabled = false;
             searchBtn.textContent = 'Search';
         } else {
-            // User doesn't exist - get Instagram full name and show claim form
+            // User doesn't exist - get Instagram full name and start search automatically
             const fullName = await getInstagramFullName(cleanHandleValue);
             
             // Split full name into first and last name
@@ -727,22 +758,90 @@ async function handleSearch() {
                 lastName = nameParts.slice(1).join(' ') || '';
             }
             
-            // Fallback: use handle if no name found
-            if (!firstName) {
-                const handleName = cleanHandleValue.replace(/_/g, ' ');
-                const capitalizedName = handleName.split(' ').map(word => 
-                    word.charAt(0).toUpperCase() + word.slice(1)
+            // Log what we found
+            console.log('Instagram name extraction result:', { fullName, firstName, lastName });
+            
+            // If we got a valid name, start the search automatically
+            if (firstName && lastName) {
+                console.log(`Starting search with extracted name: ${firstName} ${lastName}`);
+                // Re-enable button immediately
+                searchBtn.disabled = false;
+                searchBtn.textContent = 'Search';
+                
+                // Start the search automatically
+                await startMissingMoneySearch(firstName, lastName, cleanHandleValue);
+            } else {
+                console.log('Could not extract name from Instagram, trying fallback methods...');
+                // Fallback: if we can't get the name, try to extract from handle
+                // Remove common prefixes like "coach", "the", etc.
+                let handleName = cleanHandleValue
+                    .replace(/^coach/gi, '')
+                    .replace(/^the/gi, '')
+                    .replace(/^mr/gi, '')
+                    .replace(/^mrs/gi, '')
+                    .replace(/^ms/gi, '')
+                    .replace(/_/g, ' ')
+                    .trim();
+                
+                // Try to split on common patterns (camelCase, numbers, etc.)
+                handleName = handleName.replace(/([a-z])([A-Z])/g, '$1 $2'); // camelCase
+                handleName = handleName.replace(/([a-z])(\d)/g, '$1 $2'); // letter then number
+                
+                let nameParts = handleName.split(/\s+/).filter(part => part.length > 0);
+                
+                // If we only have one part (like "chriscerda"), try to intelligently split it
+                if (nameParts.length === 1 && nameParts[0].length > 6) {
+                    const combined = nameParts[0].toLowerCase();
+                    // Try to find a split point - look for common name patterns
+                    // For "chriscerda", try splitting after "chris" (5 chars)
+                    // Common first names: chris, john, mike, dave, etc.
+                    const commonFirstNames = ['chris', 'john', 'mike', 'dave', 'joe', 'bob', 'tom', 'dan', 'sam', 'max', 'alex', 'nick', 'josh', 'matt', 'ryan', 'jake', 'luke', 'mark', 'paul', 'steve'];
+                    
+                    for (const commonName of commonFirstNames) {
+                        if (combined.startsWith(commonName) && combined.length > commonName.length) {
+                            const firstName = commonName.charAt(0).toUpperCase() + commonName.slice(1);
+                            const lastName = combined.slice(commonName.length);
+                            // Capitalize first letter of last name
+                            const capitalizedLastName = lastName.charAt(0).toUpperCase() + lastName.slice(1);
+                            nameParts = [firstName, capitalizedLastName];
+                            console.log(`Split combined name "${combined}" into "${firstName} ${capitalizedLastName}"`);
+                            break;
+                        }
+                    }
+                }
+                
+                const capitalizedName = nameParts.map(word => 
+                    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
                 ).join(' ');
-                const nameParts = capitalizedName.split(/\s+/);
-                firstName = nameParts[0] || '';
-                lastName = nameParts.slice(1).join(' ') || '';
+                const finalNameParts = capitalizedName.split(/\s+/).filter(part => part.length > 0);
+                
+                // If we have at least 2 parts, use them
+                if (finalNameParts.length >= 2) {
+                    const fallbackFirstName = finalNameParts[0] || '';
+                    const fallbackLastName = finalNameParts.slice(1).join(' ') || '';
+                    
+                    if (fallbackFirstName && fallbackLastName) {
+                        console.log(`Starting search with fallback name: ${fallbackFirstName} ${fallbackLastName}`);
+                        // Re-enable button immediately
+                        searchBtn.disabled = false;
+                        searchBtn.textContent = 'Search';
+                        
+                        // Start search with fallback name
+                        await startMissingMoneySearch(fallbackFirstName, fallbackLastName, cleanHandleValue);
+                    } else {
+                        // Last resort: show form
+                        showClaimForm(cleanHandleValue, '', '');
+                        searchBtn.disabled = false;
+                        searchBtn.textContent = 'Search';
+                    }
+                } else {
+                    // Last resort: show form
+                    console.log('Could not extract name, showing form');
+                    showClaimForm(cleanHandleValue, '', '');
+                    searchBtn.disabled = false;
+                    searchBtn.textContent = 'Search';
+                }
             }
-            
-            showClaimForm(cleanHandleValue, firstName, lastName);
-            
-            // Re-enable button immediately
-            searchBtn.disabled = false;
-            searchBtn.textContent = 'Search';
         }
     } catch (error) {
         console.error('Error generating leaderboard:', error);
@@ -993,19 +1092,10 @@ function hideProgressModal() {
     progressModal.classList.add('hidden');
 }
 
-// Handle claim form submission
-async function handleClaimSubmit(event) {
-    event.preventDefault();
-    
-    const form = event.target;
-    const formData = new FormData(form);
-    const submitButton = form.querySelector('.btn-submit');
-    
-    const firstName = formData.get('firstName');
-    const lastName = formData.get('lastName');
-    
+// Start missing money search directly with first and last name
+async function startMissingMoneySearch(firstName, lastName, handle) {
     if (!firstName || !lastName) {
-        alert('Please enter your first and last name');
+        alert('Unable to extract name from Instagram. Please try searching by name instead.');
         return;
     }
     
@@ -1015,16 +1105,11 @@ async function handleClaimSubmit(event) {
         city: '', // Not required by missingmoney.com
         state: '', // Not required by missingmoney.com
         phone: '', // Not required
-        name: formData.get('name') || `${firstName} ${lastName}`.toLowerCase().replace(/\s+/g, ''),
-        amount: parseFloat(formData.get('amount')) || 0
+        name: handle || `${firstName} ${lastName}`.toLowerCase().replace(/\s+/g, ''),
+        amount: 0
     };
     
-    // Close claim form modal and show progress modal
-    closeClaimModal();
-    
-    // Small delay to ensure modal transition is smooth
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
+    // Show progress modal
     showProgressModal();
     
     // Track start time to ensure minimum display time
@@ -1167,6 +1252,32 @@ async function handleClaimSubmit(event) {
         // Show error in a modal instead of alert
         showErrorModal('An error occurred while searching. Please try again.');
     }
+}
+
+// Handle claim form submission
+async function handleClaimSubmit(event) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const formData = new FormData(form);
+    
+    const firstName = formData.get('firstName');
+    const lastName = formData.get('lastName');
+    
+    if (!firstName || !lastName) {
+        alert('Please enter your first and last name');
+        return;
+    }
+    
+    // Close claim form modal
+    closeClaimModal();
+    
+    // Small delay to ensure modal transition is smooth
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    // Start search with form data
+    const handle = formData.get('name') || '';
+    await startMissingMoneySearch(firstName, lastName, handle);
 }
 
 // Show no results modal
