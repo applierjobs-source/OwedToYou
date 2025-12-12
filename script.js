@@ -744,6 +744,9 @@ function updatePhoneProgressMessage(message) {
     const messageEl = document.getElementById('phoneProgressMessage');
     if (messageEl) {
         messageEl.textContent = message;
+        if (message.includes('found')) {
+            messageEl.classList.add('success');
+        }
     }
 }
 

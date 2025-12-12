@@ -377,6 +377,68 @@ h1 {
     color: #999;
 }
 
+/* Phone Progress Modal Styles */
+.progress-modal-content {
+    padding: 40px;
+    text-align: center;
+}
+
+.progress-header {
+    margin-bottom: 30px;
+}
+
+.progress-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: #333;
+    font-weight: 600;
+}
+
+.progress-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+}
+
+.progress-spinner {
+    width: 80px;
+    height: 80px;
+    position: relative;
+}
+
+.progress-spinner .spinner {
+    width: 80px;
+    height: 80px;
+    border: 6px solid #f0f0f0;
+    border-top: 6px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.progress-status {
+    min-height: 40px;
+}
+
+.progress-message {
+    font-size: 1.1rem;
+    color: #333;
+    font-weight: 500;
+    margin: 0;
+    transition: all 0.3s ease;
+}
+
+.progress-message.success {
+    color: #10b981;
+    font-weight: 600;
+    font-size: 1.3rem;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
 .form-group label {
     display: block;
     margin-bottom: 8px;
