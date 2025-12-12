@@ -11,6 +11,73 @@ function cleanHandle(handle) {
     return handle.replace('@', '').trim().toLowerCase();
 }
 
+// Get Instagram full name from profile
+async function getInstagramFullName(username) {
+    const cleanUsername = cleanHandle(username);
+    
+    try {
+        const apiUrl = `https://www.instagram.com/${cleanUsername}/`;
+        const proxyUrl = 'https://api.allorigins.win/raw?url=';
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        
+        const response = await fetch(`${proxyUrl}${encodeURIComponent(apiUrl)}`, {
+            method: 'GET',
+            signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+            const html = await response.text();
+            
+            // Try to extract from window._sharedData
+            const sharedDataPatterns = [
+                /window\._sharedData\s*=\s*({[\s\S]+?});\s*<\/script>/,
+                /window\._sharedData\s*=\s*({.+?});/s,
+                /window\._sharedData\s*=\s*({[\s\S]+?});/,
+            ];
+            
+            for (const pattern of sharedDataPatterns) {
+                const sharedDataMatch = html.match(pattern);
+                if (sharedDataMatch && sharedDataMatch[1]) {
+                    try {
+                        let jsonStr = sharedDataMatch[1].trim();
+                        jsonStr = jsonStr.replace(/;[\s]*$/, '');
+                        const sharedData = JSON.parse(jsonStr);
+                        
+                        // Try multiple paths to find the full name
+                        const possiblePaths = [
+                            sharedData?.entry_data?.ProfilePage?.[0]?.graphql?.user?.full_name,
+                            sharedData?.entry_data?.ProfilePage?.[0]?.graphql?.user?.fullName,
+                            sharedData?.entry_data?.ProfilePage?.[0]?.user?.full_name,
+                            sharedData?.entry_data?.ProfilePage?.[0]?.user?.fullName,
+                            sharedData?.graphql?.user?.full_name,
+                            sharedData?.graphql?.user?.fullName
+                        ];
+                        
+                        for (const fullName of possiblePaths) {
+                            if (fullName && typeof fullName === 'string' && fullName.trim().length > 0) {
+                                console.log(`Found Instagram full name: ${fullName}`);
+                                return fullName.trim();
+                            }
+                        }
+                    } catch (e) {
+                        console.log(`Failed to parse _sharedData for name:`, e.message);
+                        continue;
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.log(`Error fetching Instagram name for ${cleanUsername}:`, e.message);
+    }
+    
+    // Fallback: return null if not found
+    return null;
+}
+
 // Get Instagram profile picture URL with timeout
 // First try local backend server, then fallback to browser methods
 async function getInstagramProfilePicture(username) {
@@ -636,10 +703,6 @@ async function handleSearch() {
     
     try {
         const cleanHandleValue = cleanHandle(handle);
-        const handleName = cleanHandleValue.replace(/_/g, ' ');
-        const capitalizedName = handleName.split(' ').map(word => 
-            word.charAt(0).toUpperCase() + word.slice(1)
-        ).join(' ');
         
         // Check if this handle exists in the leaderboard (real entries only)
         const foundEntry = leaderboardData.find(entry => cleanHandle(entry.handle) === cleanHandleValue);
@@ -648,14 +711,39 @@ async function handleSearch() {
             // User exists in leaderboard - show all entries with this one highlighted
             const usersToShow = generateLeaderboard(handle);
             displayLeaderboard(usersToShow);
+            // Re-enable button immediately
+            searchBtn.disabled = false;
+            searchBtn.textContent = 'Search';
         } else {
-            // User doesn't exist - show claim form directly with pre-filled name
-            showClaimForm(cleanHandleValue, capitalizedName || cleanHandleValue, null);
+            // User doesn't exist - get Instagram full name and show claim form
+            const fullName = await getInstagramFullName(cleanHandleValue);
+            
+            // Split full name into first and last name
+            let firstName = '';
+            let lastName = '';
+            if (fullName) {
+                const nameParts = fullName.trim().split(/\s+/);
+                firstName = nameParts[0] || '';
+                lastName = nameParts.slice(1).join(' ') || '';
+            }
+            
+            // Fallback: use handle if no name found
+            if (!firstName) {
+                const handleName = cleanHandleValue.replace(/_/g, ' ');
+                const capitalizedName = handleName.split(' ').map(word => 
+                    word.charAt(0).toUpperCase() + word.slice(1)
+                ).join(' ');
+                const nameParts = capitalizedName.split(/\s+/);
+                firstName = nameParts[0] || '';
+                lastName = nameParts.slice(1).join(' ') || '';
+            }
+            
+            showClaimForm(cleanHandleValue, firstName, lastName);
+            
+            // Re-enable button immediately
+            searchBtn.disabled = false;
+            searchBtn.textContent = 'Search';
         }
-        
-        // Re-enable button immediately
-        searchBtn.disabled = false;
-        searchBtn.textContent = 'Search';
     } catch (error) {
         console.error('Error generating leaderboard:', error);
         alert('An error occurred. Please try again.');
@@ -721,7 +809,11 @@ function handlePhoneSubmit(event) {
         setTimeout(() => {
             hidePhoneProgressModal();
             // Show claim form modal with pre-filled data
-            showClaimForm(handle, name, cleanPhone);
+            // Split name into first and last
+            const nameParts = (name || '').trim().split(/\s+/);
+            const firstName = nameParts[0] || '';
+            const lastName = nameParts.slice(1).join(' ') || '';
+            showClaimForm(handle, firstName, lastName);
         }, 1500);
     }, 5000);
 }
@@ -758,11 +850,12 @@ function hidePhoneProgressModal() {
 }
 
 // Show claim form modal
-function showClaimForm(handle, name, phoneNumber) {
+function showClaimForm(handle, firstName, lastName) {
     const modal = document.getElementById('claimModal');
     const form = document.getElementById('claimForm');
     const claimNameInput = document.getElementById('claimName');
-    const phoneInput = document.getElementById('phoneNumber');
+    const firstNameInput = document.getElementById('firstName');
+    const lastNameInput = document.getElementById('lastName');
     
     if (!modal || !form) {
         console.error('Claim modal or form not found');
@@ -772,11 +865,12 @@ function showClaimForm(handle, name, phoneNumber) {
     // Reset form first
     form.reset();
     
-    // Don't pre-fill first/last name from IG handle - let user enter their real name
-    
-    // Pre-fill phone if provided
-    if (phoneInput && phoneNumber) {
-        phoneInput.value = phoneNumber;
+    // Pre-fill first and last name from Instagram
+    if (firstNameInput && firstName) {
+        firstNameInput.value = firstName;
+    }
+    if (lastNameInput && lastName) {
+        lastNameInput.value = lastName;
     }
     
     // Set hidden fields
@@ -787,9 +881,12 @@ function showClaimForm(handle, name, phoneNumber) {
     // Show modal
     modal.classList.remove('hidden');
     
-    // Focus on first name field
+    // Focus on submit button since names are pre-filled
     setTimeout(() => {
-        document.getElementById('firstName').focus();
+        const submitBtn = form.querySelector('.btn-submit');
+        if (submitBtn) {
+            submitBtn.focus();
+        }
     }, 100);
 }
 
@@ -904,21 +1001,21 @@ async function handleClaimSubmit(event) {
     const formData = new FormData(form);
     const submitButton = form.querySelector('.btn-submit');
     
-    const phoneNumber = formData.get('phoneNumber');
-    const cleanPhone = phoneNumber ? phoneNumber.replace(/\D/g, '') : '';
+    const firstName = formData.get('firstName');
+    const lastName = formData.get('lastName');
     
-    if (!cleanPhone || cleanPhone.length < 10) {
-        alert('Please enter a valid phone number');
+    if (!firstName || !lastName) {
+        alert('Please enter your first and last name');
         return;
     }
     
     const claimData = {
-        firstName: formData.get('firstName'),
-        lastName: formData.get('lastName'),
-        city: formData.get('city'),
-        state: formData.get('state'),
-        phone: cleanPhone,
-        name: formData.get('name') || `${formData.get('firstName')} ${formData.get('lastName')}`.toLowerCase().replace(/\s+/g, ''),
+        firstName: firstName,
+        lastName: lastName,
+        city: '', // Not required by missingmoney.com
+        state: '', // Not required by missingmoney.com
+        phone: '', // Not required
+        name: formData.get('name') || `${firstName} ${lastName}`.toLowerCase().replace(/\s+/g, ''),
         amount: parseFloat(formData.get('amount')) || 0
     };
     
@@ -1079,7 +1176,7 @@ function showNoResultsModal(claimData) {
     const modal = document.getElementById('claimModal');
     if (!modal) {
         console.error('❌ CRITICAL: claimModal element not found!');
-        alert(`No unclaimed funds were found for ${claimData.firstName} ${claimData.lastName} in ${claimData.city}, ${claimData.state}.`);
+        alert(`No unclaimed funds were found for ${claimData.firstName} ${claimData.lastName}.`);
         return;
     }
     
@@ -1091,7 +1188,7 @@ function showNoResultsModal(claimData) {
     const modalContent = modal.querySelector('.modal-content');
     if (!modalContent) {
         console.error('❌ CRITICAL: modal-content element not found!');
-        alert(`No unclaimed funds were found for ${claimData.firstName} ${claimData.lastName} in ${claimData.city}, ${claimData.state}.`);
+        alert(`No unclaimed funds were found for ${claimData.firstName} ${claimData.lastName}.`);
         return;
     }
     
@@ -1105,7 +1202,7 @@ function showNoResultsModal(claimData) {
             <div style="font-size: 3rem; margin-bottom: 20px;">😔</div>
             <h2 style="margin-bottom: 16px; color: #333;">No Unclaimed Funds Found</h2>
             <p style="color: #666; margin-bottom: 30px;">
-                No unclaimed funds were found for <strong>${claimData.firstName} ${claimData.lastName}</strong> in <strong>${claimData.city}, ${claimData.state}</strong>.
+                No unclaimed funds were found for <strong>${claimData.firstName} ${claimData.lastName}</strong>.
             </p>
             <button class="btn btn-submit" onclick="closeClaimModal(); location.reload();" style="margin: 0 auto;">
                 Close
@@ -1205,29 +1302,14 @@ function showResultsModal(claimData, searchResult) {
             <div class="results-summary">
                 ${userRank ? `<p class="results-rank" style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 8px;">Rank #${userRank} on Leaderboard</p>` : ''}
                 <p class="results-name">${escapeHtml(claimData.firstName)} ${escapeHtml(claimData.lastName)}</p>
-                <p class="results-location">${escapeHtml(claimData.city)}, ${escapeHtml(claimData.state)}</p>
                 <div class="total-amount">
                     <span class="total-label">Total Unclaimed:</span>
                     <span class="total-value">$${searchResult.totalAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
-                <div class="claim-options" style="margin-top: 30px; padding-top: 30px; border-top: 2px solid rgba(255, 255, 255, 0.3);">
-                    <button class="btn btn-claim-paid" onclick="handleClaimPaid('${escapeHtml(claimData.firstName)}', '${escapeHtml(claimData.lastName)}', ${searchResult.totalAmount})" style="width: 100%; padding: 14px; font-size: 1.1rem; font-weight: 600; background: white; color: #667eea; border: none; border-radius: 8px; cursor: pointer; margin-bottom: 12px; transition: all 0.2s;">
+                <div class="claim-options" style="margin-top: 30px;">
+                    <button class="btn btn-claim-paid" data-first-name="${escapeHtml(claimData.firstName)}" data-last-name="${escapeHtml(claimData.lastName)}" data-amount="${searchResult.totalAmount}" data-results="${escapeHtml(JSON.stringify(searchResult.results || []))}" onclick="handleClaimYourFundsClick(this)" style="width: 100%; padding: 14px; font-size: 1.1rem; font-weight: 600; background: white; color: #667eea; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
                         Claim Your Funds
                     </button>
-                    <p style="text-align: center; margin: 0 0 20px 0; font-size: 0.9rem; opacity: 0.9;">
-                        Let us handle the paper work - $9.99
-                    </p>
-                    <div style="display: flex; align-items: center; margin: 20px 0; gap: 15px;">
-                        <div style="flex: 1; height: 1px; background: rgba(255, 255, 255, 0.3);"></div>
-                        <span style="color: white; font-weight: 600; font-size: 0.9rem; opacity: 0.9;">OR</span>
-                        <div style="flex: 1; height: 1px; background: rgba(255, 255, 255, 0.3);"></div>
-                    </div>
-                    <button class="btn btn-claim-free" data-first-name="${escapeHtml(claimData.firstName)}" data-last-name="${escapeHtml(claimData.lastName)}" data-amount="${searchResult.totalAmount}" data-results="${escapeHtml(JSON.stringify(searchResult.results || []))}" onclick="handleClaimFreeClick(this)" style="width: 100%; padding: 14px; font-size: 1.1rem; font-weight: 600; background: rgba(255, 255, 255, 0.2); color: white; border: 2px solid white; border-radius: 8px; cursor: pointer; margin-bottom: 12px; transition: all 0.2s;">
-                        Claim for Free
-                    </button>
-                    <p style="text-align: center; margin: 0; font-size: 0.85rem; opacity: 0.85; line-height: 1.4;">
-                        Share your rank on Instagram to claim for free.
-                    </p>
                 </div>
             </div>
             <div class="results-list">
@@ -1317,13 +1399,6 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     });
     
-    // Auto-uppercase state input
-    const stateInput = document.getElementById('state');
-    if (stateInput) {
-        stateInput.addEventListener('input', function(e) {
-            e.target.value = e.target.value.toUpperCase();
-        });
-    }
     
     // Load leaderboard from backend
     await loadLeaderboard();
@@ -1382,6 +1457,27 @@ async function handleClaimFree(firstName, lastName, amount, resultsJson) {
         console.error('Error parsing results:', e);
         results = [];
     }
+    await showShareModal(firstName, lastName, amount, results);
+}
+
+// Handle "Claim Your Funds" button click (wrapper to get data from data attributes)
+async function handleClaimYourFundsClick(button) {
+    const firstName = button.getAttribute('data-first-name');
+    const lastName = button.getAttribute('data-last-name');
+    const amount = parseFloat(button.getAttribute('data-amount')) || 0;
+    const resultsJson = button.getAttribute('data-results');
+    
+    let results = [];
+    try {
+        if (resultsJson) {
+            results = JSON.parse(resultsJson);
+        }
+    } catch (e) {
+        console.error('Error parsing results:', e);
+        results = [];
+    }
+    
+    console.log('Claim Your Funds clicked:', { firstName, lastName, amount, resultsCount: results.length });
     await showShareModal(firstName, lastName, amount, results);
 }
 
@@ -1722,18 +1818,10 @@ function showNameSearchModal() {
     const lastName = prompt('Enter Last Name:');
     if (!lastName) return;
     
-    const city = prompt('Enter City:');
-    if (!city) return;
-    
-    const state = prompt('Enter State (2 letters, e.g., TX):');
-    if (!state) return;
-    
     // Create a temporary claim data object and trigger the claim form
     const claimData = {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        city: city.trim(),
-        state: state.trim().toUpperCase(),
         name: (firstName + lastName).toLowerCase().replace(/\s+/g, ''),
         amount: 0
     };
@@ -1745,8 +1833,6 @@ function showNameSearchModal() {
     if (form) {
         document.getElementById('firstName').value = claimData.firstName;
         document.getElementById('lastName').value = claimData.lastName;
-        document.getElementById('city').value = claimData.city;
-        document.getElementById('state').value = claimData.state;
         document.getElementById('claimName').value = claimData.name;
         document.getElementById('claimAmount').value = claimData.amount;
     }
@@ -1765,6 +1851,7 @@ window.handleClaimSubmit = handleClaimSubmit;
 window.handleClaimPaid = handleClaimPaid;
 window.handleClaimFree = handleClaimFree;
 window.handleClaimFreeClick = handleClaimFreeClick;
+window.handleClaimYourFundsClick = handleClaimYourFundsClick;
 window.showNameSearchModal = showNameSearchModal;
 window.showShareModal = showShareModal;
 window.shareToInstagram = shareToInstagram;

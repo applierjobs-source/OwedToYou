@@ -342,6 +342,10 @@ h1 {
     padding: 30px;
 }
 
+#mailingAddressForm {
+    padding: 30px;
+}
+
 /* Phone Modal Specific Styles */
 #phoneModal .modal-content {
     padding: 0;
