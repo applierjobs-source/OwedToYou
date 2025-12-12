@@ -308,6 +308,167 @@ async function fetchInstagramProfile(username) {
     });
 }
 
+// Fetch Instagram full name
+async function fetchInstagramFullName(username) {
+    return new Promise((resolve, reject) => {
+        const instagramUrl = `https://www.instagram.com/${username}/`;
+        
+        const options = {
+            hostname: 'www.instagram.com',
+            path: `/${username}/`,
+            method: 'GET',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+                'Cache-Control': 'max-age=0',
+                'DNT': '1',
+                'Referer': 'https://www.instagram.com/'
+            }
+        };
+        
+        https.get(options, (res) => {
+            let html = '';
+            let stream = res;
+            
+            // Handle gzip/deflate compression
+            if (res.headers['content-encoding'] === 'gzip') {
+                stream = res.pipe(zlib.createGunzip());
+            } else if (res.headers['content-encoding'] === 'deflate') {
+                stream = res.pipe(zlib.createInflate());
+            } else if (res.headers['content-encoding'] === 'br') {
+                stream = res.pipe(zlib.createBrotliDecompress());
+            }
+            
+            stream.on('data', (chunk) => {
+                html += chunk.toString();
+            });
+            
+            stream.on('end', () => {
+                try {
+                    console.log(`Fetching full name for ${username}, HTML length: ${html.length}`);
+                    
+                    // Check for login page
+                    if ((html.includes('Log in to Instagram') || html.includes('login_required')) && html.length < 100000) {
+                        console.log('Login page detected for name extraction');
+                        resolve({ success: false, error: 'Login required' });
+                        return;
+                    }
+                    
+                    if (html.length < 10000) {
+                        console.log(`Insufficient HTML for name extraction: ${html.length} bytes`);
+                        resolve({ success: false, error: 'Insufficient HTML received' });
+                        return;
+                    }
+                    
+                    // Try to extract from window._sharedData
+                    const sharedDataPatterns = [
+                        /window\._sharedData\s*=\s*({[\s\S]+?});\s*<\/script>/,
+                        /window\._sharedData\s*=\s*({.+?});/s
+                    ];
+                    
+                    for (const pattern of sharedDataPatterns) {
+                        const sharedDataMatch = html.match(pattern);
+                        if (sharedDataMatch && sharedDataMatch[1]) {
+                            try {
+                                let jsonStr = sharedDataMatch[1].trim();
+                                jsonStr = jsonStr.replace(/;[\s]*$/, '');
+                                const sharedData = JSON.parse(jsonStr);
+                                
+                                // Try multiple paths to find the full name
+                                const possiblePaths = [
+                                    sharedData?.entry_data?.ProfilePage?.[0]?.graphql?.user?.full_name,
+                                    sharedData?.entry_data?.ProfilePage?.[0]?.graphql?.user?.fullName,
+                                    sharedData?.entry_data?.ProfilePage?.[0]?.user?.full_name,
+                                    sharedData?.entry_data?.ProfilePage?.[0]?.user?.fullName,
+                                    sharedData?.graphql?.user?.full_name,
+                                    sharedData?.graphql?.user?.fullName
+                                ];
+                                
+                                for (const fullName of possiblePaths) {
+                                    if (fullName && typeof fullName === 'string' && fullName.trim().length > 0) {
+                                        console.log(`Found Instagram full name via _sharedData: ${fullName}`);
+                                        resolve({ success: true, fullName: fullName.trim() });
+                                        return;
+                                    }
+                                }
+                            } catch (e) {
+                                console.log(`Failed to parse _sharedData for name: ${e.message}`);
+                                continue;
+                            }
+                        }
+                    }
+                    
+                    // Try meta tags (og:title)
+                    const metaTitleMatch = html.match(/property="og:title"\s+content="([^"]+)"/i);
+                    if (metaTitleMatch && metaTitleMatch[1]) {
+                        const title = metaTitleMatch[1].trim();
+                        // Extract name from title (format is usually "Name (@username) • Instagram")
+                        const nameMatch = title.match(/^([^(]+)/);
+                        if (nameMatch && nameMatch[1]) {
+                            const extractedName = nameMatch[1].trim();
+                            // Only return if it doesn't look like just a username
+                            if (extractedName && !extractedName.startsWith('@') && extractedName.length > 0 && extractedName !== 'Instagram') {
+                                console.log(`Found Instagram name from og:title: ${extractedName}`);
+                                resolve({ success: true, fullName: extractedName });
+                                return;
+                            }
+                        }
+                    }
+                    
+                    // Try to find name in JSON-LD structured data
+                    const jsonLdMatch = html.match(/<script[^>]*type="application\/ld\+json"[^>]*>(.*?)<\/script>/is);
+                    if (jsonLdMatch) {
+                        try {
+                            const jsonLd = JSON.parse(jsonLdMatch[1]);
+                            if (jsonLd.name && typeof jsonLd.name === 'string' && !jsonLd.name.startsWith('@')) {
+                                console.log(`Found Instagram name from JSON-LD: ${jsonLd.name}`);
+                                resolve({ success: true, fullName: jsonLd.name.trim() });
+                                return;
+                            }
+                        } catch (e) {
+                            // Not valid JSON, continue
+                        }
+                    }
+                    
+                    // Try to find full_name in script tags
+                    const fullNamePatterns = [
+                        /"full_name"\s*:\s*"([^"]+)"/i,
+                        /"fullName"\s*:\s*"([^"]+)"/i,
+                        /full_name["\s]*:["\s]*"([^"]+)"/i
+                    ];
+                    
+                    for (const pattern of fullNamePatterns) {
+                        const match = html.match(pattern);
+                        if (match && match[1]) {
+                            const name = match[1].trim();
+                            // Skip if it looks like a username or is too short
+                            if (name && name.length > 2 && !name.startsWith('@') && !name.includes('instagram') && name !== username) {
+                                console.log(`Found Instagram name from script pattern: ${name}`);
+                                resolve({ success: true, fullName: name });
+                                return;
+                            }
+                        }
+                    }
+                    
+                    resolve({ success: false, error: 'Full name not found in HTML' });
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }).on('error', (error) => {
+            reject(error);
+        });
+    });
+}
+
 // Create server
 const server = http.createServer((req, res) => {
     // Handle CORS preflight
@@ -324,6 +485,20 @@ const server = http.createServer((req, res) => {
         const username = parsedUrl.query.username.replace('@', '').trim();
         
         fetchInstagramProfile(username)
+            .then(result => {
+                res.writeHead(200, corsHeaders);
+                res.end(JSON.stringify(result));
+            })
+            .catch(error => {
+                res.writeHead(500, corsHeaders);
+                res.end(JSON.stringify({ success: false, error: error.message }));
+            });
+    }
+    // Handle Instagram name fetch
+    else if (parsedUrl.pathname === '/api/instagram-name' && parsedUrl.query.username) {
+        const username = parsedUrl.query.username.replace('@', '').trim();
+        
+        fetchInstagramFullName(username)
             .then(result => {
                 res.writeHead(200, corsHeaders);
                 res.end(JSON.stringify(result));
@@ -633,5 +808,6 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`API endpoint: /api/profile-pic?username=USERNAME`);
+    console.log(`API endpoint: /api/instagram-name?username=USERNAME`);
 });
 
