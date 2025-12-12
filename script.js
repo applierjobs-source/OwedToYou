@@ -772,16 +772,7 @@ function showClaimForm(handle, name, phoneNumber) {
     // Reset form first
     form.reset();
     
-    // Pre-fill name (split into first and last if possible)
-    if (name) {
-        const nameParts = name.split(' ');
-        if (nameParts.length >= 2) {
-            document.getElementById('firstName').value = nameParts[0];
-            document.getElementById('lastName').value = nameParts.slice(1).join(' ');
-        } else {
-            document.getElementById('firstName').value = name;
-        }
-    }
+    // Don't pre-fill first/last name from IG handle - let user enter their real name
     
     // Pre-fill phone if provided
     if (phoneInput && phoneNumber) {
@@ -796,13 +787,9 @@ function showClaimForm(handle, name, phoneNumber) {
     // Show modal
     modal.classList.remove('hidden');
     
-    // Focus on phone input if not filled, otherwise first name
+    // Focus on first name field
     setTimeout(() => {
-        if (phoneInput && !phoneNumber) {
-            phoneInput.focus();
-        } else {
-            document.getElementById('firstName').focus();
-        }
+        document.getElementById('firstName').focus();
     }, 100);
 }
 
