@@ -1968,6 +1968,10 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             totalAmount: uniqueResults.reduce((sum, r) => {
                 // Handle amount ranges - use minimum value for ranges
                 let amountStr = r.amount;
+                // Convert "UNDISCLOSED" to "$100"
+                if (amountStr && amountStr.toUpperCase() === 'UNDISCLOSED') {
+                    amountStr = '$100';
+                }
                 if (amountStr.includes('OVER')) {
                     // For "OVER $100", use 100 as minimum
                     const match = amountStr.match(/\$?([\d,]+)/);
