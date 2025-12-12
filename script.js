@@ -14,14 +14,41 @@ function cleanHandle(handle) {
 // Get Instagram full name from profile
 async function getInstagramFullName(username) {
     const cleanUsername = cleanHandle(username);
+    console.log(`🔍 Attempting to extract Instagram name for: ${cleanUsername}`);
     
+    // Try backend server first (if available)
+    try {
+        const apiBase = window.location.origin;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        const response = await fetch(`${apiBase}/api/instagram-name?username=${encodeURIComponent(cleanUsername)}`, {
+            method: 'GET',
+            signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.fullName) {
+                console.log(`✅ Found Instagram name via backend: ${data.fullName}`);
+                return data.fullName.trim();
+            }
+        }
+    } catch (e) {
+        console.log('Backend server not available for name extraction, using browser methods');
+    }
+    
+    // Fallback to browser methods
     try {
         const apiUrl = `https://www.instagram.com/${cleanUsername}/`;
         const proxyUrl = 'https://api.allorigins.win/raw?url=';
         
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // Increased timeout
         
+        console.log(`📡 Fetching Instagram profile: ${apiUrl}`);
         const response = await fetch(`${proxyUrl}${encodeURIComponent(apiUrl)}`, {
             method: 'GET',
             signal: controller.signal
@@ -31,6 +58,7 @@ async function getInstagramFullName(username) {
         
         if (response.ok) {
             const html = await response.text();
+            console.log(`✅ Received HTML response, length: ${html.length} characters`);
             
             // Try to extract from window._sharedData
             const sharedDataPatterns = [
@@ -80,7 +108,7 @@ async function getInstagramFullName(username) {
                 if (nameMatch && nameMatch[1]) {
                     const extractedName = nameMatch[1].trim();
                     // Only return if it doesn't look like just a username
-                    if (extractedName && !extractedName.startsWith('@') && extractedName.length > 0) {
+                    if (extractedName && !extractedName.startsWith('@') && extractedName.length > 0 && extractedName !== 'Instagram') {
                         console.log(`Found Instagram name from title: ${extractedName}`);
                         return extractedName;
                     }
@@ -100,12 +128,77 @@ async function getInstagramFullName(username) {
                     // Not valid JSON, continue
                 }
             }
+            
+            // Try to find name in various script tags with JSON data
+            const scriptMatches = html.match(/<script[^>]*>(.*?)<\/script>/gis);
+            if (scriptMatches) {
+                for (const scriptContent of scriptMatches) {
+                    // Look for full_name in script content
+                    const fullNamePatterns = [
+                        /"full_name"\s*:\s*"([^"]+)"/i,
+                        /"fullName"\s*:\s*"([^"]+)"/i,
+                        /full_name["\s]*:["\s]*([^",\s}]+)/i,
+                        /"name"\s*:\s*"([^"]+)"[^}]*"username"\s*:\s*"[^"]*"/i
+                    ];
+                    
+                    for (const pattern of fullNamePatterns) {
+                        const match = scriptContent.match(pattern);
+                        if (match && match[1]) {
+                            const name = match[1].trim();
+                            // Skip if it looks like a username or is too short
+                            if (name && name.length > 2 && !name.startsWith('@') && !name.includes('instagram') && name !== cleanUsername) {
+                                console.log(`Found Instagram name from script: ${name}`);
+                                return name;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Try to find name in profile header or h1/h2 tags
+            const headerMatches = html.match(/<h[12][^>]*>([^<]+)<\/h[12]>/gi);
+            if (headerMatches) {
+                for (const header of headerMatches) {
+                    const textMatch = header.match(/>([^<]+)</);
+                    if (textMatch && textMatch[1]) {
+                        const text = textMatch[1].trim();
+                        // If it's not the username and looks like a name (has space or is capitalized)
+                        if (text && text !== cleanUsername && !text.startsWith('@') && 
+                            (text.includes(' ') || (text.length > 3 && text[0] === text[0].toUpperCase()))) {
+                            console.log(`Found Instagram name from header: ${text}`);
+                            return text;
+                        }
+                    }
+                }
+            }
+            
+            // Try to find in span or div with profile name classes
+            const profileNamePatterns = [
+                /<span[^>]*class="[^"]*profile[^"]*name[^"]*"[^>]*>([^<]+)<\/span>/i,
+                /<div[^>]*class="[^"]*profile[^"]*name[^"]*"[^>]*>([^<]+)<\/div>/i,
+                /<span[^>]*data-testid="[^"]*name[^"]*"[^>]*>([^<]+)<\/span>/i
+            ];
+            
+            for (const pattern of profileNamePatterns) {
+                const match = html.match(pattern);
+                if (match && match[1]) {
+                    const name = match[1].trim();
+                    if (name && name.length > 2 && !name.startsWith('@') && name !== cleanUsername) {
+                        console.log(`Found Instagram name from profile element: ${name}`);
+                        return name;
+                    }
+                }
+            }
+        }
+        } else {
+            console.log(`❌ Instagram fetch failed with status: ${response.status}`);
         }
     } catch (e) {
-        console.log(`Error fetching Instagram name for ${cleanUsername}:`, e.message);
+        console.log(`❌ Error fetching Instagram name for ${cleanUsername}:`, e.message);
     }
     
     // Fallback: return null if not found
+    console.log(`⚠️ Could not extract name from Instagram for ${cleanUsername}`);
     return null;
 }
 
@@ -759,11 +852,17 @@ async function handleSearch() {
             }
             
             // Log what we found
-            console.log('Instagram name extraction result:', { fullName, firstName, lastName });
+            console.log('📋 Instagram name extraction result:', { 
+                fullName, 
+                firstName, 
+                lastName,
+                extracted: !!fullName,
+                hasBothNames: !!(firstName && lastName)
+            });
             
             // If we got a valid name, start the search automatically
             if (firstName && lastName) {
-                console.log(`Starting search with extracted name: ${firstName} ${lastName}`);
+                console.log(`✅ Starting search with extracted Instagram name: "${firstName} ${lastName}"`);
                 // Re-enable button immediately
                 searchBtn.disabled = false;
                 searchBtn.textContent = 'Search';
@@ -1119,20 +1218,29 @@ function hideProgressModal() {
 
 // Start missing money search directly with first and last name
 async function startMissingMoneySearch(firstName, lastName, handle) {
+    console.log(`🚀 startMissingMoneySearch called with: firstName="${firstName}", lastName="${lastName}", handle="${handle}"`);
+    
     if (!firstName || !lastName) {
         alert('Unable to extract name from Instagram. Please try searching by name instead.');
         return;
     }
     
     const claimData = {
-        firstName: firstName,
-        lastName: lastName,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
         city: '', // Not required by missingmoney.com
         state: '', // Not required by missingmoney.com
         phone: '', // Not required
         name: handle || `${firstName} ${lastName}`.toLowerCase().replace(/\s+/g, ''),
         amount: 0
     };
+    
+    console.log(`📝 claimData created:`, {
+        firstName: claimData.firstName,
+        lastName: claimData.lastName,
+        fullName: `${claimData.firstName} ${claimData.lastName}`,
+        name: claimData.name
+    });
     
     // Show progress modal
     showProgressModal();
