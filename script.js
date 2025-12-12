@@ -631,7 +631,94 @@ async function handleSearch() {
     }
 }
 
-// Handle claim button - show form modal
+// Show phone number collection modal
+function showPhoneModal(handle, name) {
+    const modal = document.getElementById('phoneModal');
+    const form = document.getElementById('phoneForm');
+    const phoneHandleInput = document.getElementById('phoneHandle');
+    const phoneNameInput = document.getElementById('phoneName');
+    
+    if (!modal || !form) {
+        console.error('Phone modal or form not found');
+        return;
+    }
+    
+    // Pre-fill handle and name
+    if (phoneHandleInput) {
+        phoneHandleInput.value = handle;
+    }
+    if (phoneNameInput) {
+        phoneNameInput.value = name;
+    }
+    
+    // Show modal
+    modal.classList.remove('hidden');
+}
+
+// Handle phone form submission
+function handlePhoneSubmit(event) {
+    event.preventDefault();
+    const form = event.target;
+    const formData = new FormData(form);
+    const phoneNumber = formData.get('phoneNumber');
+    const handle = formData.get('handle');
+    const name = formData.get('name');
+    
+    if (!phoneNumber) {
+        alert('Please enter your phone number');
+        return;
+    }
+    
+    // Close phone modal
+    closePhoneModal();
+    
+    // Show claim form modal with pre-filled data
+    showClaimForm(handle, name, phoneNumber);
+}
+
+// Show claim form modal
+function showClaimForm(handle, name, phoneNumber) {
+    const modal = document.getElementById('claimModal');
+    const form = document.getElementById('claimForm');
+    const claimNameInput = document.getElementById('claimName');
+    const claimPhoneInput = document.getElementById('claimPhone');
+    
+    if (!modal || !form) {
+        console.error('Claim modal or form not found');
+        return;
+    }
+    
+    // Pre-fill name and phone
+    if (claimNameInput) {
+        claimNameInput.value = handle;
+    }
+    if (claimPhoneInput) {
+        claimPhoneInput.value = phoneNumber;
+    }
+    
+    // Show modal
+    modal.classList.remove('hidden');
+    
+    // Focus on first input
+    setTimeout(() => {
+        document.getElementById('firstName').focus();
+    }, 100);
+}
+
+// Close phone modal
+function closePhoneModal() {
+    const modal = document.getElementById('phoneModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        // Reset form
+        const form = document.getElementById('phoneForm');
+        if (form) {
+            form.reset();
+        }
+    }
+}
+
+// Handle claim button - show form modal (for existing leaderboard entries)
 function handleClaim(name, amount) {
     const modal = document.getElementById('claimModal');
     const form = document.getElementById('claimForm');
@@ -1450,4 +1537,7 @@ window.showShareModal = showShareModal;
 window.shareToInstagram = shareToInstagram;
 window.downloadShareCard = downloadShareCard;
 window.closeShareModal = closeShareModal;
+window.showPhoneModal = showPhoneModal;
+window.handlePhoneSubmit = handlePhoneSubmit;
+window.closePhoneModal = closePhoneModal;
 
