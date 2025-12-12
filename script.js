@@ -893,6 +893,18 @@ async function handleSearch() {
                 // Start the search automatically
                 await startMissingMoneySearch(firstName, lastName, cleanHandleValue);
             } else {
+                console.log('⚠️ Could not extract name from Instagram');
+                console.log('⚠️ Attempted extraction but got:', { fullName, firstName, lastName });
+                
+                // If extraction completely failed, show error instead of using handle
+                if (!fullName) {
+                    console.error('❌ Instagram name extraction failed completely');
+                    searchBtn.disabled = false;
+                    searchBtn.textContent = 'Search';
+                    alert(`Unable to extract name from Instagram profile @${cleanHandleValue}. Please try searching by name instead using the link below.`);
+                    return;
+                }
+                
                 console.log('Could not extract name from Instagram, trying fallback methods...');
                 // Fallback: if we can't get the name, try to extract from handle
                 // Remove common prefixes like "coach", "the", etc.
