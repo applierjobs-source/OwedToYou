@@ -193,7 +193,6 @@ async function getInstagramFullName(username) {
                     }
                 }
             }
-        }
         } else {
             console.log(`❌ Instagram fetch failed with status: ${response.status}`);
         }
