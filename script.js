@@ -1334,7 +1334,7 @@ function handleClaimPaid(firstName, lastName, amount) {
 }
 
 // Handle free claim button click (wrapper to get data from data attributes)
-function handleClaimFreeClick(button) {
+async function handleClaimFreeClick(button) {
     const firstName = button.getAttribute('data-first-name');
     const lastName = button.getAttribute('data-last-name');
     const amount = parseFloat(button.getAttribute('data-amount')) || 0;
@@ -1351,7 +1351,7 @@ function handleClaimFreeClick(button) {
     }
     
     console.log('Free claim requested:', { firstName, lastName, amount, resultsCount: results.length });
-    showShareModal(firstName, lastName, amount, results);
+    await showShareModal(firstName, lastName, amount, results);
 }
 
 // Handle free claim (share on Instagram) - direct call version
