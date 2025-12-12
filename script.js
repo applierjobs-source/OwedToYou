@@ -1414,14 +1414,15 @@ function showShareModal(firstName, lastName, amount, results = []) {
         </div>
         <div class="share-content" style="padding: 30px;">
             <div style="background: #f8f9fa; border-radius: 12px; padding: 20px; margin-bottom: 30px;">
-                <h3 style="margin: 0 0 15px 0; color: #333; font-size: 1.1rem; font-weight: 600;">How to Claim Your Funds:</h3>
-                <ol style="margin: 0; padding-left: 20px; color: #666; line-height: 1.8;">
-                    <li style="margin-bottom: 8px;">Download image</li>
-                    <li style="margin-bottom: 8px;">Upload on Instagram</li>
-                    <li style="margin-bottom: 8px;">Tag <strong style="color: #667eea;">@OwedToYou</strong></li>
-                    <li style="margin-bottom: 0;">Receive your funds!</li>
-                </ol>
-            </div>
+                    <h3 style="margin: 0 0 15px 0; color: #333; font-size: 1.1rem; font-weight: 600;">Almost Done — One Last Step</h3>
+                    <ol style="margin: 0 0 12px 0; padding-left: 20px; color: #666; line-height: 1.8;">
+                        <li style="margin-bottom: 8px;">Download your claim image</li>
+                        <li style="margin-bottom: 8px;">Post it on Instagram</li>
+                        <li style="margin-bottom: 8px;">Tag <strong style="color: #667eea;">@OwedToYou</strong></li>
+                        <li style="margin-bottom: 0;">Funds are released after verification ✅</li>
+                    </ol>
+                    <p style="margin: 0; padding-top: 12px; border-top: 1px solid #e0e0e0; color: #888; font-size: 0.9rem; line-height: 1.5; font-style: italic;">Your post may help someone else find money they didn't know they had.</p>
+                </div>
             <div class="share-card" id="shareCard" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 16px; padding: 40px; color: white; text-align: center; max-width: 500px; margin: 0 auto; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); min-height: 400px; display: flex; flex-direction: column; justify-content: space-between;">
                 <div>
                     ${userRank ? `<p style="font-size: 1.2rem; opacity: 0.95; margin-bottom: 16px; font-weight: 600; color: white;">Rank #${userRank} on Leaderboard</p>` : ''}
