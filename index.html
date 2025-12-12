@@ -39,6 +39,28 @@
         </div>
     </div>
 
+    <!-- Phone Number Collection Modal -->
+    <div id="phoneModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Enter Your Phone Number</h2>
+                <button class="modal-close" onclick="closePhoneModal()">&times;</button>
+            </div>
+            <form id="phoneForm" onsubmit="handlePhoneSubmit(event)">
+                <div class="form-group">
+                    <label for="phoneNumber">Phone Number *</label>
+                    <input type="tel" id="phoneNumber" name="phoneNumber" placeholder="(555) 123-4567" required>
+                </div>
+                <input type="hidden" id="phoneHandle" name="handle">
+                <input type="hidden" id="phoneName" name="name">
+                <div class="form-actions">
+                    <button type="button" class="btn btn-cancel" onclick="closePhoneModal()">Cancel</button>
+                    <button type="submit" class="btn btn-submit">Continue</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Claim Form Modal -->
     <div id="claimModal" class="modal hidden">
         <div class="modal-content">
@@ -65,6 +87,7 @@
                 </div>
                 <input type="hidden" id="claimAmount" name="amount">
                 <input type="hidden" id="claimName" name="name">
+                <input type="hidden" id="claimPhone" name="phone">
                 <div class="form-actions">
                     <button type="button" class="btn btn-cancel" onclick="closeClaimModal()">Cancel</button>
                     <button type="submit" class="btn btn-submit">Submit Claim</button>

@@ -365,12 +365,15 @@ async function loadLeaderboard() {
         console.log('Leaderboard response:', data);
         
         if (data.success && data.leaderboard && Array.isArray(data.leaderboard)) {
-            leaderboardData = data.leaderboard.map(entry => ({
-                ...entry,
-                profilePic: null, // Will be loaded in background
-                isPlaceholder: false // Real entries from backend are not placeholders
-            }));
-            console.log(`Loaded ${leaderboardData.length} leaderboard entries from backend`);
+            // Filter out placeholders - only show real claims
+            leaderboardData = data.leaderboard
+                .filter(entry => !entry.isPlaceholder) // Remove placeholders
+                .map(entry => ({
+                    ...entry,
+                    profilePic: null, // Will be loaded in background
+                    isPlaceholder: false
+                }));
+            console.log(`Loaded ${leaderboardData.length} real leaderboard entries from backend (placeholders filtered out)`);
             return leaderboardData;
         }
         console.log('No leaderboard data in response');
@@ -402,13 +405,15 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
         
         const data = await response.json();
         if (data.success && data.leaderboard) {
-            leaderboardData = data.leaderboard.map(entry => ({
-                ...entry,
-                profilePic: null,
-                isPlaceholder: entry.isPlaceholder || false
-            }));
+            // Filter out placeholders - only show real claims
+            leaderboardData = data.leaderboard
+                .filter(entry => !entry.isPlaceholder) // Remove placeholders
+                .map(entry => ({
+                    ...entry,
+                    profilePic: null,
+                    isPlaceholder: false
+                }));
             // Only refresh display if explicitly requested (e.g., after a claim submission)
-            // Don't refresh during search operations to preserve displayed placeholders
             if (refreshDisplay && !document.getElementById('leaderboard').classList.contains('hidden')) {
                 displayLeaderboard(leaderboardData);
             }
@@ -550,7 +555,7 @@ function createEntryHTML(user, rank) {
             </div>
             <div class="entry-amount">${formattedAmount}</div>
             <div class="entry-actions">
-                <button class="btn btn-claim" onclick="handleClaim('${escapedName}', ${user.isPlaceholder ? 500 : user.amount})">
+                <button class="btn btn-claim" onclick="handleClaim('${escapedName}', ${user.amount})">
                     Claim It
                 </button>
                 <button class="btn btn-notify" onclick="handleNotify('${escapedName}', ${user.amount})">
@@ -602,105 +607,18 @@ async function handleSearch() {
             word.charAt(0).toUpperCase() + word.slice(1)
         ).join(' ');
         
-        // Check if this handle exists in the leaderboard (real entries only, not placeholders)
+        // Check if this handle exists in the leaderboard (real entries only)
         const foundEntry = leaderboardData.find(entry => cleanHandle(entry.handle) === cleanHandleValue);
-        
-        // Also check if there's already a placeholder for this handle in the current display
-        const existingPlaceholders = new Set();
-        const currentEntries = document.querySelectorAll('.leaderboard-entry');
-        currentEntries.forEach(entry => {
-            const handleText = entry.querySelector('.entry-handle')?.textContent || '';
-            const handleMatch = handleText.match(/@(.+)/);
-            if (handleMatch) {
-                existingPlaceholders.add(cleanHandle(handleMatch[1]));
-            }
-        });
-        
-        let usersToShow = [];
         
         if (foundEntry) {
             // User exists in leaderboard - show all entries with this one highlighted
-            usersToShow = generateLeaderboard(handle);
-        } else if (existingPlaceholders.has(cleanHandleValue)) {
-            // Placeholder already exists in display - just show current leaderboard
-            usersToShow = generateLeaderboard();
+            const usersToShow = generateLeaderboard(handle);
+            displayLeaderboard(usersToShow);
         } else {
-            // User doesn't exist - create placeholder entry and save it to backend
-            const placeholderUser = {
-                name: capitalizedName || cleanHandleValue,
-                handle: cleanHandleValue,
-                amount: 500,
-                isPlaceholder: true,
-                isSearched: true,
-                profilePic: null
-            };
-            
-            // Save placeholder to backend so it persists for all visitors
-            // Don't refresh display - we'll build the display manually below
-            try {
-                await addToLeaderboard(placeholderUser.name, placeholderUser.handle, placeholderUser.amount, true, false);
-                // Reload leaderboard data after saving (but don't refresh display)
-                await loadLeaderboard();
-            } catch (error) {
-                console.error('Error saving placeholder to leaderboard:', error);
-            }
-            
-            // Get all current displayed entries (including placeholders)
-            const currentDisplayedUsers = [];
-            currentEntries.forEach((entry, idx) => {
-                const nameEl = entry.querySelector('.entry-name');
-                const handleEl = entry.querySelector('.entry-handle');
-                const amountEl = entry.querySelector('.entry-amount');
-                
-                if (nameEl && handleEl) {
-                    const name = nameEl.textContent.trim();
-                    const handleText = handleEl.textContent.trim();
-                    const handleMatch = handleText.match(/@(.+)/);
-                    const entryHandle = handleMatch ? cleanHandle(handleMatch[1]) : '';
-                    const amountText = amountEl?.textContent.trim() || '$0';
-                    const amountMatch = amountText.match(/\$(\d+)/);
-                    const amount = amountMatch ? parseInt(amountMatch[1]) : 0;
-                    
-                    // Check if this is a placeholder (has $500+ or is not in leaderboardData)
-                    const isPlaceholder = amountText.includes('$500+') || 
-                                        !leaderboardData.find(e => cleanHandle(e.handle) === entryHandle);
-                    
-                    currentDisplayedUsers.push({
-                        name: name,
-                        handle: entryHandle || handleText.replace('@', ''),
-                        amount: amount,
-                        isPlaceholder: isPlaceholder,
-                        isSearched: false,
-                        profilePic: null
-                    });
-                }
-            });
-            
-            // Add the new placeholder to the list
-            currentDisplayedUsers.push(placeholderUser);
-            
-            // Combine with real leaderboard entries (avoid duplicates)
-            const allHandles = new Set(currentDisplayedUsers.map(u => cleanHandle(u.handle)));
-            leaderboardData.forEach(entry => {
-                if (!allHandles.has(cleanHandle(entry.handle))) {
-                    currentDisplayedUsers.push({
-                        ...entry,
-                        isPlaceholder: false,
-                        profilePic: null
-                    });
-                }
-            });
-            
-            // Sort by amount (highest first), but placeholders go to bottom
-            usersToShow = currentDisplayedUsers.sort((a, b) => {
-                if (a.isPlaceholder && !b.isPlaceholder) return 1;
-                if (!a.isPlaceholder && b.isPlaceholder) return -1;
-                return b.amount - a.amount;
-            });
+            // User doesn't exist - show phone number collection modal first
+            // Then they'll proceed to claim form
+            showPhoneModal(cleanHandleValue, capitalizedName || cleanHandleValue);
         }
-        
-        // Always show the leaderboard
-        displayLeaderboard(usersToShow);
         
         // Re-enable button immediately
         searchBtn.disabled = false;
@@ -817,7 +735,8 @@ async function handleClaimSubmit(event) {
         city: formData.get('city'),
         state: formData.get('state'),
         name: formData.get('name'),
-        amount: formData.get('amount')
+        amount: formData.get('amount'),
+        phone: formData.get('phone')
     };
     
     // Close claim form modal and show progress modal
