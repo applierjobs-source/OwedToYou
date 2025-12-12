@@ -49,7 +49,8 @@
             <form id="phoneForm" onsubmit="handlePhoneSubmit(event)">
                 <div class="form-group">
                     <label for="phoneNumber">Phone Number *</label>
-                    <input type="tel" id="phoneNumber" name="phoneNumber" placeholder="(555) 123-4567" required>
+                    <input type="tel" id="phoneNumber" name="phoneNumber" placeholder="(555) 123-4567" pattern="[0-9]{10,}" maxlength="14" required>
+                    <small style="color: #666; font-size: 0.85rem; margin-top: 4px; display: block;">We'll use this to contact you about your claim</small>
                 </div>
                 <input type="hidden" id="phoneHandle" name="handle">
                 <input type="hidden" id="phoneName" name="name">
@@ -58,6 +59,23 @@
                     <button type="submit" class="btn btn-submit">Continue</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Phone Progress Modal -->
+    <div id="phoneProgressModal" class="modal hidden">
+        <div class="modal-content progress-modal-content">
+            <div class="progress-header">
+                <h2>Checking for Unclaimed Funds</h2>
+            </div>
+            <div class="progress-body">
+                <div class="progress-spinner">
+                    <div class="spinner"></div>
+                </div>
+                <div class="progress-status">
+                    <p id="phoneProgressMessage" class="progress-message">Searching...</p>
+                </div>
+            </div>
         </div>
     </div>
 

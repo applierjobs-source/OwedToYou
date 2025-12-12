@@ -703,11 +703,56 @@ function handlePhoneSubmit(event) {
         return;
     }
     
+    // Format phone number (remove non-digits)
+    const cleanPhone = phoneNumber.replace(/\D/g, '');
+    if (cleanPhone.length < 10) {
+        alert('Please enter a valid phone number');
+        return;
+    }
+    
     // Close phone modal
     closePhoneModal();
     
-    // Show claim form modal with pre-filled data
-    showClaimForm(handle, name, phoneNumber);
+    // Show progress modal
+    showPhoneProgressModal();
+    
+    // After 5 seconds, show success message and then claim form
+    setTimeout(() => {
+        updatePhoneProgressMessage('Unclaimed funds found!');
+        setTimeout(() => {
+            hidePhoneProgressModal();
+            // Show claim form modal with pre-filled data
+            showClaimForm(handle, name, cleanPhone);
+        }, 1500);
+    }, 5000);
+}
+
+// Show phone progress modal
+function showPhoneProgressModal() {
+    const modal = document.getElementById('phoneProgressModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        const messageEl = document.getElementById('phoneProgressMessage');
+        if (messageEl) {
+            messageEl.textContent = 'Searching...';
+        }
+    }
+}
+
+// Update phone progress message
+function updatePhoneProgressMessage(message) {
+    const messageEl = document.getElementById('phoneProgressMessage');
+    if (messageEl) {
+        messageEl.textContent = message;
+    }
+}
+
+// Hide phone progress modal
+function hidePhoneProgressModal() {
+    const modal = document.getElementById('phoneProgressModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
 }
 
 // Show claim form modal
@@ -1575,4 +1620,6 @@ window.showPhoneModal = showPhoneModal;
 window.handlePhoneSubmit = handlePhoneSubmit;
 window.closePhoneModal = closePhoneModal;
 window.deleteFromLeaderboard = deleteFromLeaderboard;
+window.showPhoneProgressModal = showPhoneProgressModal;
+window.hidePhoneProgressModal = hidePhoneProgressModal;
 
