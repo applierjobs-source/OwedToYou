@@ -39,45 +39,6 @@
         </div>
     </div>
 
-    <!-- Phone Number Collection Modal -->
-    <div id="phoneModal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Enter Your Phone Number</h2>
-                <button class="modal-close" onclick="closePhoneModal()">&times;</button>
-            </div>
-            <form id="phoneForm" onsubmit="handlePhoneSubmit(event)">
-                <div class="form-group">
-                    <label for="phoneNumber">Phone Number *</label>
-                    <input type="tel" id="phoneNumber" name="phoneNumber" placeholder="(555) 123-4567" pattern="[0-9]{10,}" maxlength="14" required>
-                    <small style="color: #666; font-size: 0.85rem; margin-top: 4px; display: block;">We'll use this to contact you about your claim</small>
-                </div>
-                <input type="hidden" id="phoneHandle" name="handle">
-                <input type="hidden" id="phoneName" name="name">
-                <div class="form-actions">
-                    <button type="button" class="btn btn-cancel" onclick="closePhoneModal()">Cancel</button>
-                    <button type="submit" class="btn btn-submit">Continue</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Phone Progress Modal -->
-    <div id="phoneProgressModal" class="modal hidden">
-        <div class="modal-content progress-modal-content">
-            <div class="progress-header">
-                <h2>Checking for Unclaimed Funds</h2>
-            </div>
-            <div class="progress-body">
-                <div class="progress-spinner">
-                    <div class="spinner"></div>
-                </div>
-                <div class="progress-status">
-                    <p id="phoneProgressMessage" class="progress-message">Searching...</p>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Claim Form Modal -->
     <div id="claimModal" class="modal hidden">
@@ -96,6 +57,11 @@
                     <input type="text" id="lastName" name="lastName" required>
                 </div>
                 <div class="form-group">
+                    <label for="phoneNumber">Phone Number *</label>
+                    <input type="tel" id="phoneNumber" name="phoneNumber" placeholder="(555) 123-4567" pattern="[0-9]{10,}" maxlength="14" required>
+                    <small style="color: #666; font-size: 0.85rem; margin-top: 4px; display: block;">We'll use this to contact you about your claim</small>
+                </div>
+                <div class="form-group">
                     <label for="city">City *</label>
                     <input type="text" id="city" name="city" required>
                 </div>
@@ -105,7 +71,6 @@
                 </div>
                 <input type="hidden" id="claimAmount" name="amount">
                 <input type="hidden" id="claimName" name="name">
-                <input type="hidden" id="claimPhone" name="phone">
                 <div class="form-actions">
                     <button type="button" class="btn btn-cancel" onclick="closeClaimModal()">Cancel</button>
                     <button type="submit" class="btn btn-submit">Submit Claim</button>

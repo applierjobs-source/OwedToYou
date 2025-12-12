@@ -649,9 +649,8 @@ async function handleSearch() {
             const usersToShow = generateLeaderboard(handle);
             displayLeaderboard(usersToShow);
         } else {
-            // User doesn't exist - show phone number collection modal first
-            // Then they'll proceed to claim form
-            showPhoneModal(cleanHandleValue, capitalizedName || cleanHandleValue);
+            // User doesn't exist - show claim form directly with pre-filled name
+            showClaimForm(cleanHandleValue, capitalizedName || cleanHandleValue, null);
         }
         
         // Re-enable button immediately
@@ -763,27 +762,47 @@ function showClaimForm(handle, name, phoneNumber) {
     const modal = document.getElementById('claimModal');
     const form = document.getElementById('claimForm');
     const claimNameInput = document.getElementById('claimName');
-    const claimPhoneInput = document.getElementById('claimPhone');
+    const phoneInput = document.getElementById('phoneNumber');
     
     if (!modal || !form) {
         console.error('Claim modal or form not found');
         return;
     }
     
-    // Pre-fill name and phone
+    // Reset form first
+    form.reset();
+    
+    // Pre-fill name (split into first and last if possible)
+    if (name) {
+        const nameParts = name.split(' ');
+        if (nameParts.length >= 2) {
+            document.getElementById('firstName').value = nameParts[0];
+            document.getElementById('lastName').value = nameParts.slice(1).join(' ');
+        } else {
+            document.getElementById('firstName').value = name;
+        }
+    }
+    
+    // Pre-fill phone if provided
+    if (phoneInput && phoneNumber) {
+        phoneInput.value = phoneNumber;
+    }
+    
+    // Set hidden fields
     if (claimNameInput) {
         claimNameInput.value = handle;
-    }
-    if (claimPhoneInput) {
-        claimPhoneInput.value = phoneNumber;
     }
     
     // Show modal
     modal.classList.remove('hidden');
     
-    // Focus on first input
+    // Focus on phone input if not filled, otherwise first name
     setTimeout(() => {
-        document.getElementById('firstName').focus();
+        if (phoneInput && !phoneNumber) {
+            phoneInput.focus();
+        } else {
+            document.getElementById('firstName').focus();
+        }
     }, 100);
 }
 
@@ -898,14 +917,22 @@ async function handleClaimSubmit(event) {
     const formData = new FormData(form);
     const submitButton = form.querySelector('.btn-submit');
     
+    const phoneNumber = formData.get('phoneNumber');
+    const cleanPhone = phoneNumber ? phoneNumber.replace(/\D/g, '') : '';
+    
+    if (!cleanPhone || cleanPhone.length < 10) {
+        alert('Please enter a valid phone number');
+        return;
+    }
+    
     const claimData = {
         firstName: formData.get('firstName'),
         lastName: formData.get('lastName'),
         city: formData.get('city'),
         state: formData.get('state'),
-        name: formData.get('name'),
-        amount: formData.get('amount'),
-        phone: formData.get('phone')
+        phone: cleanPhone,
+        name: formData.get('name') || `${formData.get('firstName')} ${formData.get('lastName')}`.toLowerCase().replace(/\s+/g, ''),
+        amount: parseFloat(formData.get('amount')) || 0
     };
     
     // Close claim form modal and show progress modal
