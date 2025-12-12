@@ -39,10 +39,22 @@ async function initializeDatabase() {
                 handle VARCHAR(255) UNIQUE NOT NULL,
                 amount INTEGER NOT NULL DEFAULT 0,
                 is_placeholder BOOLEAN NOT NULL DEFAULT false,
+                entities JSONB,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
+        
+        // Add entities column if it doesn't exist (for existing databases)
+        try {
+            await pool.query(`
+                ALTER TABLE leaderboard 
+                ADD COLUMN IF NOT EXISTS entities JSONB
+            `);
+        } catch (e) {
+            // Column might already exist, ignore error
+            console.log('[DATABASE] Entities column already exists or error adding:', e.message);
+        }
         
         // Create index on handle for faster lookups
         await pool.query(`
@@ -565,6 +577,7 @@ const server = http.createServer((req, res) => {
                         handle,
                         amount,
                         is_placeholder as "isPlaceholder",
+                        entities,
                         created_at as "createdAt",
                         updated_at as "updatedAt"
                     FROM leaderboard
@@ -578,6 +591,7 @@ const server = http.createServer((req, res) => {
                     handle: row.handle,
                     amount: row.amount,
                     isPlaceholder: row.isPlaceholder,
+                    entities: row.entities ? (typeof row.entities === 'string' ? JSON.parse(row.entities) : row.entities) : null,
                     createdAt: row.createdAt,
                     updatedAt: row.updatedAt
                 }));
@@ -621,6 +635,7 @@ const server = http.createServer((req, res) => {
                             handle,
                             amount,
                             is_placeholder as "isPlaceholder",
+                            entities,
                             created_at as "createdAt",
                             updated_at as "updatedAt"
                         FROM leaderboard
@@ -635,6 +650,7 @@ const server = http.createServer((req, res) => {
                         handle: row.handle,
                         amount: row.amount,
                         isPlaceholder: row.isPlaceholder,
+                        entities: row.entities ? (typeof row.entities === 'string' ? JSON.parse(row.entities) : row.entities) : null,
                         createdAt: row.createdAt,
                         updatedAt: row.updatedAt
                     }));
@@ -703,17 +719,17 @@ const server = http.createServer((req, res) => {
                     // ALWAYS UPDATE - no conditions, just update the entry
                     await pool.query(
                         `UPDATE leaderboard 
-                         SET name = $1, amount = $2, is_placeholder = $3, updated_at = CURRENT_TIMESTAMP
-                         WHERE handle = $4`,
-                        [entry.name, entry.amount, entry.isPlaceholder || false, entry.handle]
+                         SET name = $1, amount = $2, is_placeholder = $3, entities = $4, updated_at = CURRENT_TIMESTAMP
+                         WHERE handle = $5`,
+                        [entry.name, entry.amount, entry.isPlaceholder || false, entry.entities ? JSON.stringify(entry.entities) : null, entry.handle]
                     );
                     console.log(`[LEADERBOARD] Updated existing entry for handle: ${entry.handle}`);
                 } else {
                     // Insert new entry
                     await pool.query(
-                        `INSERT INTO leaderboard (name, handle, amount, is_placeholder)
-                         VALUES ($1, $2, $3, $4)`,
-                        [entry.name, entry.handle, entry.amount, entry.isPlaceholder || false]
+                        `INSERT INTO leaderboard (name, handle, amount, is_placeholder, entities)
+                         VALUES ($1, $2, $3, $4, $5)`,
+                        [entry.name, entry.handle, entry.amount, entry.isPlaceholder || false, entry.entities ? JSON.stringify(entry.entities) : null]
                     );
                     console.log(`[LEADERBOARD] Added new entry for handle: ${entry.handle}`);
                 }
@@ -725,6 +741,7 @@ const server = http.createServer((req, res) => {
                         handle,
                         amount,
                         is_placeholder as "isPlaceholder",
+                        entities,
                         created_at as "createdAt",
                         updated_at as "updatedAt"
                     FROM leaderboard
@@ -738,6 +755,7 @@ const server = http.createServer((req, res) => {
                     handle: row.handle,
                     amount: row.amount,
                     isPlaceholder: row.isPlaceholder,
+                    entities: row.entities ? (typeof row.entities === 'string' ? JSON.parse(row.entities) : row.entities) : null,
                     createdAt: row.createdAt,
                     updatedAt: row.updatedAt
                 }));

@@ -615,7 +615,7 @@ async function deleteFromLeaderboard(handle) {
 }
 
 // Add entry to leaderboard (or update if exists)
-async function addToLeaderboard(name, handle, amount, isPlaceholder = false, refreshDisplay = false) {
+async function addToLeaderboard(name, handle, amount, isPlaceholder = false, refreshDisplay = false, entities = null) {
     try {
         const apiBase = window.location.origin;
         const response = await fetch(`${apiBase}/api/leaderboard`, {
@@ -627,7 +627,8 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
                 name: name,
                 handle: cleanHandle(handle),
                 amount: Math.round(amount),
-                isPlaceholder: isPlaceholder
+                isPlaceholder: isPlaceholder,
+                entities: entities
             })
         });
         
@@ -783,8 +784,8 @@ function createEntryHTML(user, rank) {
             </div>
             <div class="entry-amount">${formattedAmount}</div>
             <div class="entry-actions">
-                <button class="btn btn-claim" onclick="handleClaim('${escapedName}', ${user.amount})">
-                    Claim It
+                <button class="btn btn-claim" onclick="handleView('${escapedName}', '${user.handle}', ${user.amount})">
+                    View
                 </button>
                 <button class="btn btn-notify" onclick="handleNotify('${escapedName}', ${user.amount})">
                     Notify
@@ -1162,6 +1163,80 @@ function closePhoneModal() {
     }
 }
 
+// Handle view button - show businesses modal (for leaderboard entries)
+function handleView(name, handle, amount) {
+    // Find the user in leaderboard data
+    const cleanUserHandle = cleanHandle(handle);
+    const userEntry = leaderboardData.find(entry => cleanHandle(entry.handle) === cleanUserHandle);
+    
+    const modal = document.getElementById('claimModal');
+    if (!modal) {
+        console.error('Modal not found');
+        return;
+    }
+    
+    const modalContent = modal.querySelector('.modal-content');
+    if (!modalContent) {
+        console.error('Modal content not found');
+        return;
+    }
+    
+    // Get entities from user entry
+    const entities = userEntry?.entities || [];
+    
+    // Create view modal HTML
+    let viewHTML = `
+        <div class="modal-header">
+            <h2>Businesses Owing Money to ${escapeHtml(name)}</h2>
+            <button class="modal-close" onclick="closeViewModal()">&times;</button>
+        </div>
+        <div class="results-content" style="padding: 30px;">
+            <div class="results-summary" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 20px; color: white; margin-bottom: 30px; text-align: center;">
+                <p class="results-name" style="font-size: 1.5rem; font-weight: 700; margin: 0 0 8px 0;">${escapeHtml(name)}</p>
+                <div class="total-amount" style="display: flex; flex-direction: column; align-items: center; gap: 8px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.3);">
+                    <span class="total-label" style="font-size: 0.9rem; opacity: 0.9;">Total Unclaimed:</span>
+                    <span class="total-value" style="font-size: 2.5rem; font-weight: 700;">$${amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                </div>
+            </div>
+            <div class="results-list">
+                <h3 style="margin: 0 0 20px 0; color: #333; font-size: 1.2rem;">Reported Businesses:</h3>
+    `;
+    
+    if (entities && entities.length > 0) {
+        entities.forEach((entity, index) => {
+            viewHTML += `
+                <div class="result-item" style="display: flex; justify-content: space-between; align-items: center; padding: 16px; background: #f8f9fa; border-radius: 8px; margin-bottom: 12px; transition: all 0.2s;">
+                    <div class="result-entity" style="font-weight: 600; color: #333; flex: 1;">${escapeHtml(entity.entity || 'Unknown Business')}</div>
+                    <div class="result-amount" style="font-size: 1.3rem; font-weight: 700; color: #667eea;">${escapeHtml(entity.amount || '$0')}</div>
+                </div>
+            `;
+        });
+    } else {
+        viewHTML += `
+            <div style="padding: 40px; text-align: center; color: #666;">
+                <p>No detailed business information available for this entry.</p>
+                <p style="font-size: 0.9rem; margin-top: 10px; color: #999;">Total amount: $${amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+            </div>
+        `;
+    }
+    
+    viewHTML += `
+            </div>
+        </div>
+    `;
+    
+    modalContent.innerHTML = viewHTML;
+    modal.classList.remove('hidden');
+}
+
+// Close view modal
+function closeViewModal() {
+    const modal = document.getElementById('claimModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
 // Handle claim button - show form modal (for existing leaderboard entries)
 function handleClaim(name, amount) {
     const modal = document.getElementById('claimModal');
@@ -1369,8 +1444,8 @@ async function startMissingMoneySearch(firstName, lastName, handle) {
             console.log('✅ Showing results modal with', result.results.length, 'results');
             console.log('📊 First result:', result.results[0]);
             
-            // Add to leaderboard with real amount and refresh display
-            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), result.totalAmount, false, true);
+            // Add to leaderboard with real amount, entities, and refresh display
+            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), result.totalAmount, false, true, result.results || []);
             
             // Show results modal
             showResultsModal(claimData, result);
@@ -1380,7 +1455,7 @@ async function startMissingMoneySearch(firstName, lastName, handle) {
             console.log('💾 Saving claim to leaderboard with $0 amount');
             
             // Add to leaderboard with $0 amount (still a successful claim) and refresh display
-            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 0, false, true);
+            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 0, false, true, []);
             
             // Show "no results" modal
             showNoResultsModal(claimData);
@@ -2144,6 +2219,8 @@ function showNameSearchModal() {
 
 // Make functions available globally for onclick handlers
 window.handleClaim = handleClaim;
+window.handleView = handleView;
+window.closeViewModal = closeViewModal;
 window.handleNotify = handleNotify;
 window.closeClaimModal = closeClaimModal;
 window.closeResultsModal = closeResultsModal;
