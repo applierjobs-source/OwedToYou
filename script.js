@@ -614,8 +614,12 @@ async function deleteFromLeaderboard(handle) {
     }
 }
 
-// Clear all Instagram handles from leaderboard
+// Clear all entries from leaderboard
 async function clearLeaderboardHandles() {
+    if (!confirm('Are you sure you want to clear all entries from the leaderboard? This cannot be undone.')) {
+        return false;
+    }
+    
     try {
         const apiBase = window.location.origin;
         const response = await fetch(`${apiBase}/api/leaderboard/clear-handles`, {
@@ -627,30 +631,23 @@ async function clearLeaderboardHandles() {
         
         const data = await response.json();
         if (data.success) {
-            console.log(`✅ Cleared ${data.cleared} handles from leaderboard`);
-            if (data.leaderboard) {
-                leaderboardData = data.leaderboard
-                    .filter(entry => !entry.isPlaceholder)
-                    .map(entry => ({
-                        ...entry,
-                        profilePic: null,
-                        isPlaceholder: false
-                    }));
-                // Refresh display if leaderboard is visible
-                if (!document.getElementById('leaderboard').classList.contains('hidden')) {
-                    displayLeaderboard(leaderboardData);
-                }
+            console.log(`✅ Cleared ${data.deleted} entries from leaderboard`);
+            // Clear the local leaderboard data
+            leaderboardData = [];
+            // Refresh display if leaderboard is visible
+            if (!document.getElementById('leaderboard').classList.contains('hidden')) {
+                displayLeaderboard(leaderboardData);
             }
-            alert(`Successfully cleared ${data.cleared} Instagram handles from the leaderboard.`);
+            alert(`Successfully cleared ${data.deleted} entries from the leaderboard.`);
             return true;
         } else {
-            console.error('Error clearing handles:', data.error);
+            console.error('Error clearing leaderboard:', data.error);
             alert(`Error: ${data.error}`);
             return false;
         }
     } catch (error) {
-        console.error('Error clearing handles:', error);
-        alert(`Error clearing handles: ${error.message}`);
+        console.error('Error clearing leaderboard:', error);
+        alert(`Error clearing leaderboard: ${error.message}`);
         return false;
     }
 }
