@@ -1115,7 +1115,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                     
                     if (!hasAmount) return;
                     
-                    // Extract entity name - prioritize Reporting Business Name column
+                    // Extract entity name - ONLY from Reporting Business Name column
                     let entity = '';
                     let amount = '';
                     
@@ -1124,57 +1124,22 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                         entity = cells[reportingBusinessIdx].innerText.trim();
                     }
                     
-                    // Also try to find by headers attribute as fallback
+                    // Also try to find by headers attribute as fallback (only for Reporting Business Name)
                     if ((!entity || entity.length < 2)) {
                         for (const cell of cells) {
                             const headers = cell.getAttribute('headers') || '';
-                            if (headers.includes('propholderName') || headers.includes('holderName')) {
+                            if (headers.includes('propholderName') || headers.includes('holderName') || headers.includes('holder')) {
                                 entity = cell.innerText.trim();
                                 break;
                             }
                         }
                     }
                     
-                    // Fallback to Owner Name if no Reporting Business
-                    // IMPORTANT: Include ALL owner names, including the user's name
-                    if ((!entity || entity.length < 2) && ownerNameIdx >= 0 && cells[ownerNameIdx]) {
-                        const ownerName = cells[ownerNameIdx].innerText.trim();
-                        if (ownerName && ownerName.length > 2) {
-                            entity = ownerName;
-                        }
-                    }
-                    
-                    // Also try to find Owner Name by headers attribute
-                    // IMPORTANT: Include ALL owner names, including the user's name
+                    // DO NOT fallback to Owner Name - only use Reporting Business Name
+                    // If no Reporting Business Name found, skip this row
                     if ((!entity || entity.length < 2)) {
-                        for (const cell of cells) {
-                            const headers = cell.getAttribute('headers') || '';
-                            if (headers.includes('propownerName') || headers.includes('ownerName')) {
-                                const ownerName = cell.innerText.trim();
-                                if (ownerName && ownerName.length > 2) {
-                                    entity = ownerName;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    
-                    // If still no entity, try first few cells
-                    if ((!entity || entity.length < 2)) {
-                        for (let i = 0; i < Math.min(5, cells.length); i++) {
-                            const cellText = cells[i].innerText.trim();
-                            if (cellText && 
-                                cellText.length > 2 && 
-                                cellText.length < 200 &&
-                                !cellText.match(/^(claim|select|view|info)$/i) &&
-                                !cellText.match(/^\$[\d,]+\.?\d*$/) &&
-                                !cellText.match(/^(over|to|\$25|\$50|\$100)$/i) &&
-                                !cellText.match(/^[A-Z]{2}$/) && // Not state code
-                                !cellText.match(/^\d{5}$/)) { // Not ZIP
-                                entity = cellText;
-                                break;
-                            }
-                        }
+                        // Skip rows without a valid Reporting Business Name
+                        return;
                     }
                     
                     // Extract amount - look for amount column using index or headers
@@ -1305,7 +1270,8 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                         let entity = '';
                         let amount = '';
                         
-                        // Look for business/company names (usually longer text, contains common business words)
+                        // Look for business/company names ONLY (Reporting Business Name column)
+                        // This enhanced extraction should only find business names, not owner names
                         for (const cellText of cellTexts) {
                             if (cellText.length > 5 && 
                                 cellText.length < 200 &&
@@ -1314,32 +1280,31 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                                 !cellText.match(/^(over|to|\$25|\$50|\$100)$/i) &&
                                 !cellText.match(/^[A-Z]{2}$/) &&
                                 !cellText.match(/^\d{5}$/) &&
-                                // Include all names, including user's name
-                                (cellText.includes(' ') || 
-                                 cellText.includes('LLC') || 
+                                // Only include business names (not personal names)
+                                (cellText.includes('LLC') || 
                                  cellText.includes('INC') || 
                                  cellText.includes('CORP') ||
                                  cellText.includes('BANK') ||
-                                 cellText.includes('CO'))) {
+                                 cellText.includes('CO') ||
+                                 cellText.includes('COMPANY') ||
+                                 cellText.includes('CORPORATION') ||
+                                 cellText.includes('ASSOCIATES') ||
+                                 cellText.includes('GROUP') ||
+                                 cellText.includes('ENTERPRISES') ||
+                                 cellText.includes('SERVICES') ||
+                                 cellText.includes('SYSTEMS') ||
+                                 cellText.includes('SOLUTIONS') ||
+                                 // Long names with spaces are likely businesses
+                                 (cellText.includes(' ') && cellText.length > 15))) {
                                 entity = cellText;
                                 break;
                             }
                         }
                         
-                        // If no business name found, try owner name (include ALL names, including user's name)
+                        // DO NOT fallback to owner name - only use Reporting Business Name
+                        // If no business name found, skip this row
                         if ((!entity || entity.length < 2)) {
-                            for (const cellText of cellTexts) {
-                                if (cellText.length > 2 && 
-                                    cellText.length < 100 &&
-                                    !cellText.match(/^(claim|select|view|info|undisclosed)$/i) &&
-                                    !cellText.match(/^\$[\d,]+\.?\d*$/) &&
-                                    !cellText.match(/^(over|to|\$25|\$50|\$100)$/i) &&
-                                    !cellText.match(/^[A-Z]{2}$/) &&
-                                    !cellText.match(/^\d{5}$/)) {
-                                    entity = cellText;
-                                    break;
-                                }
-                            }
+                            return; // Skip rows without a valid business name
                         }
                         
                         // Extract amount
@@ -1412,41 +1377,41 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                             
                             // Find ANY entity name from cells (more lenient)
                             let entity = '';
+                            // Try to find Reporting Business Name column by checking headers
+                            let foundBusinessName = false;
                             for (const cell of cells) {
+                                const headers = cell.getAttribute('headers') || '';
                                 const cellText = cell.innerText.trim();
-                                if (cellText && 
+                                // Only extract from Reporting Business Name column
+                                if ((headers.includes('propholderName') || headers.includes('holderName') || headers.includes('holder')) &&
+                                    cellText && 
                                     cellText.length > 2 && 
                                     cellText.length < 200 &&
-                                    !cellText.match(/^(claim|select|view|info|undisclosed|undisclosed)$/i) &&
+                                    !cellText.match(/^(claim|select|view|info|undisclosed)$/i) &&
                                     !cellText.match(/^\$[\d,]+\.?\d*$/) &&
                                     !cellText.match(/^(over|to|\$25|\$50|\$100)$/i) &&
                                     !cellText.match(/^[A-Z]{2}$/) &&
                                     !cellText.match(/^\d{5}$/) &&
-                                    !cellText.match(/^[A-Z]{2}\s+\d{5}$/)) { // Not "TX 78731"
+                                    !cellText.match(/^[A-Z]{2}\s+\d{5}$/)) {
                                     entity = cellText;
+                                    foundBusinessName = true;
                                     break;
                                 }
                             }
                             
-                            // If still no entity, use a generic name based on row content
-                            if (!entity || entity.length < 2) {
-                                // Try to extract from row text - look for capitalized words
-                                const words = rowText.match(/\b[A-Z][A-Z\s&.,]+/g);
-                                if (words && words.length > 0) {
-                                    // Find the longest capitalized phrase that's not a state/city
-                                    const phrases = words.filter(w => 
-                                        w.length > 3 && 
-                                        !w.match(/^(TX|CA|NY|FL|OVER|TO|CLAIM|SELECT|VIEW)$/i)
-                                    );
-                                    if (phrases.length > 0) {
-                                        entity = phrases[0].trim();
-                                    }
+                            // If we found Reporting Business Name column by index, use that
+                            if (!foundBusinessName && reportingBusinessIdx >= 0 && cells[reportingBusinessIdx]) {
+                                const cellText = cells[reportingBusinessIdx].innerText.trim();
+                                if (cellText && cellText.length > 2 && cellText.length < 200) {
+                                    entity = cellText;
+                                    foundBusinessName = true;
                                 }
                             }
                             
-                            // Default entity if still nothing
-                            if (!entity || entity.length < 2) {
-                                entity = 'Unclaimed Property';
+                            // If still no entity from Reporting Business Name column, skip this row
+                            // DO NOT fallback to owner name or generic extraction
+                            if (!foundBusinessName || !entity || entity.length < 2) {
+                                return; // Skip rows without a valid Reporting Business Name
                             }
                             
                             // Add if we have amount
