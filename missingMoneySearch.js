@@ -1146,8 +1146,10 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                     // CRITICAL: Must find the actual dollar amount, not button text
                     if (amountIdx >= 0 && cells[amountIdx]) {
                         const amountCellText = cells[amountIdx].innerText.trim().toUpperCase();
-                        // Only use if it contains a dollar sign or amount pattern
-                        if (amountCellText.includes('$') || /over|to\s+\$|\$\d+/i.test(amountCellText)) {
+                        // Convert "UNDISCLOSED" to "$100"
+                        if (amountCellText === 'UNDISCLOSED') {
+                            amount = '$100';
+                        } else if (amountCellText.includes('$') || /over|to\s+\$|\$\d+/i.test(amountCellText)) {
                             amount = amountCellText;
                         }
                     }
@@ -1158,8 +1160,11 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                             const headers = cell.getAttribute('headers') || '';
                             if (headers.includes('proppropertyValueDescription') || headers.includes('amount')) {
                                 const cellText = cell.innerText.trim().toUpperCase();
-                                // Only use if it contains a dollar sign or amount pattern
-                                if (cellText.includes('$') || /over|to\s+\$|\$\d+/i.test(cellText)) {
+                                // Convert "UNDISCLOSED" to "$100"
+                                if (cellText === 'UNDISCLOSED') {
+                                    amount = '$100';
+                                    break;
+                                } else if (cellText.includes('$') || /over|to\s+\$|\$\d+/i.test(cellText)) {
                                     amount = cellText;
                                     break;
                                 }
@@ -1308,9 +1313,14 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                         }
                         
                         // Extract amount
-                        const amountMatch = rowText.match(/(over\s+\$[\d,]+|\$\d+[\s,]*to[\s,]*\$\d+|\$[\d,]+\.?\d*)/i);
-                        if (amountMatch) {
-                            amount = amountMatch[0].toUpperCase().trim();
+                        // Check for "UNDISCLOSED" first
+                        if (rowText.toUpperCase().includes('UNDISCLOSED')) {
+                            amount = '$100';
+                        } else {
+                            const amountMatch = rowText.match(/(over\s+\$[\d,]+|\$\d+[\s,]*to[\s,]*\$\d+|\$[\d,]+\.?\d*)/i);
+                            if (amountMatch) {
+                                amount = amountMatch[0].toUpperCase().trim();
+                            }
                         }
                         
                         // Add if we have both
@@ -1370,9 +1380,14 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                             
                             // Extract amount
                             let amount = '';
-                            const amountMatch = rowText.match(/(over\s+\$[\d,]+|\$\d+[\s,]*to[\s,]*\$\d+|\$[\d,]+\.?\d*)/i);
-                            if (amountMatch) {
-                                amount = amountMatch[0].toUpperCase().trim();
+                            // Check for "UNDISCLOSED" first
+                            if (rowText.toUpperCase().includes('UNDISCLOSED')) {
+                                amount = '$100';
+                            } else {
+                                const amountMatch = rowText.match(/(over\s+\$[\d,]+|\$\d+[\s,]*to[\s,]*\$\d+|\$[\d,]+\.?\d*)/i);
+                                if (amountMatch) {
+                                    amount = amountMatch[0].toUpperCase().trim();
+                                }
                             }
                             
                             // Find ANY entity name from cells (more lenient)
@@ -1730,7 +1745,11 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             
             // CRITICAL: Fix amount if it's "CLAIM" or doesn't have a dollar sign
             let cleanAmount = r.amount;
-            if (cleanAmount && (cleanAmount === 'CLAIM' || cleanAmount === 'VIEW' || cleanAmount === 'SELECT' || !cleanAmount.includes('$'))) {
+            // Convert "UNDISCLOSED" to "$100"
+            if (cleanAmount && cleanAmount.toUpperCase() === 'UNDISCLOSED') {
+                cleanAmount = '$100';
+                console.log(`🔧 Converted UNDISCLOSED to $100 for entity: "${cleanEntity}"`);
+            } else if (cleanAmount && (cleanAmount === 'CLAIM' || cleanAmount === 'VIEW' || cleanAmount === 'SELECT' || !cleanAmount.includes('$'))) {
                 // Amount is wrong - try to find it in details
                 const detailsMatch = r.details.match(/(over\s+\$[\d,]+|\$\d+[\s,]*to[\s,]*\$\d+|\$[\d,]+)/i);
                 if (detailsMatch) {
@@ -1806,6 +1825,10 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             const totalAmount = uniqueResults.reduce((sum, r) => {
                 // Handle amount ranges - use minimum value for ranges
                 let amountStr = r.amount;
+                // Convert "UNDISCLOSED" to "$100"
+                if (amountStr && amountStr.toUpperCase() === 'UNDISCLOSED') {
+                    amountStr = '$100';
+                }
                 if (amountStr.includes('OVER')) {
                     // For "OVER $100", use 100 as minimum
                     const match = amountStr.match(/\$?([\d,]+)/);
@@ -1910,6 +1933,10 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 results: fallbackResults,
                 totalAmount: fallbackResults.reduce((sum, r) => {
                     let amountStr = r.amount;
+                    // Convert "UNDISCLOSED" to "$100"
+                    if (amountStr && amountStr.toUpperCase() === 'UNDISCLOSED') {
+                        amountStr = '$100';
+                    }
                     if (amountStr.includes('OVER')) {
                         const match = amountStr.match(/\$?([\d,]+)/);
                         if (match) amountStr = match[1];
