@@ -521,18 +521,23 @@ const server = http.createServer((req, res) => {
                 const data = JSON.parse(body);
                 const { firstName, lastName, city, state, use2Captcha, captchaApiKey } = data;
                 
-                if (!firstName || !lastName || !city || !state) {
+                // Only require first and last name (city and state are optional on missingmoney.com)
+                if (!firstName || !lastName) {
                     res.writeHead(400, corsHeaders);
-                    res.end(JSON.stringify({ success: false, error: 'Missing required fields' }));
+                    res.end(JSON.stringify({ success: false, error: 'Missing required fields: firstName and lastName are required' }));
                     return;
                 }
                 
-                console.log(`Searching Missing Money for ${firstName} ${lastName}, ${city}, ${state}`);
+                // Use empty strings if city/state not provided
+                const searchCity = city || '';
+                const searchState = state || '';
+                
+                console.log(`Searching Missing Money for ${firstName} ${lastName}${searchCity ? `, ${searchCity}` : ''}${searchState ? `, ${searchState}` : ''}`);
                 console.log(`2captcha enabled: ${use2Captcha}, API key provided: ${!!captchaApiKey}`);
                 if (captchaApiKey) {
                     console.log(`API key (first 10 chars): ${captchaApiKey.substring(0, 10)}...`);
                 }
-                const result = await searchMissingMoney(firstName, lastName, city, state, use2Captcha || false, captchaApiKey || null);
+                const result = await searchMissingMoney(firstName, lastName, searchCity, searchState, use2Captcha || false, captchaApiKey || null);
                 
                 res.writeHead(200, corsHeaders);
                 res.end(JSON.stringify(result));

@@ -249,6 +249,12 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         
         // Use a more robust approach - fill by index if we can't find by name/id
         const fillField = async (value, fieldName, selectors) => {
+            // If value is empty, consider it optional and return true (field doesn't need to be filled)
+            if (!value || value.trim().length === 0) {
+                console.log(`⏭️ Skipping ${fieldName} - value is empty (optional field)`);
+                return true; // Return true for optional empty fields
+            }
+            
             for (const selector of selectors) {
                 try {
                     const element = await page.$(selector);
@@ -393,8 +399,9 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             'select'
         ]);
         
-        // If we couldn't fill by name/id, try filling all text inputs in order
-        if (!firstNameFilled || !lastNameFilled || !cityFilled || !stateFilled) {
+        // If we couldn't fill required fields (first/last name), try filling all text inputs in order
+        // Note: city and state are optional, so we only require first and last name
+        if (!firstNameFilled || !lastNameFilled) {
             console.log('Trying to fill inputs by order (fallback method)...');
             
             // Get all visible inputs, excluding hidden and Turnstile inputs
@@ -422,12 +429,14 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             
             console.log(`Found ${visibleInputs.length} visible inputs to fill`);
             
-            if (visibleInputs.length >= 4) {
-                const values = [lastName, firstName, city, fullStateName];
-                const fieldNames = ['lastName', 'firstName', 'city', 'state'];
+            // Only fill first and last name if we have at least 2 inputs
+            // City and state are optional on missingmoney.com
+            if (visibleInputs.length >= 2) {
+                const values = [lastName, firstName]; // Only required fields
+                const fieldNames = ['lastName', 'firstName'];
                 
-                // Fill in order: last, first, city, state (based on Missing Money form order)
-                for (let i = 0; i < Math.min(4, visibleInputs.length); i++) {
+                // Fill in order: last, first (based on Missing Money form order)
+                for (let i = 0; i < Math.min(2, visibleInputs.length); i++) {
                     try {
                         const input = visibleInputs[i];
                         const tagName = await input.evaluate(el => el.tagName.toLowerCase());
