@@ -812,9 +812,23 @@ function displayLeaderboard(users) {
 
 // Handle search
 async function handleSearch() {
+    console.log('🔍 handleSearch called');
+    
     const input = document.getElementById('instagramHandle');
     const handle = input.value.trim();
     const searchBtn = document.getElementById('searchBtn');
+    
+    if (!input) {
+        console.error('❌ Instagram handle input not found!');
+        return;
+    }
+    
+    if (!searchBtn) {
+        console.error('❌ Search button not found!');
+        return;
+    }
+    
+    console.log(`🔍 Search initiated for handle: "${handle}"`);
     
     if (!handle) {
         alert('Please enter an Instagram username');
@@ -840,7 +854,13 @@ async function handleSearch() {
             searchBtn.textContent = 'Search';
         } else {
             // User doesn't exist - get Instagram full name and start search automatically
-            const fullName = await getInstagramFullName(cleanHandleValue);
+            let fullName = null;
+            try {
+                fullName = await getInstagramFullName(cleanHandleValue);
+            } catch (nameError) {
+                console.error('Error extracting Instagram name:', nameError);
+                // Continue with fallback
+            }
             
             // Split full name into first and last name
             let firstName = '';
@@ -968,8 +988,9 @@ async function handleSearch() {
             }
         }
     } catch (error) {
-        console.error('Error generating leaderboard:', error);
-        alert('An error occurred. Please try again.');
+        console.error('❌ Error in handleSearch:', error);
+        console.error('Error stack:', error.stack);
+        alert('An error occurred while searching. Please try again.');
         searchBtn.disabled = false;
         searchBtn.textContent = 'Search';
     }
@@ -1617,13 +1638,33 @@ function handleNotify(name, amount) {
 
 // Event listeners
 document.addEventListener('DOMContentLoaded', async function() {
+    console.log('📋 DOMContentLoaded - Setting up event listeners');
+    
     const searchBtn = document.getElementById('searchBtn');
     const searchInput = document.getElementById('instagramHandle');
     
-    searchBtn.addEventListener('click', handleSearch);
+    if (!searchBtn) {
+        console.error('❌ Search button not found in DOM!');
+        return;
+    }
+    
+    if (!searchInput) {
+        console.error('❌ Search input not found in DOM!');
+        return;
+    }
+    
+    console.log('✅ Found search button and input, attaching event listeners');
+    
+    searchBtn.addEventListener('click', function(e) {
+        console.log('🖱️ Search button clicked');
+        e.preventDefault();
+        handleSearch();
+    });
     
     searchInput.addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
+            console.log('⌨️ Enter key pressed in search input');
+            e.preventDefault();
             handleSearch();
         }
     });
