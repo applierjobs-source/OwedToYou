@@ -1322,6 +1322,9 @@ function handleView(name, handle, amount) {
     // Get entities from user entry
     const entities = userEntry?.entities || [];
     
+    // Store data in data attributes for safer access
+    const entitiesJson = JSON.stringify(entities || []).replace(/"/g, '&quot;');
+    
     // Create view modal HTML
     let viewHTML = `
         <div class="modal-header">
@@ -1335,6 +1338,16 @@ function handleView(name, handle, amount) {
                     <span class="total-label" style="font-size: 0.9rem; opacity: 0.9;">Total Unclaimed:</span>
                     <span class="total-value" style="font-size: 2.5rem; font-weight: 700;">$${amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
+            </div>
+            <div class="claim-button-container" style="margin-bottom: 30px; text-align: center;">
+                <button class="btn btn-claim-funds" 
+                        data-name="${escapeHtml(name).replace(/"/g, '&quot;')}" 
+                        data-amount="${amount}" 
+                        data-entities="${entitiesJson}"
+                        onclick="handleClaimYourFundsFromView(this)" 
+                        style="width: 100%; max-width: 400px; padding: 16px; font-size: 1.2rem; font-weight: 600; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
+                    Claim Your Funds
+                </button>
             </div>
             <div class="results-list">
                 <h3 style="margin: 0 0 20px 0; color: #333; font-size: 1.2rem;">Reported Businesses:</h3>
@@ -1358,20 +1371,7 @@ function handleView(name, handle, amount) {
         `;
     }
     
-    // Store data in data attributes for safer access
-    const entitiesJson = JSON.stringify(entities || []).replace(/"/g, '&quot;');
-    
     viewHTML += `
-            </div>
-            <div class="claim-button-container" style="margin-top: 30px; text-align: center;">
-                <button class="btn btn-claim-funds" 
-                        data-name="${escapeHtml(name).replace(/"/g, '&quot;')}" 
-                        data-amount="${amount}" 
-                        data-entities="${entitiesJson}"
-                        onclick="handleClaimYourFundsFromView(this)" 
-                        style="width: 100%; max-width: 400px; padding: 16px; font-size: 1.2rem; font-weight: 600; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
-                    Claim Your Funds
-                </button>
             </div>
         </div>
     `;
