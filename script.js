@@ -1036,101 +1036,13 @@ async function handleSearch() {
                     return;
                 }
                 
-                console.log('Could not extract name from Instagram, trying fallback methods...');
-                // Fallback: if we can't get the name, try to extract from handle
-                // Remove common prefixes like "coach", "the", etc.
-                let handleName = cleanHandleValue
-                    .replace(/^coach/gi, '')
-                    .replace(/^the/gi, '')
-                    .replace(/^mr/gi, '')
-                    .replace(/^mrs/gi, '')
-                    .replace(/^ms/gi, '')
-                    .replace(/_/g, ' ')
-                    .trim();
-                
-                // Try to split on common patterns (camelCase, numbers, etc.)
-                handleName = handleName.replace(/([a-z])([A-Z])/g, '$1 $2'); // camelCase
-                handleName = handleName.replace(/([a-z])(\d)/g, '$1 $2'); // letter then number
-                
-                let nameParts = handleName.split(/\s+/).filter(part => part.length > 0);
-                
-                // If we only have one part (like "chriscerda"), try to intelligently split it
-                if (nameParts.length === 1 && nameParts[0].length > 6) {
-                    const combined = nameParts[0].toLowerCase();
-                    // Try to find a split point - look for common name patterns
-                    // For "chriscerda", try splitting after "chris" (5 chars)
-                    // Common first names: chris, john, mike, dave, etc.
-                    const commonFirstNames = ['chris', 'john', 'mike', 'dave', 'joe', 'bob', 'tom', 'dan', 'sam', 'max', 'alex', 'nick', 'josh', 'matt', 'ryan', 'jake', 'luke', 'mark', 'paul', 'steve'];
-                    
-                    for (const commonName of commonFirstNames) {
-                        if (combined.startsWith(commonName) && combined.length > commonName.length) {
-                            const firstName = commonName.charAt(0).toUpperCase() + commonName.slice(1);
-                            const lastName = combined.slice(commonName.length);
-                            // Capitalize first letter of last name
-                            const capitalizedLastName = lastName.charAt(0).toUpperCase() + lastName.slice(1);
-                            nameParts = [firstName, capitalizedLastName];
-                            console.log(`Split combined name "${combined}" into "${firstName} ${capitalizedLastName}"`);
-                            break;
-                        }
-                    }
-                }
-                
-                const capitalizedName = nameParts.map(word => 
-                    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-                ).join(' ');
-                const finalNameParts = capitalizedName.split(/\s+/).filter(part => part.length > 0);
-                
-                // If we have at least 2 parts, use them
-                if (finalNameParts.length >= 2) {
-                    const fallbackFirstName = finalNameParts[0] || '';
-                    const fallbackLastName = finalNameParts.slice(1).join(' ') || '';
-                    
-                    if (fallbackFirstName && fallbackLastName) {
-                        console.log(`Starting search with fallback name: ${fallbackFirstName} ${fallbackLastName}`);
-                        // Re-enable button immediately
-                        searchBtn.disabled = false;
-                        searchBtn.textContent = 'Search';
-                        
-                        // Start search with fallback name
-                        await startMissingMoneySearch(fallbackFirstName, fallbackLastName, cleanHandleValue);
-                    } else {
-                        // Use handle as last name if we can't split it
-                        const handleAsName = cleanHandleValue.charAt(0).toUpperCase() + cleanHandleValue.slice(1).toLowerCase();
-                        console.log(`Starting search with handle as name: ${handleAsName}`);
-                        searchBtn.disabled = false;
-                        searchBtn.textContent = 'Search';
-                        // Split handle into first and last (use first word as first name, rest as last)
-                        const handleParts = handleAsName.split(/\s+|_/).filter(p => p.length > 0);
-                        if (handleParts.length >= 2) {
-                            await startMissingMoneySearch(handleParts[0], handleParts.slice(1).join(' '), cleanHandleValue);
-                        } else {
-                            // Use handle as last name, "User" as first name
-                            await startMissingMoneySearch('User', handleAsName, cleanHandleValue);
-                        }
-                    }
-                } else {
-                    // Use handle as name - split it or use as last name
-                    const handleAsName = cleanHandleValue.charAt(0).toUpperCase() + cleanHandleValue.slice(1).toLowerCase();
-                    console.log(`Starting search with handle as name: ${handleAsName}`);
-                    searchBtn.disabled = false;
-                    searchBtn.textContent = 'Search';
-                    // Try to split handle - use first part as first name, rest as last
-                    const handleParts = handleAsName.split(/\s+|_/).filter(p => p.length > 0);
-                    if (handleParts.length >= 2) {
-                        await startMissingMoneySearch(handleParts[0], handleParts.slice(1).join(' '), cleanHandleValue);
-                    } else if (handleParts.length === 1 && handleParts[0].length > 6) {
-                        // Try to split long single word
-                        const mid = Math.floor(handleParts[0].length / 2);
-                        await startMissingMoneySearch(
-                            handleParts[0].substring(0, mid).charAt(0).toUpperCase() + handleParts[0].substring(1, mid).toLowerCase(),
-                            handleParts[0].substring(mid).charAt(0).toUpperCase() + handleParts[0].substring(mid + 1).toLowerCase(),
-                            cleanHandleValue
-                        );
-                    } else {
-                        // Use handle as last name, "User" as first name
-                        await startMissingMoneySearch('User', handleAsName, cleanHandleValue);
-                    }
-                }
+                // DO NOT use fallback methods - they are unreliable and produce incorrect names
+                // If Instagram extraction fails, the user must use manual name search
+                console.log('⚠️ Instagram name extraction failed - not using unreliable fallback methods');
+                searchBtn.disabled = false;
+                searchBtn.textContent = 'Search';
+                alert(`Unable to extract name from Instagram profile @${cleanHandleValue}. Please try searching by name instead using the link below.`);
+                return;
             }
         }
     } catch (error) {
