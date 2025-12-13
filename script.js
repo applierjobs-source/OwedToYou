@@ -2609,10 +2609,10 @@ async function showShareModal(firstName, lastName, amount, results = []) {
                 <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.3);">
                     <p style="font-size: 1rem; opacity: 0.95; margin-bottom: 12px; font-weight: 500;">Total Claimed:</p>
                     <p style="font-size: 3rem; font-weight: 700; margin: 0 0 20px 0; color: white;">$${amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
-                    ${results && results.length > 0 ? `
-                        <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.3); max-height: 200px; overflow-y: auto;">
-                            <p style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 12px; font-weight: 500;">Funds by Company:</p>
-                            <div style="text-align: left; font-size: 0.85rem;">
+                    <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.3); max-height: 200px; overflow-y: auto;">
+                        <p style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 12px; font-weight: 500;">Funds by Company:</p>
+                        <div style="text-align: left; font-size: 0.85rem;">
+                            ${results && results.length > 0 ? `
                                 ${results.slice(0, 10).map(result => `
                                     <div style="display: flex; justify-content: space-between; margin-bottom: 8px; padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
                                         <span style="flex: 1; opacity: 0.95;">${escapeHtml(result.entity || 'Unknown')}</span>
@@ -2620,9 +2620,11 @@ async function showShareModal(firstName, lastName, amount, results = []) {
                                     </div>
                                 `).join('')}
                                 ${results.length > 10 ? `<p style="font-size: 0.8rem; opacity: 0.8; margin-top: 8px; font-style: italic;">+ ${results.length - 10} more companies</p>` : ''}
-                            </div>
+                            ` : `
+                                <p style="font-size: 0.85rem; opacity: 0.8; font-style: italic; text-align: center; padding: 10px 0;">No specific companies listed</p>
+                            `}
                         </div>
-                    ` : ''}
+                    </div>
                 </div>
                 <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.3);">
                     <p style="font-size: 1.15rem; opacity: 0.95; margin: 0 0 16px 0; color: white; line-height: 1.5; font-weight: 500;">Companies<span style="display: inline-block; width: 8px; min-width: 8px; height: 1px; vertical-align: baseline;"></span>owe you money. Claim what's yours</p>
