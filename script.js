@@ -115,12 +115,21 @@ async function getInstagramFullName(username) {
                 try {
                     const altProxyUrl = 'https://cors-anywhere.herokuapp.com/';
                     const altController = new AbortController();
-                    const altTimeoutId = setTimeout(() => altController.abort(), 8000);
-                    const altResponse = await fetch(`${altProxyUrl}${encodeURIComponent(apiUrl)}`, {
-                        method: 'GET',
-                        signal: altController.signal
-                    });
-                    clearTimeout(altTimeoutId);
+                    const altTimeoutId = setTimeout(() => altController.abort(), 12000);
+                    let altResponse;
+                    try {
+                        altResponse = await fetch(`${altProxyUrl}${encodeURIComponent(apiUrl)}`, {
+                            method: 'GET',
+                            signal: altController.signal
+                        });
+                        clearTimeout(altTimeoutId);
+                    } catch (altFetchError) {
+                        clearTimeout(altTimeoutId);
+                        if (altFetchError.name === 'AbortError') {
+                            throw new Error('Instagram request timed out. Please try again.');
+                        }
+                        throw altFetchError;
+                    }
                     if (altResponse.ok) {
                         const altHtml = await altResponse.text();
                         if (altHtml.length > 0) {
@@ -135,6 +144,10 @@ async function getInstagramFullName(username) {
                     }
                 } catch (altError) {
                     console.log('Alternative proxy also failed:', altError.message);
+                    // Re-throw timeout errors
+                    if (altError.message && altError.message.includes('timeout')) {
+                        throw altError;
+                    }
                 }
                 return null;
             }
@@ -1430,9 +1443,21 @@ async function handleSearch() {
     } catch (error) {
         console.error('❌ Error in handleSearch:', error);
         console.error('Error stack:', error.stack);
-        alert('An error occurred while searching. Please try again.');
-        searchBtn.disabled = false;
-        searchBtn.textContent = 'Search';
+        
+        // Ensure button is always re-enabled
+        try {
+            searchBtn.disabled = false;
+            searchBtn.textContent = 'Search';
+        } catch (btnError) {
+            console.error('Error re-enabling button:', btnError);
+        }
+        
+        // Show user-friendly error message
+        if (error.message && error.message.includes('timeout')) {
+            alert('Request timed out. Instagram may be slow or blocking requests. Please try again in a moment.');
+        } else {
+            alert('An error occurred while searching. Please try again.');
+        }
     }
 }
 
