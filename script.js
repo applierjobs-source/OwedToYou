@@ -2677,19 +2677,19 @@ function downloadShareCard() {
     if (!card) return;
     
     // Ensure spaces are preserved in the card before rendering
-    // Fix any collapsed spaces in the "Companies owe" text
+    // Fix any collapsed spaces in the "Companies owe" text - use explicit pixel width
     const textElements = card.querySelectorAll('p');
     textElements.forEach(p => {
-        if (p.textContent && p.textContent.includes('Companies')) {
-            // Force a visible space using a span with explicit width
-            const text = p.textContent;
-            if (text.includes('Companiesowe') || !text.includes('Companies owe')) {
-                // Replace collapsed text or ensure space exists
-                p.innerHTML = text.replace(/Companies\s*owe/gi, 'Companies<span style="display: inline-block; width: 0.3em; min-width: 0.3em;"></span>owe');
-            } else {
-                // Ensure existing space is preserved with explicit span
-                p.innerHTML = text.replace(/Companies\s+owe/gi, 'Companies<span style="display: inline-block; width: 0.3em; min-width: 0.3em;"></span>owe');
-            }
+        if (p.innerHTML && p.innerHTML.includes('Companies')) {
+            // Force a visible space using a span with explicit pixel width that html2canvas will definitely render
+            let html = p.innerHTML;
+            // Replace any variation (with space, without space, with &nbsp;, etc.) with explicit span
+            html = html.replace(/Companies\s*owe/gi, 'Companies<span style="display: inline-block; width: 8px; min-width: 8px; height: 1px; vertical-align: baseline;"></span>owe');
+            html = html.replace(/Companiesowe/gi, 'Companies<span style="display: inline-block; width: 8px; min-width: 8px; height: 1px; vertical-align: baseline;"></span>owe');
+            // Also handle if there's already a span but it's not working
+            html = html.replace(/Companies<span[^>]*><\/span>owe/gi, 'Companies<span style="display: inline-block; width: 8px; min-width: 8px; height: 1px; vertical-align: baseline;"></span>owe');
+            p.innerHTML = html;
+            console.log('Fixed Companies owe spacing in card:', p.innerHTML.substring(0, 100));
         }
     });
     
