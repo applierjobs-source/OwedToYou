@@ -111,17 +111,14 @@ async function getInstagramFullName(username) {
                 const nameMatch = title.match(/^([^(]+)/);
                 if (nameMatch && nameMatch[1]) {
                     const extractedName = nameMatch[1].trim();
-                    // Reject invalid names (login pages, error pages, etc.)
-                    const invalidPatterns = [/^login$/i, /^instagram$/i, /login.*instagram/i, /^please wait$/i, /^error$/i];
-                    const isInvalid = invalidPatterns.some(pattern => pattern.test(extractedName));
-                    
-                    // Only return if it doesn't look like just a username and is not invalid
+                    // Only return if it doesn't look like just a username
+                    // Basic check: reject if it's exactly "Login" or "Instagram" or contains "Login • Instagram"
                     if (extractedName && !extractedName.startsWith('@') && extractedName.length > 0 && 
-                        extractedName !== 'Instagram' && !isInvalid) {
+                        extractedName !== 'Instagram' && 
+                        extractedName !== 'Login' &&
+                        !extractedName.includes('Login • Instagram')) {
                         console.log(`Found Instagram name from title: ${extractedName}`);
                         return extractedName;
-                    } else if (isInvalid) {
-                        console.log(`Rejected invalid name from title: ${extractedName}`);
                     }
                 }
             }
@@ -1373,30 +1370,17 @@ function hideProgressModal() {
 async function startMissingMoneySearch(firstName, lastName, handle) {
     console.log(`🚀 startMissingMoneySearch called with: firstName="${firstName}", lastName="${lastName}", handle="${handle}"`);
     
-    // Validate that we have valid names (not placeholders or error text)
-    const invalidNamePatterns = [
-        /^login$/i,
-        /^instagram$/i,
-        /login.*instagram/i,
-        /instagram.*login/i,
-        /^please$/i,
-        /^wait$/i,
-        /^error$/i,
-        /^undefined$/i,
-        /^null$/i,
-        /^$/,
-        /^\s*$/
-    ];
+    // Basic validation - only check for empty or obviously invalid values
+    if (!firstName || !lastName || firstName.trim().length === 0 || lastName.trim().length === 0) {
+        console.error('❌ Invalid name extracted:', { firstName, lastName });
+        alert(`Unable to extract a valid name from Instagram profile @${handle}. Please try searching by name instead using the link below.`);
+        return;
+    }
     
+    // Only reject if the name is exactly "Login" or "Instagram" (not if it contains those words)
     const fullName = `${firstName} ${lastName}`.trim();
-    const isInvalid = invalidNamePatterns.some(pattern => 
-        pattern.test(firstName) || 
-        pattern.test(lastName) || 
-        pattern.test(fullName)
-    );
-    
-    if (!firstName || !lastName || isInvalid) {
-        console.error('❌ Invalid name extracted:', { firstName, lastName, fullName, isInvalid });
+    if (fullName === 'Login' || fullName === 'Instagram' || fullName === 'Login • Instagram') {
+        console.error('❌ Invalid name extracted (login page):', { firstName, lastName, fullName });
         alert(`Unable to extract a valid name from Instagram profile @${handle}. Please try searching by name instead using the link below.`);
         return;
     }
