@@ -716,14 +716,27 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
         
         const data = await response.json();
         if (data.success && data.leaderboard) {
+            // Preserve existing profile pictures before updating
+            const existingProfilePics = new Map();
+            leaderboardData.forEach(entry => {
+                if (entry.profilePic) {
+                    const cleanHandle = cleanHandle(entry.handle);
+                    existingProfilePics.set(cleanHandle, entry.profilePic);
+                }
+            });
+            
             // Filter out placeholders - only show real claims
             leaderboardData = data.leaderboard
                 .filter(entry => !entry.isPlaceholder) // Remove placeholders
-                .map(entry => ({
-                    ...entry,
-                    profilePic: null,
-                    isPlaceholder: false
-                }));
+                .map(entry => {
+                    const cleanHandle = cleanHandle(entry.handle);
+                    const existingPic = existingProfilePics.get(cleanHandle);
+                    return {
+                        ...entry,
+                        profilePic: existingPic || null, // Preserve existing profile pic if available
+                        isPlaceholder: false
+                    };
+                });
             // Only refresh display if explicitly requested (e.g., after a claim submission)
             if (refreshDisplay && !document.getElementById('leaderboard').classList.contains('hidden')) {
                 displayLeaderboard(leaderboardData);
@@ -753,11 +766,46 @@ async function loadProfilePicturesInBackground(users) {
     
     // Load profile pictures for all users in parallel
     const profilePicPromises = users.map(async (user, index) => {
+        // Skip if profile picture already exists
+        if (user.profilePic) {
+            console.log(`[${index}] Profile picture already exists for ${user.handle}, skipping fetch`);
+            // Still update the DOM in case it was cleared
+            const cleanUserHandle = cleanHandle(user.handle);
+            const entry = document.querySelector(`.leaderboard-entry[data-handle="${cleanUserHandle}"]`);
+            if (entry) {
+                const profilePictureDiv = entry.querySelector('.profile-picture');
+                if (profilePictureDiv && !profilePictureDiv.querySelector('img')) {
+                    const img = document.createElement('img');
+                    img.src = user.profilePic;
+                    img.alt = user.name;
+                    img.style.width = '100%';
+                    img.style.height = '100%';
+                    img.style.borderRadius = '50%';
+                    img.style.objectFit = 'cover';
+                    img.onerror = function() {
+                        this.remove();
+                        profilePictureDiv.innerHTML = getInitials(user.name);
+                        profilePictureDiv.style.display = 'flex';
+                        profilePictureDiv.style.alignItems = 'center';
+                        profilePictureDiv.style.justifyContent = 'center';
+                    };
+                    profilePictureDiv.innerHTML = '';
+                    profilePictureDiv.appendChild(img);
+                }
+            }
+            return;
+        }
+        
         console.log(`[${index}] Fetching profile picture for ${user.handle}...`);
         const profilePic = await getInstagramProfilePicture(user.handle);
         console.log(`[${index}] Profile picture result for ${user.handle}:`, profilePic ? `Found: ${profilePic}` : 'Not found');
         
         if (profilePic) {
+            // Update the user object in leaderboardData to preserve the profile pic
+            const userIndex = leaderboardData.findIndex(e => cleanHandle(e.handle) === cleanHandle(user.handle));
+            if (userIndex >= 0) {
+                leaderboardData[userIndex].profilePic = profilePic;
+            }
             // Wait a bit for DOM to be ready
             await new Promise(resolve => setTimeout(resolve, 100));
             
