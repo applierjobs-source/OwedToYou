@@ -1358,7 +1358,20 @@ function handleView(name, handle, amount) {
         `;
     }
     
+    // Store data in data attributes for safer access
+    const entitiesJson = JSON.stringify(entities || []).replace(/"/g, '&quot;');
+    
     viewHTML += `
+            </div>
+            <div class="claim-button-container" style="margin-top: 30px; text-align: center;">
+                <button class="btn btn-claim-funds" 
+                        data-name="${escapeHtml(name).replace(/"/g, '&quot;')}" 
+                        data-amount="${amount}" 
+                        data-entities="${entitiesJson}"
+                        onclick="handleClaimYourFundsFromView(this)" 
+                        style="width: 100%; max-width: 400px; padding: 16px; font-size: 1.2rem; font-weight: 600; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
+                    Claim Your Funds
+                </button>
             </div>
         </div>
     `;
@@ -1373,6 +1386,45 @@ function closeViewModal() {
     if (modal) {
         modal.classList.add('hidden');
     }
+}
+
+// Handle Claim Your Funds button from view modal
+function handleClaimYourFundsFromView(button) {
+    // Get data from button's data attributes
+    const name = button.getAttribute('data-name') || '';
+    const amount = parseFloat(button.getAttribute('data-amount')) || 0;
+    const entitiesJson = button.getAttribute('data-entities') || '[]';
+    
+    let entities = [];
+    try {
+        entities = JSON.parse(entitiesJson);
+    } catch (e) {
+        console.error('Error parsing entities:', e);
+        entities = [];
+    }
+    
+    // Close the view modal first
+    closeViewModal();
+    
+    // Split name into firstName and lastName
+    // Handle cases with middle names, multiple spaces, etc.
+    const nameParts = name.trim().split(/\s+/);
+    let firstName = nameParts[0] || '';
+    let lastName = nameParts.slice(1).join(' ') || '';
+    
+    // If no last name, use first name as both (fallback)
+    if (!lastName) {
+        lastName = firstName;
+    }
+    
+    // Convert entities array to results format if needed
+    const results = Array.isArray(entities) ? entities.map(entity => ({
+        entity: entity.entity || entity.business || 'Unknown Business',
+        amount: entity.amount || '$0'
+    })) : [];
+    
+    // Show the Instagram instruction modal
+    showShareModal(firstName, lastName, amount, results);
 }
 
 // Handle claim button - show form modal (for existing leaderboard entries)
@@ -2369,6 +2421,7 @@ function showNameSearchModal() {
 window.handleClaim = handleClaim;
 window.handleView = handleView;
 window.closeViewModal = closeViewModal;
+window.handleClaimYourFundsFromView = handleClaimYourFundsFromView;
 window.handleNotify = handleNotify;
 window.clearLeaderboardHandles = clearLeaderboardHandles;
 window.closeClaimModal = closeClaimModal;
