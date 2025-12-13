@@ -1035,6 +1035,9 @@ function displayLeaderboard(users) {
     const leaderboard = document.getElementById('leaderboard');
     const listContainer = document.getElementById('leaderboardList');
     
+    console.log(`📊 displayLeaderboard called with ${users.length} users`);
+    console.log(`📊 Users with profile pics:`, users.filter(u => u.profilePic).map(u => u.handle));
+    
     // Generate HTML for all entries immediately
     listContainer.innerHTML = users.map((user, index) => 
         createEntryHTML(user, index + 1)
@@ -1046,6 +1049,7 @@ function displayLeaderboard(users) {
     leaderboard.scrollIntoView({ behavior: 'smooth', block: 'start' });
     
     // Load profile pictures in background (non-blocking)
+    console.log(`🖼️ Starting to load profile pictures for ${users.length} users...`);
     loadProfilePicturesInBackground(users);
 }
 
