@@ -103,7 +103,12 @@ async function getInstagramFullName(username) {
                         const altHtml = await altResponse.text();
                         if (altHtml.length > 0) {
                             console.log(`✅ Got response from alternative proxy, length: ${altHtml.length}`);
-                            return await extractNameFromHTML(altHtml, cleanUsername);
+                            const altFullName = await extractNameFromHTML(altHtml, cleanUsername);
+                            if (altFullName) {
+                                // Cache the result
+                                saveInstagramNameToStorage(cleanUsername, altFullName);
+                                return altFullName;
+                            }
                         }
                     }
                 } catch (altError) {
@@ -118,7 +123,13 @@ async function getInstagramFullName(username) {
                 return null;
             }
             
-            return await extractNameFromHTML(html, cleanUsername);
+            const fullName = await extractNameFromHTML(html, cleanUsername);
+            if (fullName) {
+                // Cache the result
+                saveInstagramNameToStorage(cleanUsername, fullName);
+                return fullName;
+            }
+            return null;
         } else {
             console.log(`❌ Instagram fetch failed with status: ${response.status}`);
         }
