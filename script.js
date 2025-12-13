@@ -39,7 +39,7 @@ async function getInstagramFullName(username) {
     try {
         const apiBase = window.location.origin;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // Increased timeout
+        const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 second timeout to match server
         
         const response = await fetch(`${apiBase}/api/instagram-name?username=${encodeURIComponent(cleanUsername)}`, {
             method: 'GET',
@@ -57,13 +57,27 @@ async function getInstagramFullName(username) {
                 saveInstagramNameToStorage(cleanUsername, fullName);
                 return fullName;
             } else {
-                console.log(`⚠️ Backend returned but no name found:`, data.error || 'Unknown error');
+                const errorMsg = data.error || 'Unknown error';
+                console.log(`⚠️ Backend returned but no name found:`, errorMsg);
+                // If it's a timeout, throw a specific error
+                if (errorMsg.includes('timeout') || errorMsg.includes('Request timeout')) {
+                    throw new Error('Instagram request timed out. Please try again.');
+                }
             }
         } else {
             console.log(`⚠️ Backend request failed with status: ${response.status}`);
         }
     } catch (e) {
+        // Check if it's a timeout error
+        if (e.name === 'AbortError' || e.message.includes('timeout') || e.message.includes('aborted')) {
+            console.log('❌ Backend request timed out');
+            throw new Error('Instagram request timed out. Please try again.');
+        }
         console.log('Backend server not available for name extraction, using browser methods:', e.message);
+        // Re-throw if it's a timeout error so caller can handle it
+        if (e.message.includes('timeout')) {
+            throw e;
+        }
     }
     
     // Fallback to browser methods
@@ -72,15 +86,23 @@ async function getInstagramFullName(username) {
         const proxyUrl = 'https://api.allorigins.win/raw?url=';
         
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // Increased timeout
+        const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 second timeout
         
         console.log(`📡 Fetching Instagram profile: ${apiUrl}`);
-        const response = await fetch(`${proxyUrl}${encodeURIComponent(apiUrl)}`, {
-            method: 'GET',
-            signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
+        let response;
+        try {
+            response = await fetch(`${proxyUrl}${encodeURIComponent(apiUrl)}`, {
+                method: 'GET',
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+        } catch (fetchError) {
+            clearTimeout(timeoutId);
+            if (fetchError.name === 'AbortError') {
+                throw new Error('Instagram request timed out. Please try again.');
+            }
+            throw fetchError;
+        }
         
         if (response.ok) {
             const html = await response.text();
@@ -135,7 +157,14 @@ async function getInstagramFullName(username) {
         }
     } catch (e) {
         console.log(`❌ Error fetching Instagram name for ${cleanUsername}:`, e.message);
+        // Re-throw timeout errors so caller can handle them
+        if (e.message && e.message.includes('timeout')) {
+            throw e;
+        }
     }
+    
+    // If we get here, all methods failed
+    return null;
     
     // Fallback: return null if not found
     console.log(`⚠️ Could not extract name from Instagram for ${cleanUsername}`);
@@ -1309,11 +1338,20 @@ async function handleSearch() {
         } else {
             // User doesn't exist - get Instagram full name and start search automatically
             let fullName = null;
+            let nameExtractionError = null;
             try {
                 fullName = await getInstagramFullName(cleanHandleValue);
             } catch (nameError) {
                 console.error('Error extracting Instagram name:', nameError);
-                // Continue with fallback
+                nameExtractionError = nameError;
+                // If it's a timeout, show user feedback
+                if (nameError.message && nameError.message.includes('timeout')) {
+                    // Re-enable button
+                    searchBtn.disabled = false;
+                    searchBtn.textContent = 'Search';
+                    alert('Instagram request timed out. This can happen if Instagram is slow or blocking requests. Please try again in a moment, or search by name directly using the link below.');
+                    return;
+                }
             }
             
             // Split full name into first and last name
@@ -1347,13 +1385,20 @@ async function handleSearch() {
                 console.log('⚠️ Could not extract name from Instagram');
                 console.log('⚠️ Attempted extraction but got:', { fullName, firstName, lastName });
                 
-                // If extraction completely failed, silently fail - don't show popup
-                // The user can try manual name search if needed
+                // If extraction completely failed, show helpful error
                 if (!fullName) {
                     console.error('❌ Instagram name extraction failed completely');
                     searchBtn.disabled = false;
                     searchBtn.textContent = 'Search';
-                    // Don't show alert - extraction may have worked on backend even if frontend didn't get it
+                    
+                    // Show error if it was a timeout
+                    if (nameExtractionError && nameExtractionError.message && nameExtractionError.message.includes('timeout')) {
+                        alert('Instagram request timed out. This can happen if Instagram is slow or blocking requests. Please try again in a moment, or search by name directly using the link below.');
+                        return;
+                    }
+                    
+                    // For other errors, show a helpful message
+                    alert('Unable to extract name from Instagram profile. This can happen if the profile is private, doesn\'t exist, or Instagram is blocking requests. Please try searching by name directly using the link below.');
                     return;
                 }
                 
