@@ -1106,21 +1106,38 @@ async function handleSearch() {
                 console.log('⚠️ Could not extract name from Instagram');
                 console.log('⚠️ Attempted extraction but got:', { fullName, firstName, lastName });
                 
-                // If extraction completely failed, show error instead of using handle
+                // If extraction completely failed, silently fail - don't show popup
+                // The user can try manual name search if needed
                 if (!fullName) {
                     console.error('❌ Instagram name extraction failed completely');
                     searchBtn.disabled = false;
                     searchBtn.textContent = 'Search';
-                    alert(`Unable to extract name from Instagram profile @${cleanHandleValue}. Please try searching by name instead using the link below.`);
+                    // Don't show alert - extraction may have worked on backend even if frontend didn't get it
                     return;
                 }
                 
-                // DO NOT use fallback methods - they are unreliable and produce incorrect names
-                // If Instagram extraction fails, the user must use manual name search
+                // If we have a fullName but couldn't split it properly, try to use it anyway
+                // This handles cases where extraction worked but splitting failed
+                if (fullName && (!firstName || !lastName)) {
+                    console.log('⚠️ Got fullName but couldn\'t split properly, trying to use fullName directly');
+                    // Try to split the fullName one more time
+                    const nameParts = fullName.trim().split(/\s+/);
+                    if (nameParts.length >= 2) {
+                        firstName = nameParts[0];
+                        lastName = nameParts.slice(1).join(' ');
+                        console.log(`✅ Using split name: "${firstName} ${lastName}"`);
+                        searchBtn.disabled = false;
+                        searchBtn.textContent = 'Search';
+                        await startMissingMoneySearch(firstName, lastName, cleanHandleValue);
+                        return;
+                    }
+                }
+                
+                // If we still don't have both names, silently fail
                 console.log('⚠️ Instagram name extraction failed - not using unreliable fallback methods');
                 searchBtn.disabled = false;
                 searchBtn.textContent = 'Search';
-                alert(`Unable to extract name from Instagram profile @${cleanHandleValue}. Please try searching by name instead using the link below.`);
+                // Don't show alert - user can try manual search if needed
                 return;
             }
         }
