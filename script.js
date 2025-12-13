@@ -20,6 +20,21 @@ async function getInstagramFullName(username) {
     const cleanUsername = cleanHandle(username);
     console.log(`🔍 Attempting to extract Instagram name for: ${cleanUsername}`);
     
+    // Check localStorage cache first
+    const cached = loadInstagramNamesFromStorage();
+    if (cached[cleanUsername]) {
+        const cachedData = cached[cleanUsername];
+        // Check if cache is still valid (7 days)
+        const age = Date.now() - cachedData.timestamp;
+        const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
+        if (age < maxAge) {
+            console.log(`✅ Found cached Instagram name for ${cleanUsername}: ${cachedData.fullName} (age: ${Math.round(age / 1000 / 60 / 60)} hours)`);
+            return cachedData.fullName;
+        } else {
+            console.log(`⏰ Cached Instagram name for ${cleanUsername} expired, fetching fresh`);
+        }
+    }
+    
     // Try backend server first (if available)
     try {
         const apiBase = window.location.origin;
@@ -36,8 +51,11 @@ async function getInstagramFullName(username) {
         if (response.ok) {
             const data = await response.json();
             if (data.success && data.fullName) {
-                console.log(`✅ Found Instagram name via backend: ${data.fullName}`);
-                return data.fullName.trim();
+                const fullName = data.fullName.trim();
+                console.log(`✅ Found Instagram name via backend: ${fullName}`);
+                // Cache the result
+                saveInstagramNameToStorage(cleanUsername, fullName);
+                return fullName;
             } else {
                 console.log(`⚠️ Backend returned but no name found:`, data.error || 'Unknown error');
             }
@@ -702,6 +720,88 @@ function saveProfilePicsToStorage(profilePics) {
         } catch (e2) {
             console.error('❌ Failed to save even after clearing:', e2);
         }
+    }
+}
+
+// Load Instagram names from localStorage
+function loadInstagramNamesFromStorage() {
+    try {
+        const stored = localStorage.getItem('instagramNames');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            console.log(`📦 Loaded ${Object.keys(parsed).length} Instagram names from localStorage`);
+            return parsed;
+        }
+    } catch (e) {
+        console.error('Error loading Instagram names from storage:', e);
+    }
+    return {};
+}
+
+// Save Instagram name to localStorage
+function saveInstagramNameToStorage(handle, fullName) {
+    try {
+        const stored = loadInstagramNamesFromStorage();
+        stored[handle] = {
+            fullName: fullName,
+            timestamp: Date.now()
+        };
+        localStorage.setItem('instagramNames', JSON.stringify(stored));
+        console.log(`💾 Saved Instagram name for ${handle} to localStorage`);
+    } catch (e) {
+        console.error('Error saving Instagram name to storage:', e);
+    }
+}
+
+// Load MissingMoney search results from localStorage
+function loadMissingMoneyResultsFromStorage(firstName, lastName) {
+    try {
+        const stored = localStorage.getItem('missingMoneyResults');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            const key = `${firstName.toLowerCase()}_${lastName.toLowerCase()}`;
+            const cached = parsed[key];
+            if (cached) {
+                // Check if cache is still valid (24 hours)
+                const age = Date.now() - cached.timestamp;
+                const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+                if (age < maxAge) {
+                    console.log(`📦 Loaded cached MissingMoney results for ${firstName} ${lastName} (age: ${Math.round(age / 1000 / 60)} minutes)`);
+                    return cached.result;
+                } else {
+                    console.log(`⏰ Cached MissingMoney results for ${firstName} ${lastName} expired, removing`);
+                    delete parsed[key];
+                    localStorage.setItem('missingMoneyResults', JSON.stringify(parsed));
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Error loading MissingMoney results from storage:', e);
+    }
+    return null;
+}
+
+// Save MissingMoney search results to localStorage
+function saveMissingMoneyResultsToStorage(firstName, lastName, result) {
+    try {
+        const stored = localStorage.getItem('missingMoneyResults');
+        const parsed = stored ? JSON.parse(stored) : {};
+        const key = `${firstName.toLowerCase()}_${lastName.toLowerCase()}`;
+        parsed[key] = {
+            result: result,
+            timestamp: Date.now()
+        };
+        // Limit cache size to 100 entries to prevent storage bloat
+        const entries = Object.keys(parsed);
+        if (entries.length > 100) {
+            // Remove oldest entries
+            entries.sort((a, b) => parsed[a].timestamp - parsed[b].timestamp);
+            entries.slice(0, entries.length - 100).forEach(key => delete parsed[key]);
+        }
+        localStorage.setItem('missingMoneyResults', JSON.stringify(parsed));
+        console.log(`💾 Saved MissingMoney results for ${firstName} ${lastName} to localStorage`);
+    } catch (e) {
+        console.error('Error saving MissingMoney results to storage:', e);
     }
 }
 
@@ -1656,6 +1756,27 @@ async function startMissingMoneySearch(firstName, lastName, handle) {
         name: claimData.name
     });
     
+    // Check localStorage cache first
+    const cachedResult = loadMissingMoneyResultsFromStorage(claimData.firstName, claimData.lastName);
+    if (cachedResult) {
+        console.log('✅ Using cached MissingMoney results');
+        hideProgressModal();
+        
+        // Process cached result same as fresh result
+        if (cachedResult.success && cachedResult.results && cachedResult.results.length > 0) {
+            console.log('✅ Showing cached results modal with', cachedResult.results.length, 'results');
+            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), cachedResult.totalAmount, false, true, cachedResult.results || []);
+            showResultsModal(claimData, cachedResult);
+        } else if (cachedResult.success) {
+            console.log('✅ Cached search completed successfully but no results found');
+            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 0, false, true, []);
+            showNoResultsModal(claimData);
+        } else {
+            showErrorModal(cachedResult.error || 'Search failed');
+        }
+        return;
+    }
+    
     // Show progress modal
     showProgressModal();
     
@@ -1692,6 +1813,9 @@ async function startMissingMoneySearch(firstName, lastName, handle) {
         });
         
         const result = await response.json();
+        
+        // Cache the result for future use
+        saveMissingMoneyResultsToStorage(claimData.firstName, claimData.lastName, result);
         
         // Debug: Log the response
         console.log('🔍 API Response:', {
