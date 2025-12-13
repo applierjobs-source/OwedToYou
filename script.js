@@ -1394,6 +1394,15 @@ async function handleSearch() {
                 
                 // Start the search automatically
                 await startMissingMoneySearch(firstName, lastName, cleanHandleValue);
+            } else if (firstName && !lastName && fullName) {
+                // Handle single-word names (e.g., "Naval", "Madonna")
+                // Use the first name as both first and last name for the search
+                console.log(`⚠️ Single-word name detected: "${firstName}". Using as both first and last name.`);
+                searchBtn.disabled = false;
+                searchBtn.textContent = 'Search';
+                
+                // Use firstName as both first and last name
+                await startMissingMoneySearch(firstName, firstName, cleanHandleValue);
             } else {
                 console.log('⚠️ Could not extract name from Instagram');
                 console.log('⚠️ Attempted extraction but got:', { fullName, firstName, lastName });
@@ -1429,10 +1438,18 @@ async function handleSearch() {
                         searchBtn.textContent = 'Search';
                         await startMissingMoneySearch(firstName, lastName, cleanHandleValue);
                         return;
+                    } else if (nameParts.length === 1) {
+                        // Single word name - use as both first and last
+                        firstName = nameParts[0];
+                        console.log(`✅ Using single-word name as both first and last: "${firstName}"`);
+                        searchBtn.disabled = false;
+                        searchBtn.textContent = 'Search';
+                        await startMissingMoneySearch(firstName, firstName, cleanHandleValue);
+                        return;
                     }
                 }
                 
-                // If we still don't have both names, silently fail
+                // If we still don't have a name, silently fail
                 console.log('⚠️ Instagram name extraction failed - not using unreliable fallback methods');
                 searchBtn.disabled = false;
                 searchBtn.textContent = 'Search';
