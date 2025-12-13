@@ -2355,7 +2355,7 @@ async function showShareModal(firstName, lastName, amount, results = []) {
                     ` : ''}
                 </div>
                 <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.3);">
-                    <p style="font-size: 1.15rem; opacity: 0.95; margin: 0 0 16px 0; color: white; line-height: 1.5; font-weight: 500;">Companies&nbsp;owe you money. Claim what's yours</p>
+                    <p style="font-size: 1.15rem; opacity: 0.95; margin: 0 0 16px 0; color: white; line-height: 1.5; font-weight: 500; white-space: pre-wrap;">Companies owe you money. Claim what's yours</p>
                     <p style="font-size: 1.8rem; font-weight: 700; margin: 0; color: white; letter-spacing: 0.5px;">OwedToYou.ai</p>
                 </div>
             </div>
@@ -2445,12 +2445,27 @@ function downloadShareCard() {
     const card = document.getElementById('shareCard');
     if (!card) return;
     
+    // Ensure spaces are preserved in the card before rendering
+    // Fix any collapsed spaces in the "Companies owe" text
+    const textElements = card.querySelectorAll('p');
+    textElements.forEach(p => {
+        if (p.textContent && p.textContent.includes('Companies')) {
+            // Replace any collapsed "Companiesowe" with proper spacing
+            const text = p.textContent.replace(/Companiesowe/gi, 'Companies owe');
+            if (text !== p.textContent) {
+                p.textContent = text;
+            }
+        }
+    });
+    
     // Use html2canvas library if available, or prompt user to screenshot
     if (typeof html2canvas !== 'undefined') {
         html2canvas(card, {
             backgroundColor: null,
             scale: 2,
-            logging: false
+            logging: false,
+            useCORS: true,
+            letterRendering: true
         }).then(canvas => {
             const link = document.createElement('a');
             link.download = 'unclaimed-funds-card.png';
