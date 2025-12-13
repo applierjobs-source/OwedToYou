@@ -160,17 +160,24 @@
 ---
 
 ### 8. Shareable Card Image
-**Status:** ⚠️ SPACE ISSUE (being fixed)
-**Location:** `script.js` - `downloadShareCard()` function
-**Issue:** Space between "Companies" and "owe" not rendering in image
+**Status:** ✅ WORKING
+**Location:** `script.js` - `downloadShareCard()` function and `showShareModal()` function
+**Persistence:** Generated on-demand, no persistence needed
 
-**Current Fix:**
-- Using 8px span element: `Companies<span style="display: inline-block; width: 8px; min-width: 8px; height: 1px;"></span>owe`
-- downloadShareCard function fixes spacing before rendering (line 2680-2694)
+**Key Points:**
+- ✅ "Funds by Company" section ALWAYS displays (line 2612-2627)
+- ✅ Shows company list when results exist
+- ✅ Shows "No specific companies listed" when no results
+- ✅ Space between "Companies" and "owe" fixed with 8px span (line 2630)
+- ✅ downloadShareCard function fixes spacing before rendering (line 2720-2735)
+- ✅ Both displayed card and downloaded image use same HTML structure
 
 **DO NOT:**
+- Remove "Funds by Company" section
+- Change the conditional logic that ensures it always shows
 - Change the span width without testing
 - Remove the downloadShareCard fix logic
+- Create separate card generation paths (there should only be ONE card)
 
 ---
 
@@ -355,6 +362,71 @@ Before making ANY changes, verify:
 8. **ALWAYS test search button after any changes**
 9. **ALWAYS verify profile pictures load after changes**
 10. **ALWAYS ensure Claim Your Funds button is below total amount**
+
+---
+
+## CHANGE PERSISTENCE PROTOCOL
+
+**CRITICAL: All changes MUST persist across future updates unless explicitly reverted by the user.**
+
+### Before Making ANY Change:
+
+1. **Read the AUDIT_REPORT.md** - Understand what's critical and what must not be broken
+2. **Check existing persistence mechanisms** - Review localStorage, database, window exports
+3. **Identify dependencies** - What other code depends on what you're changing?
+4. **Document the change** - Update AUDIT_REPORT.md if adding new functionality
+
+### When Making Changes:
+
+1. **Preserve existing functionality** - Never remove working code unless explicitly asked
+2. **Maintain localStorage persistence** - If data should persist, use localStorage
+3. **Keep window exports** - All user-facing functions must be exported
+4. **Preserve event listeners** - Don't remove or break existing listeners
+5. **Test immediately** - Verify the change works AND doesn't break existing features
+6. **Update documentation** - If adding new persistence, document it in AUDIT_REPORT.md
+
+### After Making Changes:
+
+1. **Verify persistence** - Test that data survives page reload
+2. **Check all related features** - Ensure nothing broke
+3. **Update AUDIT_REPORT.md** - Document new critical functionality
+4. **Test the full flow** - Run through the complete user journey
+
+### What MUST Persist:
+
+1. **Profile Pictures** - localStorage (`leaderboardProfilePics`)
+2. **Instagram Names** - localStorage (`instagramNames`) with 7-day expiry
+3. **MissingMoney Results** - localStorage (`missingMoneyResults`) with 24-hour expiry
+4. **Leaderboard Data** - PostgreSQL database
+5. **Window Exports** - All functions accessible via `window.*`
+6. **Event Listeners** - All DOM event handlers
+7. **UI State** - Modal states, button positions, styling
+
+### Red Flags - STOP and Reconsider:
+
+- ❌ Removing localStorage save/load functions
+- ❌ Removing window exports
+- ❌ Changing function names without updating all references
+- ❌ Removing event listeners
+- ❌ Changing database schema without migration
+- ❌ Removing profile picture preservation logic
+- ❌ Removing cache checks before API calls
+- ❌ Changing critical function signatures
+- ❌ Removing "Funds by Company" section from shareable card
+- ❌ Changing the spacing fix for "Companies owe" text
+
+### Change Documentation Template:
+
+When adding new functionality that should persist, document:
+
+```markdown
+### [Feature Name]
+**Status:** ✅ WORKING
+**Location:** `script.js` - `functionName()` function
+**Persistence:** localStorage key `keyName` (expiry: X days/hours)
+**Dependencies:** [list dependencies]
+**DO NOT:** [list what must not be changed]
+```
 
 ---
 
