@@ -508,11 +508,18 @@ async function fetchInstagramFullName(username) {
                         const nameMatch = title.match(/^([^(]+)/);
                         if (nameMatch && nameMatch[1]) {
                             const extractedName = nameMatch[1].trim();
-                            // Only return if it doesn't look like just a username
-                            if (extractedName && !extractedName.startsWith('@') && extractedName.length > 0 && extractedName !== 'Instagram') {
+                            // Reject invalid names (login pages, error pages, etc.)
+                            const invalidPatterns = [/^login$/i, /^instagram$/i, /login.*instagram/i, /^please wait$/i, /^error$/i];
+                            const isInvalid = invalidPatterns.some(pattern => pattern.test(extractedName));
+                            
+                            // Only return if it doesn't look like just a username and is not invalid
+                            if (extractedName && !extractedName.startsWith('@') && extractedName.length > 0 && 
+                                extractedName !== 'Instagram' && !isInvalid) {
                                 console.log(`Found Instagram name from og:title: ${extractedName}`);
                                 resolve({ success: true, fullName: extractedName });
                                 return;
+                            } else if (isInvalid) {
+                                console.log(`Rejected invalid name from og:title: ${extractedName}`);
                             }
                         }
                     }
