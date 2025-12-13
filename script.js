@@ -671,6 +671,28 @@ async function getInstagramProfilePicture(username) {
     return Promise.race([fetchPromise, timeoutPromise]);
 }
 
+// Load profile pictures from localStorage
+function loadProfilePicsFromStorage() {
+    try {
+        const stored = localStorage.getItem('leaderboardProfilePics');
+        if (stored) {
+            return JSON.parse(stored);
+        }
+    } catch (e) {
+        console.error('Error loading profile pics from storage:', e);
+    }
+    return {};
+}
+
+// Save profile pictures to localStorage
+function saveProfilePicsToStorage(profilePics) {
+    try {
+        localStorage.setItem('leaderboardProfilePics', JSON.stringify(profilePics));
+    } catch (e) {
+        console.error('Error saving profile pics to storage:', e);
+    }
+}
+
 // Load leaderboard from backend
 async function loadLeaderboard() {
     try {
@@ -682,12 +704,21 @@ async function loadLeaderboard() {
         console.log('Leaderboard response:', data);
         
         if (data.success && data.leaderboard && Array.isArray(data.leaderboard)) {
-            // Preserve existing profile pictures before updating
+            // Preserve existing profile pictures from memory
             const existingProfilePics = new Map();
             leaderboardData.forEach(entry => {
                 if (entry.profilePic) {
                     const cleanEntryHandle = cleanHandle(entry.handle);
                     existingProfilePics.set(cleanEntryHandle, entry.profilePic);
+                }
+            });
+            
+            // Load profile pictures from localStorage
+            const storedProfilePics = loadProfilePicsFromStorage();
+            Object.keys(storedProfilePics).forEach(handle => {
+                const cleanHandleKey = cleanHandle(handle);
+                if (!existingProfilePics.has(cleanHandleKey)) {
+                    existingProfilePics.set(cleanHandleKey, storedProfilePics[handle]);
                 }
             });
             
@@ -911,6 +942,11 @@ async function loadProfilePicturesInBackground(users) {
             if (userIndex >= 0) {
                 leaderboardData[userIndex].profilePic = profilePic;
             }
+            
+            // Save to localStorage for persistence across page reloads
+            const storedProfilePics = loadProfilePicsFromStorage();
+            storedProfilePics[user.handle] = profilePic;
+            saveProfilePicsToStorage(storedProfilePics);
             // Wait a bit for DOM to be ready
             await new Promise(resolve => setTimeout(resolve, 100));
             
