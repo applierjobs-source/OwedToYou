@@ -1959,6 +1959,26 @@ function handleNotify(name, handle, amount) {
                     <span class="total-value" style="font-size: 2.5rem; font-weight: 700;">$${amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
             </div>
+            <div class="share-actions-container" style="margin-bottom: 30px; padding-bottom: 30px; border-bottom: 2px solid #e0e0e0;">
+                <h3 style="margin: 0 0 20px 0; color: #333; font-size: 1.1rem; text-align: center;">Share This Discovery</h3>
+                <div style="display: flex; flex-direction: column; gap: 12px; align-items: center;">
+                    <button class="btn btn-copy-link" onclick="copyShareableLink('${shareableUrl.replace(/'/g, "\\'")}')" style="width: 100%; max-width: 400px; padding: 14px; font-size: 1.1rem; font-weight: 600; background: white; color: #667eea; border: 2px solid #667eea; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                        📋 Copy Shareable Link
+                    </button>
+                    <button class="btn btn-share-twitter" onclick="shareToTwitter('${escapeHtml(name).replace(/'/g, "\\'")}', ${amount}, '${shareableUrl.replace(/'/g, "\\'")}')" style="width: 100%; max-width: 400px; padding: 14px; font-size: 1.1rem; font-weight: 600; background: #1DA1F2; color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                        🐦 Share on Twitter
+                    </button>
+                    <button class="btn btn-share-facebook" onclick="shareToFacebook('${shareableUrl.replace(/'/g, "\\'")}')" style="width: 100%; max-width: 400px; padding: 14px; font-size: 1.1rem; font-weight: 600; background: #1877F2; color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                        📘 Share on Facebook
+                    </button>
+                    <button class="btn btn-share-whatsapp" onclick="shareToWhatsApp('${escapeHtml(name).replace(/'/g, "\\'")}', ${amount}, '${shareableUrl.replace(/'/g, "\\'")}')" style="width: 100%; max-width: 400px; padding: 14px; font-size: 1.1rem; font-weight: 600; background: #25D366; color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                        💬 Share on WhatsApp
+                    </button>
+                    <p style="text-align: center; color: #666; font-size: 0.85rem; margin-top: 10px; line-height: 1.5;">
+                        Help ${escapeHtml(name)} discover unclaimed funds! Share this link so they can claim what's theirs.
+                    </p>
+                </div>
+            </div>
             <div class="results-list">
                 <h3 style="margin: 0 0 20px 0; color: #333; font-size: 1.2rem;">Reported Businesses:</h3>
     `;
@@ -1982,26 +2002,6 @@ function handleNotify(name, handle, amount) {
     }
     
     shareableHTML += `
-            </div>
-            <div class="share-actions-container" style="margin-top: 30px; padding-top: 30px; border-top: 2px solid #e0e0e0;">
-                <h3 style="margin: 0 0 20px 0; color: #333; font-size: 1.1rem; text-align: center;">Share This Discovery</h3>
-                <div style="display: flex; flex-direction: column; gap: 12px; align-items: center;">
-                    <button class="btn btn-copy-link" onclick="copyShareableLink('${shareableUrl.replace(/'/g, "\\'")}')" style="width: 100%; max-width: 400px; padding: 14px; font-size: 1.1rem; font-weight: 600; background: white; color: #667eea; border: 2px solid #667eea; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
-                        📋 Copy Shareable Link
-                    </button>
-                    <button class="btn btn-share-twitter" onclick="shareToTwitter('${escapeHtml(name).replace(/'/g, "\\'")}', ${amount}, '${shareableUrl.replace(/'/g, "\\'")}')" style="width: 100%; max-width: 400px; padding: 14px; font-size: 1.1rem; font-weight: 600; background: #1DA1F2; color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
-                        🐦 Share on Twitter
-                    </button>
-                    <button class="btn btn-share-facebook" onclick="shareToFacebook('${shareableUrl.replace(/'/g, "\\'")}')" style="width: 100%; max-width: 400px; padding: 14px; font-size: 1.1rem; font-weight: 600; background: #1877F2; color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
-                        📘 Share on Facebook
-                    </button>
-                    <button class="btn btn-share-whatsapp" onclick="shareToWhatsApp('${escapeHtml(name).replace(/'/g, "\\'")}', ${amount}, '${shareableUrl.replace(/'/g, "\\'")}')" style="width: 100%; max-width: 400px; padding: 14px; font-size: 1.1rem; font-weight: 600; background: #25D366; color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
-                        💬 Share on WhatsApp
-                    </button>
-                    <p style="text-align: center; color: #666; font-size: 0.85rem; margin-top: 10px; line-height: 1.5;">
-                        Help ${escapeHtml(name)} discover unclaimed funds! Share this link so they can claim what's theirs.
-                    </p>
-                </div>
             </div>
         </div>
     `;
