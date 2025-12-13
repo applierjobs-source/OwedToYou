@@ -799,8 +799,8 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
             const existingProfilePics = new Map();
             leaderboardData.forEach(entry => {
                 if (entry.profilePic) {
-                    const cleanHandle = cleanHandle(entry.handle);
-                    existingProfilePics.set(cleanHandle, entry.profilePic);
+                    const cleanEntryHandle = cleanHandle(entry.handle);
+                    existingProfilePics.set(cleanEntryHandle, entry.profilePic);
                 }
             });
             
@@ -808,8 +808,8 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
             leaderboardData = data.leaderboard
                 .filter(entry => !entry.isPlaceholder) // Remove placeholders
                 .map(entry => {
-                    const cleanHandle = cleanHandle(entry.handle);
-                    const existingPic = existingProfilePics.get(cleanHandle);
+                    const cleanEntryHandle = cleanHandle(entry.handle);
+                    const existingPic = existingProfilePics.get(cleanEntryHandle);
                     return {
                         ...entry,
                         profilePic: existingPic || null, // Preserve existing profile pic if available
