@@ -1082,10 +1082,32 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 // If we couldn't find via headers, try to infer from structure
                 // Standard structure: [Select, Owner, Co-Owner, Business, Address, City, State, ZIP, Held In, Amount]
                 if (reportingBusinessIdx === -1 && firstRowCells.length > 3) {
+                    // Try index 3 first (most common), but also check if any cell looks like a business name
                     reportingBusinessIdx = 3; // Usually index 3
+                    
+                    // Also try to find by scanning cells for business-like text
+                    for (let i = 0; i < firstRowCells.length; i++) {
+                        const cellText = (firstRowCells[i].innerText || '').toLowerCase();
+                        if (cellText.includes('business') || cellText.includes('holder') || 
+                            cellText.includes('reporting')) {
+                            reportingBusinessIdx = i;
+                            break;
+                        }
+                    }
                 }
                 if (amountIdx === -1 && firstRowCells.length > 0) {
                     amountIdx = firstRowCells.length - 1; // Usually last column
+                    
+                    // Also try to find by scanning for amount-like text
+                    for (let i = firstRowCells.length - 1; i >= 0; i--) {
+                        const cellText = (firstRowCells[i].innerText || '').toUpperCase();
+                        if (cellText.includes('AMOUNT') || cellText.includes('$') || 
+                            cellText.includes('UNDER') || cellText.includes('OVER') ||
+                            cellText.includes('TO')) {
+                            amountIdx = i;
+                            break;
+                        }
+                    }
                 }
                 
                 console.log(`Table ${tableIdx} column indices (via headers):`, {
@@ -1106,11 +1128,14 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                         return; // This is a header row
                     }
                     
-                    // Look for amount indicators (ranges like "OVER $100", "$25 TO $50", or dollar signs)
+                    // Look for amount indicators (ranges like "OVER $100", "$25 TO $50", "UNDER $250", or dollar signs)
                     const hasAmount = rowText.includes('$') || 
                                      rowText.includes('over') || 
+                                     rowText.includes('under') ||
                                      rowText.includes('to $') ||
+                                     rowText.includes('undisclosed') ||
                                      /over\s+\$[\d,]+/i.test(rowText) ||
+                                     /under\s+\$[\d,]+/i.test(rowText) ||
                                      /\$\d+\s+to\s+\$\d+/i.test(rowText);
                     
                     if (!hasAmount) return;
@@ -1135,6 +1160,25 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                         }
                     }
                     
+                    // If still not found, try scanning cells for business-like names (skip first 2 columns which are usually action/owner)
+                    if ((!entity || entity.length < 2) && cells.length > 3) {
+                        for (let i = 3; i < Math.min(cells.length - 1, cells.length); i++) {
+                            const cellText = cells[i].innerText.trim();
+                            // Skip if it looks like an address, city, state, zip, or amount
+                            if (cellText && cellText.length > 2 && cellText.length < 200 &&
+                                !cellText.match(/^(claim|select|view|info|undisclosed)$/i) &&
+                                !cellText.match(/^\$[\d,]+\.?\d*$/) &&
+                                !cellText.match(/^(over|under|to|\$25|\$50|\$100|\$250)$/i) &&
+                                !cellText.match(/^[A-Z]{2}$/) && // Not state code
+                                !cellText.match(/^\d{5}$/) && // Not ZIP
+                                !cellText.match(/^[A-Z]{2}\s+\d{5}$/) && // Not "TX 78731"
+                                (cellText.includes(' ') || cellText.length > 8)) { // Likely a business name
+                                entity = cellText;
+                                break;
+                            }
+                        }
+                    }
+                    
                     // DO NOT fallback to Owner Name - only use Reporting Business Name
                     // If no Reporting Business Name found, skip this row
                     if ((!entity || entity.length < 2)) {
@@ -1149,7 +1193,10 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                         // Convert "UNDISCLOSED" to "$100"
                         if (amountCellText === 'UNDISCLOSED') {
                             amount = '$100';
-                        } else if (amountCellText.includes('$') || /over|to\s+\$|\$\d+/i.test(amountCellText)) {
+                        } else if (amountCellText.includes('$') || 
+                                   /over|under|to\s+\$|\$\d+/i.test(amountCellText) ||
+                                   amountCellText.includes('UNDER') ||
+                                   amountCellText.includes('OVER')) {
                             amount = amountCellText;
                         }
                     }
