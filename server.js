@@ -101,15 +101,28 @@ async function fetchInstagramProfile(username) {
                 'Sec-Fetch-User': '?1',
                 'Cache-Control': 'max-age=0',
                 'DNT': '1',
-                'Referer': 'https://www.instagram.com/'
+                'Referer': 'https://www.instagram.com/',
+                'Origin': 'https://www.instagram.com'
             }
         };
         
         const req = https.get(options, (res) => {
             console.log(`[PROFILE] Response status: ${res.statusCode} for ${username}`);
-            console.log(`[PROFILE] Content-Type: ${res.headers['content-type']}`);
-            console.log(`[PROFILE] Content-Length: ${res.headers['content-length']}`);
-            console.log(`[PROFILE] Content-Encoding: ${res.headers['content-encoding']}`);
+            
+            // Check for redirects to login page - don't follow these
+            if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307 || res.statusCode === 308) {
+                const location = res.headers.location || '';
+                console.log(`[PROFILE] Redirect detected to: ${location}`);
+                // If redirecting to login page, it means Instagram is blocking us
+                if (location.includes('/accounts/login/') || location.includes('login')) {
+                    console.log(`[PROFILE] Redirect to login page detected - Instagram is blocking requests`);
+                    resolve({ success: false, error: 'Instagram is requiring login (blocking detected)' });
+                    return;
+                }
+                // For other redirects, treat as failure
+                resolve({ success: false, error: `Redirect to ${location} - likely blocked` });
+                return;
+            }
             
             // Check for error status codes
             if (res.statusCode !== 200) {
@@ -389,30 +402,32 @@ async function fetchInstagramFullName(username) {
         
         const req = https.get(options, (res) => {
             console.log(`[INSTAGRAM] Response status: ${res.statusCode} for ${username}`);
-            console.log(`[INSTAGRAM] Response headers:`, JSON.stringify(res.headers, null, 2));
             
-            // Handle redirects
+            // Check for redirects to login page - don't follow these
             if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307 || res.statusCode === 308) {
-                const location = res.headers.location;
+                const location = res.headers.location || '';
                 console.log(`[INSTAGRAM] Redirect detected to: ${location}`);
-                if (location) {
-                    // Follow redirect
-                    const redirectUrl = location.startsWith('http') ? location : `https://www.instagram.com${location}`;
-                    const urlParts = new URL(redirectUrl);
-                    const redirectOptions = {
-                        hostname: urlParts.hostname,
-                        path: urlParts.pathname + urlParts.search,
-                        method: 'GET',
-                        headers: options.headers
-                    };
-                    return https.get(redirectOptions, req.callback).on('error', reject);
+                // If redirecting to login page, it means Instagram is blocking us
+                if (location.includes('/accounts/login/') || location.includes('login')) {
+                    console.log(`[INSTAGRAM] Redirect to login page detected - Instagram is blocking requests`);
+                    resolve({ success: false, error: 'Instagram is requiring login (blocking detected)' });
+                    return;
                 }
+                // For other redirects, we could follow them, but Instagram usually redirects to login
+                // So we'll just treat it as a failure
+                resolve({ success: false, error: `Redirect to ${location} - likely blocked` });
+                return;
             }
             
             // Check for error status codes
             if (res.statusCode !== 200) {
                 console.log(`[INSTAGRAM] Non-200 status code: ${res.statusCode} for ${username}`);
-                resolve({ success: false, error: `HTTP ${res.statusCode}: ${res.statusMessage || 'Request failed'}` });
+                let errorBody = '';
+                res.on('data', (chunk) => { errorBody += chunk.toString(); });
+                res.on('end', () => {
+                    console.log(`[INSTAGRAM] Error response body (first 200 chars):`, errorBody.substring(0, 200));
+                    resolve({ success: false, error: `HTTP ${res.statusCode}: ${res.statusMessage || 'Request failed'}` });
+                });
                 return;
             }
             
