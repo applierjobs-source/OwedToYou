@@ -1975,6 +1975,9 @@ function handleNotify(name, handle, amount) {
     // Create shareable URL
     const shareableUrl = `${window.location.origin}${window.location.pathname}?share=${encodeURIComponent(handle)}`;
     
+    // Store data in data attributes for safer access
+    const entitiesJson = JSON.stringify(entities || []).replace(/"/g, '&quot;');
+    
     // Create shareable view modal HTML
     let shareableHTML = `
         <div class="modal-header">
@@ -1988,6 +1991,16 @@ function handleNotify(name, handle, amount) {
                     <span class="total-label" style="font-size: 0.9rem; opacity: 0.9;">Total Unclaimed:</span>
                     <span class="total-value" style="font-size: 2.5rem; font-weight: 700;">$${amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
+            </div>
+            <div class="claim-button-container" style="margin-bottom: 30px; text-align: center;">
+                <button class="btn btn-claim-funds" 
+                        data-name="${escapeHtml(name).replace(/"/g, '&quot;')}" 
+                        data-amount="${amount}" 
+                        data-entities="${entitiesJson}"
+                        onclick="handleClaimYourFundsFromView(this)" 
+                        style="width: 100%; max-width: 400px; padding: 16px; font-size: 1.2rem; font-weight: 600; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
+                    Claim Your Funds
+                </button>
             </div>
             <div class="share-actions-container" style="margin-bottom: 30px; padding-bottom: 30px; border-bottom: 2px solid #e0e0e0;">
                 <h3 style="margin: 0 0 20px 0; color: #333; font-size: 1.1rem; text-align: center;">Share This Discovery</h3>
