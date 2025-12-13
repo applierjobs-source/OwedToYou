@@ -676,7 +676,9 @@ function loadProfilePicsFromStorage() {
     try {
         const stored = localStorage.getItem('leaderboardProfilePics');
         if (stored) {
-            return JSON.parse(stored);
+            const parsed = JSON.parse(stored);
+            console.log(`📦 Loaded ${Object.keys(parsed).length} profile pictures from localStorage`);
+            return parsed;
         }
     } catch (e) {
         console.error('Error loading profile pics from storage:', e);
@@ -688,8 +690,18 @@ function loadProfilePicsFromStorage() {
 function saveProfilePicsToStorage(profilePics) {
     try {
         localStorage.setItem('leaderboardProfilePics', JSON.stringify(profilePics));
+        console.log(`💾 Saved ${Object.keys(profilePics).length} profile pictures to localStorage`);
     } catch (e) {
         console.error('Error saving profile pics to storage:', e);
+        // If storage is full, try to clear old entries
+        try {
+            console.log('⚠️ Storage may be full, attempting to clear and retry...');
+            localStorage.removeItem('leaderboardProfilePics');
+            localStorage.setItem('leaderboardProfilePics', JSON.stringify(profilePics));
+            console.log('✅ Successfully saved after clearing storage');
+        } catch (e2) {
+            console.error('❌ Failed to save even after clearing:', e2);
+        }
     }
 }
 
@@ -760,12 +772,21 @@ async function deleteFromLeaderboard(handle) {
         
         const data = await response.json();
         if (data.success && data.leaderboard) {
-            // Preserve existing profile pictures before updating
+            // Preserve existing profile pictures from memory
             const existingProfilePics = new Map();
             leaderboardData.forEach(entry => {
                 if (entry.profilePic) {
                     const cleanEntryHandle = cleanHandle(entry.handle);
                     existingProfilePics.set(cleanEntryHandle, entry.profilePic);
+                }
+            });
+            
+            // Load profile pictures from localStorage
+            const storedProfilePics = loadProfilePicsFromStorage();
+            Object.keys(storedProfilePics).forEach(storedHandle => {
+                const cleanHandleKey = cleanHandle(storedHandle);
+                if (!existingProfilePics.has(cleanHandleKey)) {
+                    existingProfilePics.set(cleanHandleKey, storedProfilePics[storedHandle]);
                 }
             });
             
@@ -814,6 +835,13 @@ async function clearLeaderboardHandles() {
             console.log(`✅ Cleared ${data.deleted} entries from leaderboard`);
             // Clear the local leaderboard data
             leaderboardData = [];
+            // Clear profile pictures from localStorage when clearing leaderboard
+            try {
+                localStorage.removeItem('leaderboardProfilePics');
+                console.log('✅ Cleared profile pictures from localStorage');
+            } catch (e) {
+                console.error('Error clearing profile pics from storage:', e);
+            }
             // Refresh display if leaderboard is visible
             if (!document.getElementById('leaderboard').classList.contains('hidden')) {
                 displayLeaderboard(leaderboardData);
@@ -852,12 +880,21 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
         
         const data = await response.json();
         if (data.success && data.leaderboard) {
-            // Preserve existing profile pictures before updating
+            // Preserve existing profile pictures from memory
             const existingProfilePics = new Map();
             leaderboardData.forEach(entry => {
                 if (entry.profilePic) {
                     const cleanEntryHandle = cleanHandle(entry.handle);
                     existingProfilePics.set(cleanEntryHandle, entry.profilePic);
+                }
+            });
+            
+            // Load profile pictures from localStorage
+            const storedProfilePics = loadProfilePicsFromStorage();
+            Object.keys(storedProfilePics).forEach(handle => {
+                const cleanHandleKey = cleanHandle(handle);
+                if (!existingProfilePics.has(cleanHandleKey)) {
+                    existingProfilePics.set(cleanHandleKey, storedProfilePics[handle]);
                 }
             });
             
