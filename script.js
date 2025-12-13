@@ -24,7 +24,7 @@ async function getInstagramFullName(username) {
     try {
         const apiBase = window.location.origin;
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // Increased timeout
         
         const response = await fetch(`${apiBase}/api/instagram-name?username=${encodeURIComponent(cleanUsername)}`, {
             method: 'GET',
@@ -38,10 +38,14 @@ async function getInstagramFullName(username) {
             if (data.success && data.fullName) {
                 console.log(`✅ Found Instagram name via backend: ${data.fullName}`);
                 return data.fullName.trim();
+            } else {
+                console.log(`⚠️ Backend returned but no name found:`, data.error || 'Unknown error');
             }
+        } else {
+            console.log(`⚠️ Backend request failed with status: ${response.status}`);
         }
     } catch (e) {
-        console.log('Backend server not available for name extraction, using browser methods');
+        console.log('Backend server not available for name extraction, using browser methods:', e.message);
     }
     
     // Fallback to browser methods
@@ -64,43 +68,93 @@ async function getInstagramFullName(username) {
             const html = await response.text();
             console.log(`✅ Received HTML response, length: ${html.length} characters`);
             
-            // Try to extract from window._sharedData
-            const sharedDataPatterns = [
-                /window\._sharedData\s*=\s*({[\s\S]+?});\s*<\/script>/,
-                /window\._sharedData\s*=\s*({.+?});/s,
-                /window\._sharedData\s*=\s*({[\s\S]+?});/,
-            ];
-            
-            for (const pattern of sharedDataPatterns) {
-                const sharedDataMatch = html.match(pattern);
-                if (sharedDataMatch && sharedDataMatch[1]) {
-                    try {
-                        let jsonStr = sharedDataMatch[1].trim();
-                        jsonStr = jsonStr.replace(/;[\s]*$/, '');
-                        const sharedData = JSON.parse(jsonStr);
-                        
-                        // Try multiple paths to find the full name
-                        const possiblePaths = [
-                            sharedData?.entry_data?.ProfilePage?.[0]?.graphql?.user?.full_name,
-                            sharedData?.entry_data?.ProfilePage?.[0]?.graphql?.user?.fullName,
-                            sharedData?.entry_data?.ProfilePage?.[0]?.user?.full_name,
-                            sharedData?.entry_data?.ProfilePage?.[0]?.user?.fullName,
-                            sharedData?.graphql?.user?.full_name,
-                            sharedData?.graphql?.user?.fullName
-                        ];
-                        
-                        for (const fullName of possiblePaths) {
-                            if (fullName && typeof fullName === 'string' && fullName.trim().length > 0) {
-                                console.log(`Found Instagram full name: ${fullName}`);
-                                return fullName.trim();
-                            }
+            // Check if we got a valid response (not empty or error page)
+            if (html.length === 0) {
+                console.log(`⚠️ Empty response from proxy, trying alternative proxy...`);
+                // Try alternative proxy
+                try {
+                    const altProxyUrl = 'https://cors-anywhere.herokuapp.com/';
+                    const altController = new AbortController();
+                    const altTimeoutId = setTimeout(() => altController.abort(), 8000);
+                    const altResponse = await fetch(`${altProxyUrl}${encodeURIComponent(apiUrl)}`, {
+                        method: 'GET',
+                        signal: altController.signal
+                    });
+                    clearTimeout(altTimeoutId);
+                    if (altResponse.ok) {
+                        const altHtml = await altResponse.text();
+                        if (altHtml.length > 0) {
+                            console.log(`✅ Got response from alternative proxy, length: ${altHtml.length}`);
+                            return await extractNameFromHTML(altHtml, cleanUsername);
                         }
-                    } catch (e) {
-                        console.log(`Failed to parse _sharedData for name:`, e.message);
-                        continue;
+                    }
+                } catch (altError) {
+                    console.log('Alternative proxy also failed:', altError.message);
+                }
+                return null;
+            }
+            
+            // Check for login/error pages
+            if (html.includes('Log in to Instagram') || html.includes('login_required') || html.length < 1000) {
+                console.log(`⚠️ Got login page or insufficient content, length: ${html.length}`);
+                return null;
+            }
+            
+            return await extractNameFromHTML(html, cleanUsername);
+            
+            // Extract name from HTML - moved to helper function
+            return await extractNameFromHTML(html, cleanUsername);
+        } else {
+            console.log(`❌ Instagram fetch failed with status: ${response.status}`);
+        }
+    } catch (e) {
+        console.log(`❌ Error fetching Instagram name for ${cleanUsername}:`, e.message);
+    }
+    
+    // Fallback: return null if not found
+    console.log(`⚠️ Could not extract name from Instagram for ${cleanUsername}`);
+    return null;
+}
+
+// Helper function to extract name from HTML
+async function extractNameFromHTML(html, cleanUsername) {
+    // Try to extract from window._sharedData
+    const sharedDataPatterns = [
+        /window\._sharedData\s*=\s*({[\s\S]+?});\s*<\/script>/,
+        /window\._sharedData\s*=\s*({.+?});/s,
+        /window\._sharedData\s*=\s*({[\s\S]+?});/,
+    ];
+    
+    for (const pattern of sharedDataPatterns) {
+        const sharedDataMatch = html.match(pattern);
+        if (sharedDataMatch && sharedDataMatch[1]) {
+            try {
+                let jsonStr = sharedDataMatch[1].trim();
+                jsonStr = jsonStr.replace(/;[\s]*$/, '');
+                const sharedData = JSON.parse(jsonStr);
+                
+                // Try multiple paths to find the full name
+                const possiblePaths = [
+                    sharedData?.entry_data?.ProfilePage?.[0]?.graphql?.user?.full_name,
+                    sharedData?.entry_data?.ProfilePage?.[0]?.graphql?.user?.fullName,
+                    sharedData?.entry_data?.ProfilePage?.[0]?.user?.full_name,
+                    sharedData?.entry_data?.ProfilePage?.[0]?.user?.fullName,
+                    sharedData?.graphql?.user?.full_name,
+                    sharedData?.graphql?.user?.fullName
+                ];
+                
+                for (const fullName of possiblePaths) {
+                    if (fullName && typeof fullName === 'string' && fullName.trim().length > 0) {
+                        console.log(`Found Instagram full name: ${fullName}`);
+                        return fullName.trim();
                     }
                 }
+            } catch (e) {
+                console.log(`Failed to parse _sharedData for name:`, e.message);
+                continue;
             }
+        }
+    }
             
             // Try alternative method: look for meta tags or title
             const metaNameMatch = html.match(/<meta\s+property="og:title"\s+content="([^"]+)"/i) ||
@@ -234,15 +288,8 @@ async function getInstagramFullName(username) {
                     }
                 }
             }
-        } else {
-            console.log(`❌ Instagram fetch failed with status: ${response.status}`);
-        }
-    } catch (e) {
-        console.log(`❌ Error fetching Instagram name for ${cleanUsername}:`, e.message);
-    }
     
-    // Fallback: return null if not found
-    console.log(`⚠️ Could not extract name from Instagram for ${cleanUsername}`);
+    // If we get here, no name was found
     return null;
 }
 
