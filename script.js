@@ -1259,16 +1259,18 @@ async function handleSearch() {
     console.log('🔍 handleSearch called');
     
     const input = document.getElementById('instagramHandle');
-    const handle = input.value.trim();
-    const searchBtn = document.getElementById('searchBtn');
-    
     if (!input) {
         console.error('❌ Instagram handle input not found!');
+        alert('Error: Search input not found. Please refresh the page.');
         return;
     }
     
+    const handle = input.value.trim();
+    const searchBtn = document.getElementById('searchBtn');
+    
     if (!searchBtn) {
         console.error('❌ Search button not found!');
+        alert('Error: Search button not found. Please refresh the page.');
         return;
     }
     
@@ -1280,8 +1282,12 @@ async function handleSearch() {
     }
     
     // Disable button and show loading
-    searchBtn.disabled = true;
-    searchBtn.textContent = 'Searching...';
+    try {
+        searchBtn.disabled = true;
+        searchBtn.textContent = 'Searching...';
+    } catch (e) {
+        console.error('Error updating button:', e);
+    }
     
     try {
         const cleanHandleValue = cleanHandle(handle);
@@ -2870,6 +2876,7 @@ function showNameSearchModal() {
 }
 
 // Make functions available globally for onclick handlers
+window.handleSearch = handleSearch;
 window.handleClaim = handleClaim;
 window.handleView = handleView;
 window.closeViewModal = closeViewModal;
