@@ -1254,9 +1254,9 @@ function displayLeaderboard(users) {
     loadProfilePicturesInBackground(usersWithPics);
 }
 
-// Handle search
+// Handle search - CRITICAL FUNCTION - MUST WORK
 async function handleSearch() {
-    console.log('🔍 handleSearch called');
+    console.log('🔍🔍🔍 handleSearch CALLED - STARTING SEARCH');
     
     const input = document.getElementById('instagramHandle');
     if (!input) {
@@ -1266,6 +1266,8 @@ async function handleSearch() {
     }
     
     const handle = input.value.trim();
+    console.log(`🔍 Handle value: "${handle}"`);
+    
     const searchBtn = document.getElementById('searchBtn');
     
     if (!searchBtn) {
@@ -1284,7 +1286,9 @@ async function handleSearch() {
     // Disable button and show loading
     try {
         searchBtn.disabled = true;
+        const originalText = searchBtn.textContent;
         searchBtn.textContent = 'Searching...';
+        console.log('✅ Button disabled and text changed to "Searching..."');
     } catch (e) {
         console.error('Error updating button:', e);
     }
@@ -2384,19 +2388,54 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     console.log('✅ Found search button and input, attaching event listeners');
     
-    searchBtn.addEventListener('click', function(e) {
-        console.log('🖱️ Search button clicked');
-        e.preventDefault();
-        handleSearch();
-    });
+    // Ensure handleSearch is available
+    if (typeof handleSearch !== 'function') {
+        console.error('❌ CRITICAL: handleSearch function not available!');
+        alert('Error: Search function not loaded. Please refresh the page.');
+        return;
+    }
     
-    searchInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            console.log('⌨️ Enter key pressed in search input');
+    // Remove any existing listeners by cloning
+    const newBtn = searchBtn.cloneNode(true);
+    searchBtn.parentNode.replaceChild(newBtn, searchBtn);
+    const newInput = searchInput.cloneNode(true);
+    searchInput.parentNode.replaceChild(newInput, searchInput);
+    
+    // Get fresh references
+    const freshBtn = document.getElementById('searchBtn');
+    const freshInput = document.getElementById('instagramHandle');
+    
+    if (freshBtn) {
+        freshBtn.addEventListener('click', function(e) {
+            console.log('🖱️🖱️🖱️ Search button clicked (DOMContentLoaded handler)');
             e.preventDefault();
-            handleSearch();
-        }
-    });
+            e.stopPropagation();
+            if (typeof handleSearch === 'function') {
+                handleSearch();
+            } else {
+                console.error('❌ handleSearch not available in click handler!');
+                alert('Error: Search function not available. Please refresh the page.');
+            }
+        });
+        console.log('✅ Click listener attached to search button');
+    }
+    
+    if (freshInput) {
+        freshInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                console.log('⌨️ Enter key pressed in search input');
+                e.preventDefault();
+                e.stopPropagation();
+                if (typeof handleSearch === 'function') {
+                    handleSearch();
+                } else {
+                    console.error('❌ handleSearch not available in keypress handler!');
+                    alert('Error: Search function not available. Please refresh the page.');
+                }
+            }
+        });
+        console.log('✅ Keypress listener attached to search input');
+    }
     
     // Close modal when clicking outside
     const modal = document.getElementById('claimModal');
@@ -2876,7 +2915,12 @@ function showNameSearchModal() {
 }
 
 // Make functions available globally for onclick handlers
-window.handleSearch = handleSearch;
+// Export handleSearch IMMEDIATELY when script loads (before DOMContentLoaded)
+// This ensures it's available for onclick handlers
+if (typeof window !== 'undefined') {
+    window.handleSearch = handleSearch;
+}
+
 window.handleClaim = handleClaim;
 window.handleView = handleView;
 window.closeViewModal = closeViewModal;
