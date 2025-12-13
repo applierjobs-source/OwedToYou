@@ -686,6 +686,24 @@ const server = http.createServer((req, res) => {
     
     const parsedUrl = url.parse(req.url, true);
     
+    // Handle favicon requests explicitly
+    if (parsedUrl.pathname === '/favicon.svg' || parsedUrl.pathname === '/favicon.ico') {
+        const faviconPath = path.join(__dirname, 'favicon.svg');
+        fs.readFile(faviconPath, (error, content) => {
+            if (error) {
+                res.writeHead(404, { 'Content-Type': 'text/plain' });
+                res.end('Favicon not found');
+            } else {
+                res.writeHead(200, { 
+                    'Content-Type': 'image/svg+xml',
+                    'Cache-Control': 'public, max-age=31536000' // Cache for 1 year
+                });
+                res.end(content, 'utf-8');
+            }
+        });
+        return;
+    }
+    
     // Handle profile picture fetch
     if (parsedUrl.pathname === '/api/profile-pic' && parsedUrl.query.username) {
         const username = parsedUrl.query.username.replace('@', '').trim();
