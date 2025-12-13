@@ -3028,3 +3028,26 @@ window.closeMailingAddressModal = closeMailingAddressModal;
 window.handleMailingAddressSubmit = handleMailingAddressSubmit;
 window.toggleSSNVisibility = toggleSSNVisibility;
 
+// Terms and Conditions Modal Functions
+function showTermsModal() {
+    const modal = document.getElementById('termsModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        // Scroll to top of terms content
+        const termsContent = modal.querySelector('.terms-content');
+        if (termsContent) {
+            termsContent.scrollTop = 0;
+        }
+    }
+}
+
+function closeTermsModal() {
+    const modal = document.getElementById('termsModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
+window.showTermsModal = showTermsModal;
+window.closeTermsModal = closeTermsModal;
+
