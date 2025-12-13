@@ -536,13 +536,16 @@ async function fetchInstagramFullName(username) {
                         }
                     }
                     
-                    // Try to find full_name in script tags
+                    // Try to find full_name in script tags (multiple patterns)
                     const fullNamePatterns = [
                         /"full_name"\s*:\s*"([^"]+)"/i,
                         /"fullName"\s*:\s*"([^"]+)"/i,
                         /full_name["\s]*:["\s]*"([^"]+)"/i,
                         /"profilePage_[\d]+":\s*\{[^}]*"full_name":\s*"([^"]+)"/i,
-                        /"user":\s*\{[^}]*"full_name":\s*"([^"]+)"/i
+                        /"user":\s*\{[^}]*"full_name":\s*"([^"]+)"/i,
+                        /"full_name":\s*"([^"]+)"[^}]*"username":\s*"([^"]+)"/i,
+                        /"biography":\s*"[^"]*"[^}]*"full_name":\s*"([^"]+)"/i,
+                        /"edge_owner_to_timeline_media":\s*\{[^}]*"full_name":\s*"([^"]+)"/i
                     ];
                     
                     for (const pattern of fullNamePatterns) {
@@ -558,6 +561,31 @@ async function fetchInstagramFullName(username) {
                         }
                     }
                     
+                    // Try searching in all script tags for JSON data
+                    const scriptMatches = html.match(/<script[^>]*>(.*?)<\/script>/gis);
+                    if (scriptMatches) {
+                        for (const scriptContent of scriptMatches) {
+                            // Look for full_name in script content
+                            const scriptPatterns = [
+                                /"full_name"\s*:\s*"([^"]+)"/i,
+                                /"fullName"\s*:\s*"([^"]+)"/i,
+                                /full_name["\s]*:["\s]*"([^"]+)"/i
+                            ];
+                            
+                            for (const pattern of scriptPatterns) {
+                                const match = scriptContent.match(pattern);
+                                if (match && match[1]) {
+                                    const name = match[1].trim();
+                                    if (name && name.length > 2 && !name.startsWith('@') && !name.includes('instagram') && name !== username) {
+                                        console.log(`Found Instagram name from script content: ${name}`);
+                                        resolve({ success: true, fullName: name });
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
                     // Try to extract from article or section tags
                     const articleMatches = html.match(/<article[^>]*>([\s\S]{0,2000})<\/article>/i);
                     if (articleMatches) {
@@ -567,6 +595,43 @@ async function fetchInstagramFullName(username) {
                             const name = nameInArticle[1].trim();
                             if (name && name.length > 3 && name !== username) {
                                 console.log(`Found Instagram name from article: ${name}`);
+                                resolve({ success: true, fullName: name });
+                                return;
+                            }
+                        }
+                    }
+                    
+                    // Try to find in header tags
+                    const headerMatches = html.match(/<h[12][^>]*>([^<]+)<\/h[12]>/gi);
+                    if (headerMatches) {
+                        for (const header of headerMatches) {
+                            const textMatch = header.match(/>([^<]+)</);
+                            if (textMatch && textMatch[1]) {
+                                const text = textMatch[1].trim();
+                                if (text && text !== username && !text.startsWith('@') && 
+                                    (text.includes(' ') || (text.length > 3 && text[0] === text[0].toUpperCase()))) {
+                                    console.log(`Found Instagram name from header: ${text}`);
+                                    resolve({ success: true, fullName: text });
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Try to find in profile name elements
+                    const profileNamePatterns = [
+                        /<span[^>]*class="[^"]*profile[^"]*name[^"]*"[^>]*>([^<]+)<\/span>/i,
+                        /<div[^>]*class="[^"]*profile[^"]*name[^"]*"[^>]*>([^<]+)<\/div>/i,
+                        /<span[^>]*data-testid="[^"]*name[^"]*"[^>]*>([^<]+)<\/span>/i
+                    ];
+                    
+                    for (const pattern of profileNamePatterns) {
+                        const match = html.match(pattern);
+                        if (match && match[1]) {
+                            const name = match[1].trim();
+                            if (name && name.length > 2 && !name.startsWith('@') && name !== username && 
+                                !name.toLowerCase().includes('instagram')) {
+                                console.log(`Found Instagram name from profile element: ${name}`);
                                 resolve({ success: true, fullName: name });
                                 return;
                             }

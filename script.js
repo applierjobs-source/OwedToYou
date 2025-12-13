@@ -257,16 +257,54 @@ async function extractNameFromHTML(html, cleanUsername) {
         /"profilePage_[\d]+":\s*\{[^}]*"full_name":\s*"([^"]+)"/i,
         /"user":\s*\{[^}]*"full_name":\s*"([^"]+)"/i,
         /"full_name":\s*"([^"]+)"[^}]*"username":\s*"[^"]*"/i,
-        /"biography":\s*"[^"]*"[^}]*"full_name":\s*"([^"]+)"/i
+        /"biography":\s*"[^"]*"[^}]*"full_name":\s*"([^"]+)"/i,
+        /"edge_owner_to_timeline_media":\s*\{[^}]*"full_name":\s*"([^"]+)"/i,
+        /"edge_felix_video_timeline":\s*\{[^}]*"full_name":\s*"([^"]+)"/i
     ];
     
     for (const pattern of reactDataPatterns) {
         const match = html.match(pattern);
         if (match && match[1]) {
             const name = match[1].trim();
-            if (name && name.length > 2 && !name.startsWith('@') && name !== cleanUsername) {
+            if (name && name.length > 2 && !name.startsWith('@') && name !== cleanUsername && 
+                !name.toLowerCase().includes('instagram')) {
                 console.log(`Found Instagram name from React data: ${name}`);
                 return name;
+            }
+        }
+    }
+    
+    // Try to find in all script tags for any JSON data containing full_name
+    const allScriptMatches = html.match(/<script[^>]*type="application\/json"[^>]*>(.*?)<\/script>/gis);
+    if (allScriptMatches) {
+        for (const scriptContent of allScriptMatches) {
+            try {
+                const jsonMatch = scriptContent.match(/<script[^>]*>(.*?)<\/script>/is);
+                if (jsonMatch && jsonMatch[1]) {
+                    const jsonData = JSON.parse(jsonMatch[1]);
+                    // Recursively search for full_name in JSON
+                    const findNameInObject = (obj) => {
+                        if (typeof obj !== 'object' || obj === null) return null;
+                        for (const key in obj) {
+                            if (key === 'full_name' || key === 'fullName') {
+                                const name = obj[key];
+                                if (typeof name === 'string' && name.length > 2 && !name.startsWith('@') && name !== cleanUsername) {
+                                    return name;
+                                }
+                            }
+                            const found = findNameInObject(obj[key]);
+                            if (found) return found;
+                        }
+                        return null;
+                    };
+                    const foundName = findNameInObject(jsonData);
+                    if (foundName) {
+                        console.log(`Found Instagram name from JSON script: ${foundName}`);
+                        return foundName;
+                    }
+                }
+            } catch (e) {
+                // Not valid JSON, continue
             }
         }
     }
