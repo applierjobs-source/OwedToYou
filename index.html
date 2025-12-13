@@ -268,6 +268,16 @@
                     }
                 });
             }
+            
+            // Check for share parameter in URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const shareHandle = urlParams.get('share');
+            if (shareHandle && typeof handleNotifyFromUrl === 'function') {
+                // Wait a bit for leaderboard to load, then open shareable modal
+                setTimeout(() => {
+                    handleNotifyFromUrl(shareHandle);
+                }, 1000);
+            }
         });
     </script>
     <script src="script.js"></script>

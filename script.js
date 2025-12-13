@@ -996,7 +996,7 @@ function createEntryHTML(user, rank) {
                 <button class="btn btn-claim" onclick="handleView('${escapedName}', '${user.handle}', ${user.amount})">
                     View
                 </button>
-                <button class="btn btn-notify" onclick="handleNotify('${escapedName}', ${user.amount})">
+                <button class="btn btn-notify" onclick="handleNotify('${escapedName}', '${user.handle}', ${user.amount})">
                     Notify
                 </button>
             </div>
@@ -1921,9 +1921,174 @@ function closeResultsModal() {
     }, 300);
 }
 
-// Handle notify button
-function handleNotify(name, amount) {
-    alert(`Notifying friends about ${name}'s unclaimed funds of $${amount}! This feature will be implemented soon.`);
+// Handle notify button - show shareable version of view modal
+function handleNotify(name, handle, amount) {
+    // Find the user in leaderboard data
+    const cleanUserHandle = cleanHandle(handle);
+    const userEntry = leaderboardData.find(entry => cleanHandle(entry.handle) === cleanUserHandle);
+    
+    const modal = document.getElementById('claimModal');
+    if (!modal) {
+        console.error('Modal not found');
+        return;
+    }
+    
+    const modalContent = modal.querySelector('.modal-content');
+    if (!modalContent) {
+        console.error('Modal content not found');
+        return;
+    }
+    
+    // Get entities from user entry
+    const entities = userEntry?.entities || [];
+    
+    // Create shareable URL
+    const shareableUrl = `${window.location.origin}${window.location.pathname}?share=${encodeURIComponent(handle)}`;
+    
+    // Create shareable view modal HTML
+    let shareableHTML = `
+        <div class="modal-header">
+            <h2>Share: ${escapeHtml(name)}'s Unclaimed Funds</h2>
+            <button class="modal-close" onclick="closeShareableViewModal()">&times;</button>
+        </div>
+        <div class="results-content" style="padding: 30px;">
+            <div class="results-summary" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 20px; color: white; margin-bottom: 30px; text-align: center;">
+                <p class="results-name" style="font-size: 1.5rem; font-weight: 700; margin: 0 0 8px 0;">${escapeHtml(name)}</p>
+                <div class="total-amount" style="display: flex; flex-direction: column; align-items: center; gap: 8px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.3);">
+                    <span class="total-label" style="font-size: 0.9rem; opacity: 0.9;">Total Unclaimed:</span>
+                    <span class="total-value" style="font-size: 2.5rem; font-weight: 700;">$${amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                </div>
+            </div>
+            <div class="results-list">
+                <h3 style="margin: 0 0 20px 0; color: #333; font-size: 1.2rem;">Reported Businesses:</h3>
+    `;
+    
+    if (entities && entities.length > 0) {
+        entities.forEach((entity, index) => {
+            shareableHTML += `
+                <div class="result-item" style="display: flex; justify-content: space-between; align-items: center; padding: 16px; background: #f8f9fa; border-radius: 8px; margin-bottom: 12px; transition: all 0.2s;">
+                    <div class="result-entity" style="font-weight: 600; color: #333; flex: 1;">${escapeHtml(entity.entity || 'Unknown Business')}</div>
+                    <div class="result-amount" style="font-size: 1.3rem; font-weight: 700; color: #667eea;">${escapeHtml(entity.amount || '$0')}</div>
+                </div>
+            `;
+        });
+    } else {
+        shareableHTML += `
+            <div style="padding: 40px; text-align: center; color: #666;">
+                <p>No detailed business information available for this entry.</p>
+                <p style="font-size: 0.9rem; margin-top: 10px; color: #999;">Total amount: $${amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+            </div>
+        `;
+    }
+    
+    shareableHTML += `
+            </div>
+            <div class="share-actions-container" style="margin-top: 30px; padding-top: 30px; border-top: 2px solid #e0e0e0;">
+                <h3 style="margin: 0 0 20px 0; color: #333; font-size: 1.1rem; text-align: center;">Share This Discovery</h3>
+                <div style="display: flex; flex-direction: column; gap: 12px; align-items: center;">
+                    <button class="btn btn-copy-link" onclick="copyShareableLink('${shareableUrl.replace(/'/g, "\\'")}')" style="width: 100%; max-width: 400px; padding: 14px; font-size: 1.1rem; font-weight: 600; background: white; color: #667eea; border: 2px solid #667eea; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                        📋 Copy Shareable Link
+                    </button>
+                    <button class="btn btn-share-twitter" onclick="shareToTwitter('${escapeHtml(name).replace(/'/g, "\\'")}', ${amount}, '${shareableUrl.replace(/'/g, "\\'")}')" style="width: 100%; max-width: 400px; padding: 14px; font-size: 1.1rem; font-weight: 600; background: #1DA1F2; color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                        🐦 Share on Twitter
+                    </button>
+                    <button class="btn btn-share-facebook" onclick="shareToFacebook('${shareableUrl.replace(/'/g, "\\'")}')" style="width: 100%; max-width: 400px; padding: 14px; font-size: 1.1rem; font-weight: 600; background: #1877F2; color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                        📘 Share on Facebook
+                    </button>
+                    <button class="btn btn-share-whatsapp" onclick="shareToWhatsApp('${escapeHtml(name).replace(/'/g, "\\'")}', ${amount}, '${shareableUrl.replace(/'/g, "\\'")}')" style="width: 100%; max-width: 400px; padding: 14px; font-size: 1.1rem; font-weight: 600; background: #25D366; color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                        💬 Share on WhatsApp
+                    </button>
+                    <p style="text-align: center; color: #666; font-size: 0.85rem; margin-top: 10px; line-height: 1.5;">
+                        Help ${escapeHtml(name)} discover unclaimed funds! Share this link so they can claim what's theirs.
+                    </p>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    modalContent.innerHTML = shareableHTML;
+    modal.classList.remove('hidden');
+}
+
+// Close shareable view modal
+function closeShareableViewModal() {
+    const modal = document.getElementById('claimModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
+// Handle share parameter from URL - open shareable modal automatically
+async function handleNotifyFromUrl(handle) {
+    // Wait for leaderboard to load if needed
+    if (leaderboardData.length === 0) {
+        await loadLeaderboard();
+    }
+    
+    // Find the user entry
+    const cleanUserHandle = cleanHandle(handle);
+    const userEntry = leaderboardData.find(entry => cleanHandle(entry.handle) === cleanUserHandle);
+    
+    if (userEntry) {
+        // Open the shareable view modal
+        handleNotify(userEntry.name, userEntry.handle, userEntry.amount);
+    } else {
+        console.log('User not found in leaderboard for handle:', handle);
+    }
+}
+
+// Copy shareable link to clipboard
+function copyShareableLink(url) {
+    navigator.clipboard.writeText(url).then(() => {
+        // Show success feedback
+        const button = document.querySelector('.btn-copy-link');
+        if (button) {
+            const originalText = button.innerHTML;
+            button.innerHTML = '✅ Link Copied!';
+            button.style.background = '#28a745';
+            button.style.color = 'white';
+            setTimeout(() => {
+                button.innerHTML = originalText;
+                button.style.background = 'white';
+                button.style.color = '#667eea';
+            }, 2000);
+        } else {
+            alert('Link copied to clipboard!');
+        }
+    }).catch(err => {
+        console.error('Failed to copy link:', err);
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = url;
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            alert('Link copied to clipboard!');
+        } catch (e) {
+            alert('Failed to copy link. Please copy manually: ' + url);
+        }
+        document.body.removeChild(textArea);
+    });
+}
+
+// Share to Twitter
+function shareToTwitter(name, amount, url) {
+    const text = encodeURIComponent(`${name} has $${amount.toLocaleString()} in unclaimed funds! Help them claim it: ${url}`);
+    window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank', 'width=550,height=420');
+}
+
+// Share to Facebook
+function shareToFacebook(url) {
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank', 'width=550,height=420');
+}
+
+// Share to WhatsApp
+function shareToWhatsApp(name, amount, url) {
+    const text = encodeURIComponent(`${name} has $${amount.toLocaleString()} in unclaimed funds! Help them claim it: ${url}`);
+    window.open(`https://wa.me/?text=${text}`, '_blank');
 }
 
 // Event listeners
@@ -2423,6 +2588,12 @@ window.handleView = handleView;
 window.closeViewModal = closeViewModal;
 window.handleClaimYourFundsFromView = handleClaimYourFundsFromView;
 window.handleNotify = handleNotify;
+window.handleNotifyFromUrl = handleNotifyFromUrl;
+window.closeShareableViewModal = closeShareableViewModal;
+window.copyShareableLink = copyShareableLink;
+window.shareToTwitter = shareToTwitter;
+window.shareToFacebook = shareToFacebook;
+window.shareToWhatsApp = shareToWhatsApp;
 window.clearLeaderboardHandles = clearLeaderboardHandles;
 window.closeClaimModal = closeClaimModal;
 window.closeResultsModal = closeResultsModal;
