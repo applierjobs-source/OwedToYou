@@ -105,7 +105,24 @@ async function fetchInstagramProfile(username) {
             }
         };
         
-        https.get(options, (res) => {
+        const req = https.get(options, (res) => {
+            console.log(`[PROFILE] Response status: ${res.statusCode} for ${username}`);
+            console.log(`[PROFILE] Content-Type: ${res.headers['content-type']}`);
+            console.log(`[PROFILE] Content-Length: ${res.headers['content-length']}`);
+            console.log(`[PROFILE] Content-Encoding: ${res.headers['content-encoding']}`);
+            
+            // Check for error status codes
+            if (res.statusCode !== 200) {
+                console.log(`[PROFILE] Non-200 status code: ${res.statusCode} for ${username}`);
+                let errorBody = '';
+                res.on('data', (chunk) => { errorBody += chunk.toString(); });
+                res.on('end', () => {
+                    console.log(`[PROFILE] Error response body (first 200 chars):`, errorBody.substring(0, 200));
+                    resolve({ success: false, error: `HTTP ${res.statusCode}: ${res.statusMessage || 'Request failed'}` });
+                });
+                return;
+            }
+            
             let html = '';
             let stream = res;
             
@@ -122,21 +139,35 @@ async function fetchInstagramProfile(username) {
                 html += chunk.toString();
             });
             
+            stream.on('error', (err) => {
+                console.error(`[PROFILE] Stream error for ${username}:`, err.message);
+                resolve({ success: false, error: `Stream error: ${err.message}` });
+            });
+            
             stream.on('end', () => {
                 try {
                     // Debug: log HTML length
-                    console.log(`Fetched HTML for ${username}, length: ${html.length}`);
+                    console.log(`[PROFILE] Fetched HTML for ${username}, length: ${html.length}`);
+                    
+                    if (html.length === 0) {
+                        console.log(`[PROFILE] Empty response for ${username} - possible blocking or error`);
+                        resolve({ success: false, error: 'Empty response from Instagram (possibly blocked)' });
+                        return;
+                    }
                     
                     // Check if we got a login page or error page
                     // Only check for login if it's clearly a login redirect, not just the word "login" in the HTML
                     if ((html.includes('Log in to Instagram') || html.includes('login_required')) && html.length < 100000) {
-                        console.log('Login page detected');
+                        console.log('[PROFILE] Login page detected');
                         resolve({ success: false, error: 'Login required' });
                         return;
                     }
                     
                     if (html.length < 10000) {
-                        console.log(`Insufficient HTML: ${html.length} bytes`);
+                        console.log(`[PROFILE] Insufficient HTML: ${html.length} bytes`);
+                        if (html.length > 0) {
+                            console.log(`[PROFILE] Response preview (first 500 chars):`, html.substring(0, 500));
+                        }
                         resolve({ success: false, error: 'Insufficient HTML received' });
                         return;
                     }
@@ -314,8 +345,18 @@ async function fetchInstagramProfile(username) {
                     reject(error);
                 }
             });
-        }).on('error', (error) => {
-            reject(error);
+        });
+        
+        req.on('error', (error) => {
+            console.error(`[PROFILE] Request error for ${username}:`, error.message);
+            console.error(`[PROFILE] Error code:`, error.code);
+            resolve({ success: false, error: `Request failed: ${error.message}` });
+        });
+        
+        req.setTimeout(10000, () => {
+            console.error(`[PROFILE] Request timeout for ${username}`);
+            req.destroy();
+            resolve({ success: false, error: 'Request timeout' });
         });
     });
 }
@@ -346,7 +387,35 @@ async function fetchInstagramFullName(username) {
             }
         };
         
-        https.get(options, (res) => {
+        const req = https.get(options, (res) => {
+            console.log(`[INSTAGRAM] Response status: ${res.statusCode} for ${username}`);
+            console.log(`[INSTAGRAM] Response headers:`, JSON.stringify(res.headers, null, 2));
+            
+            // Handle redirects
+            if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307 || res.statusCode === 308) {
+                const location = res.headers.location;
+                console.log(`[INSTAGRAM] Redirect detected to: ${location}`);
+                if (location) {
+                    // Follow redirect
+                    const redirectUrl = location.startsWith('http') ? location : `https://www.instagram.com${location}`;
+                    const urlParts = new URL(redirectUrl);
+                    const redirectOptions = {
+                        hostname: urlParts.hostname,
+                        path: urlParts.pathname + urlParts.search,
+                        method: 'GET',
+                        headers: options.headers
+                    };
+                    return https.get(redirectOptions, req.callback).on('error', reject);
+                }
+            }
+            
+            // Check for error status codes
+            if (res.statusCode !== 200) {
+                console.log(`[INSTAGRAM] Non-200 status code: ${res.statusCode} for ${username}`);
+                resolve({ success: false, error: `HTTP ${res.statusCode}: ${res.statusMessage || 'Request failed'}` });
+                return;
+            }
+            
             let html = '';
             let stream = res;
             
@@ -363,19 +432,32 @@ async function fetchInstagramFullName(username) {
                 html += chunk.toString();
             });
             
+            stream.on('error', (err) => {
+                console.error(`[INSTAGRAM] Stream error for ${username}:`, err.message);
+                resolve({ success: false, error: `Stream error: ${err.message}` });
+            });
+            
             stream.on('end', () => {
                 try {
-                    console.log(`Fetching full name for ${username}, HTML length: ${html.length}`);
+                    console.log(`[INSTAGRAM] Fetching full name for ${username}, HTML length: ${html.length}`);
+                    
+                    // Log first 500 chars if HTML is very short for debugging
+                    if (html.length < 1000 && html.length > 0) {
+                        console.log(`[INSTAGRAM] First 500 chars of response:`, html.substring(0, 500));
+                    }
                     
                     // Check for login page
-                    if ((html.includes('Log in to Instagram') || html.includes('login_required')) && html.length < 100000) {
-                        console.log('Login page detected for name extraction');
-                        resolve({ success: false, error: 'Login required' });
+                    if ((html.includes('Log in to Instagram') || html.includes('login_required') || html.includes('Please wait')) && html.length < 100000) {
+                        console.log(`[INSTAGRAM] Login page or challenge detected for ${username}`);
+                        resolve({ success: false, error: 'Login required or challenge page' });
                         return;
                     }
                     
                     if (html.length < 10000) {
-                        console.log(`Insufficient HTML for name extraction: ${html.length} bytes`);
+                        console.log(`[INSTAGRAM] Insufficient HTML for name extraction: ${html.length} bytes`);
+                        if (html.length > 0) {
+                            console.log(`[INSTAGRAM] Response preview:`, html.substring(0, 200));
+                        }
                         resolve({ success: false, error: 'Insufficient HTML received' });
                         return;
                     }
@@ -489,11 +571,22 @@ async function fetchInstagramFullName(username) {
                     
                     resolve({ success: false, error: 'Full name not found in HTML' });
                 } catch (error) {
-                    reject(error);
+                    console.error(`[INSTAGRAM] Error processing HTML for ${username}:`, error.message);
+                    resolve({ success: false, error: `Processing error: ${error.message}` });
                 }
             });
-        }).on('error', (error) => {
-            reject(error);
+        });
+        
+        req.on('error', (error) => {
+            console.error(`[INSTAGRAM] Request error for ${username}:`, error.message);
+            console.error(`[INSTAGRAM] Error code:`, error.code);
+            resolve({ success: false, error: `Request failed: ${error.message}` });
+        });
+        
+        req.setTimeout(10000, () => {
+            console.error(`[INSTAGRAM] Request timeout for ${username}`);
+            req.destroy();
+            resolve({ success: false, error: 'Request timeout' });
         });
     });
 }
