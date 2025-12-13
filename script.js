@@ -1634,7 +1634,8 @@ function handleView(name, handle, amount) {
     const entities = userEntry?.entities || [];
     
     // Store data in data attributes for safer access
-    const entitiesJson = JSON.stringify(entities || []).replace(/"/g, '&quot;');
+    // First stringify, then escape quotes for HTML attribute
+    const entitiesJson = JSON.stringify(entities || []);
     
     // Create view modal HTML
     let viewHTML = `
@@ -1654,7 +1655,7 @@ function handleView(name, handle, amount) {
                 <button class="btn btn-claim-funds" 
                         data-name="${escapeHtml(name).replace(/"/g, '&quot;')}" 
                         data-amount="${amount}" 
-                        data-entities="${entitiesJson}"
+                        data-entities="${entitiesJson.replace(/"/g, '&quot;')}"
                         onclick="handleClaimYourFundsFromView(this)" 
                         style="width: 100%; max-width: 400px; padding: 16px; font-size: 1.2rem; font-weight: 600; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
                     Claim Your Funds
@@ -2290,7 +2291,8 @@ function handleNotify(name, handle, amount) {
     const shareableUrl = `${window.location.origin}${window.location.pathname}?share=${encodeURIComponent(handle)}`;
     
     // Store data in data attributes for safer access
-    const entitiesJson = JSON.stringify(entities || []).replace(/"/g, '&quot;');
+    // First stringify, then escape quotes for HTML attribute
+    const entitiesJson = JSON.stringify(entities || []);
     
     // Create shareable view modal HTML
     let shareableHTML = `
@@ -2310,7 +2312,7 @@ function handleNotify(name, handle, amount) {
                 <button class="btn btn-claim-funds" 
                         data-name="${escapeHtml(name).replace(/"/g, '&quot;')}" 
                         data-amount="${amount}" 
-                        data-entities="${entitiesJson}"
+                        data-entities="${entitiesJson.replace(/"/g, '&quot;')}"
                         onclick="handleClaimYourFundsFromView(this)" 
                         style="width: 100%; max-width: 400px; padding: 16px; font-size: 1.2rem; font-weight: 600; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
                     Claim Your Funds
