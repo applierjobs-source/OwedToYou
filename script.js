@@ -1704,13 +1704,19 @@ function handleClaimYourFundsFromView(button) {
     // Get data from button's data attributes
     const name = button.getAttribute('data-name') || '';
     const amount = parseFloat(button.getAttribute('data-amount')) || 0;
-    const entitiesJson = button.getAttribute('data-entities') || '[]';
+    let entitiesJson = button.getAttribute('data-entities') || '[]';
+    
+    // Unescape HTML entities (convert &quot; back to ")
+    entitiesJson = entitiesJson.replace(/&quot;/g, '"');
     
     let entities = [];
     try {
         entities = JSON.parse(entitiesJson);
+        console.log('✅ Parsed entities from button:', entities);
+        console.log('✅ Entities count:', entities.length);
     } catch (e) {
-        console.error('Error parsing entities:', e);
+        console.error('❌ Error parsing entities:', e);
+        console.error('❌ Raw entitiesJson:', entitiesJson);
         entities = [];
     }
     
@@ -1729,10 +1735,13 @@ function handleClaimYourFundsFromView(button) {
     }
     
     // Convert entities array to results format if needed
-    const results = Array.isArray(entities) ? entities.map(entity => ({
+    const results = Array.isArray(entities) && entities.length > 0 ? entities.map(entity => ({
         entity: entity.entity || entity.business || 'Unknown Business',
         amount: entity.amount || '$0'
     })) : [];
+    
+    console.log('📊 Converted results for share modal:', results);
+    console.log('📊 Results count:', results.length);
     
     // Show the Instagram instruction modal
     showShareModal(firstName, lastName, amount, results);
