@@ -180,15 +180,52 @@ async function getInstagramFullName(username) {
             const profileNamePatterns = [
                 /<span[^>]*class="[^"]*profile[^"]*name[^"]*"[^>]*>([^<]+)<\/span>/i,
                 /<div[^>]*class="[^"]*profile[^"]*name[^"]*"[^>]*>([^<]+)<\/div>/i,
-                /<span[^>]*data-testid="[^"]*name[^"]*"[^>]*>([^<]+)<\/span>/i
+                /<span[^>]*data-testid="[^"]*name[^"]*"[^>]*>([^<]+)<\/span>/i,
+                /<span[^>]*class="[^"]*x1lliihq[^"]*"[^>]*>([^<]+)<\/span>/i, // Instagram's obfuscated class names
+                /<div[^>]*class="[^"]*x1lliihq[^"]*"[^>]*>([^<]+)<\/div>/i
             ];
             
             for (const pattern of profileNamePatterns) {
                 const match = html.match(pattern);
                 if (match && match[1]) {
                     const name = match[1].trim();
-                    if (name && name.length > 2 && !name.startsWith('@') && name !== cleanUsername) {
+                    if (name && name.length > 2 && !name.startsWith('@') && name !== cleanUsername && 
+                        !name.toLowerCase().includes('instagram') && !name.toLowerCase().includes('follow')) {
                         console.log(`Found Instagram name from profile element: ${name}`);
+                        return name;
+                    }
+                }
+            }
+            
+            // Try to find name in React/JSON data structures (newer Instagram format)
+            const reactDataPatterns = [
+                /"profilePage_[\d]+":\s*\{[^}]*"full_name":\s*"([^"]+)"/i,
+                /"user":\s*\{[^}]*"full_name":\s*"([^"]+)"/i,
+                /"full_name":\s*"([^"]+)"[^}]*"username":\s*"[^"]*"/i,
+                /"biography":\s*"[^"]*"[^}]*"full_name":\s*"([^"]+)"/i
+            ];
+            
+            for (const pattern of reactDataPatterns) {
+                const match = html.match(pattern);
+                if (match && match[1]) {
+                    const name = match[1].trim();
+                    if (name && name.length > 2 && !name.startsWith('@') && name !== cleanUsername) {
+                        console.log(`Found Instagram name from React data: ${name}`);
+                        return name;
+                    }
+                }
+            }
+            
+            // Try to extract from article or section tags that might contain profile info
+            const articleMatches = html.match(/<article[^>]*>([\s\S]{0,2000})<\/article>/i);
+            if (articleMatches) {
+                const articleContent = articleMatches[1];
+                // Look for text that appears before the username in the article
+                const nameInArticle = articleContent.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)(?:\s*@|•|\|)/);
+                if (nameInArticle && nameInArticle[1]) {
+                    const name = nameInArticle[1].trim();
+                    if (name && name.length > 3 && name !== cleanUsername) {
+                        console.log(`Found Instagram name from article: ${name}`);
                         return name;
                     }
                 }

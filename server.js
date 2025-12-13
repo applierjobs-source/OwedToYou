@@ -454,7 +454,9 @@ async function fetchInstagramFullName(username) {
                     const fullNamePatterns = [
                         /"full_name"\s*:\s*"([^"]+)"/i,
                         /"fullName"\s*:\s*"([^"]+)"/i,
-                        /full_name["\s]*:["\s]*"([^"]+)"/i
+                        /full_name["\s]*:["\s]*"([^"]+)"/i,
+                        /"profilePage_[\d]+":\s*\{[^}]*"full_name":\s*"([^"]+)"/i,
+                        /"user":\s*\{[^}]*"full_name":\s*"([^"]+)"/i
                     ];
                     
                     for (const pattern of fullNamePatterns) {
@@ -464,6 +466,21 @@ async function fetchInstagramFullName(username) {
                             // Skip if it looks like a username or is too short
                             if (name && name.length > 2 && !name.startsWith('@') && !name.includes('instagram') && name !== username) {
                                 console.log(`Found Instagram name from script pattern: ${name}`);
+                                resolve({ success: true, fullName: name });
+                                return;
+                            }
+                        }
+                    }
+                    
+                    // Try to extract from article or section tags
+                    const articleMatches = html.match(/<article[^>]*>([\s\S]{0,2000})<\/article>/i);
+                    if (articleMatches) {
+                        const articleContent = articleMatches[1];
+                        const nameInArticle = articleContent.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)(?:\s*@|•|\|)/);
+                        if (nameInArticle && nameInArticle[1]) {
+                            const name = nameInArticle[1].trim();
+                            if (name && name.length > 3 && name !== username) {
+                                console.log(`Found Instagram name from article: ${name}`);
                                 resolve({ success: true, fullName: name });
                                 return;
                             }
