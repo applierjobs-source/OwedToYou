@@ -1091,9 +1091,10 @@ async function loadProfilePicturesInBackground(users) {
                 leaderboardData[userIndex].profilePic = profilePic;
             }
             
-            // Save to localStorage for persistence across page reloads
+            // Save to localStorage for persistence across page reloads (save with both handle formats)
             const storedProfilePics = loadProfilePicsFromStorage();
             storedProfilePics[user.handle] = profilePic;
+            storedProfilePics[cleanHandle(user.handle)] = profilePic; // Also save with cleaned handle
             saveProfilePicsToStorage(storedProfilePics);
             // Wait a bit for DOM to be ready
             await new Promise(resolve => setTimeout(resolve, 100));
@@ -1220,10 +1221,26 @@ function displayLeaderboard(users) {
     const listContainer = document.getElementById('leaderboardList');
     
     console.log(`📊 displayLeaderboard called with ${users.length} users`);
-    console.log(`📊 Users with profile pics:`, users.filter(u => u.profilePic).map(u => u.handle));
     
-    // Generate HTML for all entries immediately
-    listContainer.innerHTML = users.map((user, index) => 
+    // Ensure profile pictures from localStorage are loaded before displaying
+    const usersWithPics = users.map(user => {
+        if (!user.profilePic) {
+            const storedProfilePics = loadProfilePicsFromStorage();
+            const cleanUserHandle = cleanHandle(user.handle);
+            // Check both exact handle and cleaned handle
+            const storedPic = storedProfilePics[user.handle] || storedProfilePics[cleanUserHandle];
+            if (storedPic) {
+                console.log(`✅ Found profile pic in localStorage for ${user.handle}`);
+                return { ...user, profilePic: storedPic };
+            }
+        }
+        return user;
+    });
+    
+    console.log(`📊 Users with profile pics:`, usersWithPics.filter(u => u.profilePic).map(u => `${u.handle} (${u.profilePic ? 'has pic' : 'no pic'})`));
+    
+    // Generate HTML for all entries immediately with profile pics if available
+    listContainer.innerHTML = usersWithPics.map((user, index) => 
         createEntryHTML(user, index + 1)
     ).join('');
     
@@ -1232,9 +1249,9 @@ function displayLeaderboard(users) {
     // Smooth scroll to leaderboard
     leaderboard.scrollIntoView({ behavior: 'smooth', block: 'start' });
     
-    // Load profile pictures in background (non-blocking)
-    console.log(`🖼️ Starting to load profile pictures for ${users.length} users...`);
-    loadProfilePicturesInBackground(users);
+    // Load profile pictures in background (non-blocking) - this will fetch missing ones
+    console.log(`🖼️ Starting to load profile pictures for ${usersWithPics.length} users...`);
+    loadProfilePicturesInBackground(usersWithPics);
 }
 
 // Handle search
