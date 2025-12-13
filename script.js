@@ -682,14 +682,27 @@ async function loadLeaderboard() {
         console.log('Leaderboard response:', data);
         
         if (data.success && data.leaderboard && Array.isArray(data.leaderboard)) {
+            // Preserve existing profile pictures before updating
+            const existingProfilePics = new Map();
+            leaderboardData.forEach(entry => {
+                if (entry.profilePic) {
+                    const cleanEntryHandle = cleanHandle(entry.handle);
+                    existingProfilePics.set(cleanEntryHandle, entry.profilePic);
+                }
+            });
+            
             // Filter out placeholders - only show real claims
             leaderboardData = data.leaderboard
                 .filter(entry => !entry.isPlaceholder) // Remove placeholders
-                .map(entry => ({
-                    ...entry,
-                    profilePic: null, // Will be loaded in background
-                    isPlaceholder: false
-                }));
+                .map(entry => {
+                    const cleanEntryHandle = cleanHandle(entry.handle);
+                    const existingPic = existingProfilePics.get(cleanEntryHandle);
+                    return {
+                        ...entry,
+                        profilePic: existingPic || null, // Preserve existing profile pic if available
+                        isPlaceholder: false
+                    };
+                });
             console.log(`Loaded ${leaderboardData.length} real leaderboard entries from backend (placeholders filtered out)`);
             return leaderboardData;
         }
@@ -716,14 +729,27 @@ async function deleteFromLeaderboard(handle) {
         
         const data = await response.json();
         if (data.success && data.leaderboard) {
+            // Preserve existing profile pictures before updating
+            const existingProfilePics = new Map();
+            leaderboardData.forEach(entry => {
+                if (entry.profilePic) {
+                    const cleanEntryHandle = cleanHandle(entry.handle);
+                    existingProfilePics.set(cleanEntryHandle, entry.profilePic);
+                }
+            });
+            
             // Filter out placeholders
             leaderboardData = data.leaderboard
                 .filter(entry => !entry.isPlaceholder)
-                .map(entry => ({
-                    ...entry,
-                    profilePic: null,
-                    isPlaceholder: false
-                }));
+                .map(entry => {
+                    const cleanEntryHandle = cleanHandle(entry.handle);
+                    const existingPic = existingProfilePics.get(cleanEntryHandle);
+                    return {
+                        ...entry,
+                        profilePic: existingPic || null, // Preserve existing profile pic if available
+                        isPlaceholder: false
+                    };
+                });
             // Refresh display if leaderboard is visible
             if (!document.getElementById('leaderboard').classList.contains('hidden')) {
                 displayLeaderboard(leaderboardData);
