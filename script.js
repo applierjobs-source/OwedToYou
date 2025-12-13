@@ -2586,7 +2586,7 @@ async function showShareModal(firstName, lastName, amount, results = []) {
                     ` : ''}
                 </div>
                 <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid rgba(255, 255, 255, 0.3);">
-                    <p style="font-size: 1.15rem; opacity: 0.95; margin: 0 0 16px 0; color: white; line-height: 1.5; font-weight: 500; white-space: normal; word-spacing: normal;">Companies<span style="display: inline-block; width: 0.3em;"></span>owe you money. Claim what's yours</p>
+                    <p style="font-size: 1.15rem; opacity: 0.95; margin: 0 0 16px 0; color: white; line-height: 1.5; font-weight: 500;">Companies<span style="display: inline-block; width: 8px; min-width: 8px; height: 1px; vertical-align: baseline;"></span>owe you money. Claim what's yours</p>
                     <p style="font-size: 1.8rem; font-weight: 700; margin: 0; color: white; letter-spacing: 0.5px;">OwedToYou.ai</p>
                 </div>
             </div>
