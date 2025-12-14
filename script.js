@@ -1719,16 +1719,32 @@ try {
             console.error('❌ Function string:', newFuncStr.substring(0, 300));
             // Try again with Object.defineProperty
             console.log('🔄 Trying Object.defineProperty...');
-            Object.defineProperty(window, 'handleSearch', {
-                value: handleSearch,
-                writable: true,
-                enumerable: true,
-                configurable: true
-            });
-            const verifyStr = window.handleSearch.toString();
-            console.log('✅✅✅ After defineProperty, is placeholder:', verifyStr.includes('PLACEHOLDER'));
+            try {
+                Object.defineProperty(window, 'handleSearch', {
+                    value: handleSearch,
+                    writable: true,
+                    enumerable: true,
+                    configurable: true
+                });
+                const verifyStr = window.handleSearch.toString();
+                console.log('✅✅✅ After defineProperty, is placeholder:', verifyStr.includes('PLACEHOLDER'));
+            } catch (e) {
+                console.error('❌ defineProperty failed:', e);
+            }
         } else {
             console.log('✅✅✅✅✅ EXPORT SUCCESSFUL - Real function is in window.handleSearch');
+            // Lock it in with defineProperty to prevent overwriting
+            try {
+                Object.defineProperty(window, 'handleSearch', {
+                    value: handleSearch,
+                    writable: false,  // Make it read-only to prevent overwriting
+                    enumerable: true,
+                    configurable: false
+                });
+                console.log('✅✅✅ Locked window.handleSearch to prevent overwriting');
+            } catch (e) {
+                console.log('⚠️ Could not lock handleSearch (non-critical):', e.message);
+            }
         }
     } else {
         console.error('❌❌❌ CRITICAL: window or handleSearch not available!');
