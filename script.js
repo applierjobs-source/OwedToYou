@@ -1714,7 +1714,9 @@ async function handleSearchImpl() {
     console.log('🔍 Input element:', input ? 'FOUND' : 'NOT FOUND');
     if (!input) {
         console.error('❌ Instagram handle input not found!');
+        hideProgressModal(); // Hide modal if input not found
         alert('Error: Search input not found. Please refresh the page.');
+        searchInProgress = false;
         return;
     }
     
@@ -1735,7 +1737,9 @@ async function handleSearchImpl() {
     console.log(`🔍 About to check if handle exists in leaderboard...`);
     
     if (!handle) {
+        hideProgressModal(); // Hide modal if validation fails
         alert('Please enter an Instagram username');
+        searchInProgress = false;
         return;
     }
     
