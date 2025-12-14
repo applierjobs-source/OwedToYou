@@ -433,6 +433,55 @@ async function extractNameFromHTML(html, cleanUsername) {
         }
     }
     
+    // PRIORITY: Look for name in visible HTML structure first (Instagram always displays it)
+    // The name appears in the profile header, usually in an h1, h2, or span near the username
+    try {
+        const usernameIndex = html.indexOf(cleanUsername);
+        if (usernameIndex !== -1) {
+            // Look in a larger window around the username (20000 chars to catch header area)
+            const start = Math.max(0, usernameIndex - 10000);
+            const end = Math.min(html.length, usernameIndex + 10000);
+            const headerArea = html.substring(start, end);
+            
+            // Look for name in header elements near username
+            // Instagram typically shows: <h1>Name</h1> or <span>Name</span> near the username
+            const headerPatterns = [
+                // Look for h1/h2 tags near username
+                /<h[12][^>]*>([^<]+)<\/h[12]>/gi,
+                // Look for span/div with specific classes that contain names
+                /<span[^>]*>([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)<\/span>/g,
+                /<div[^>]*>([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)<\/div>/g,
+                // Look for text that appears before username in the same element
+                /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s*@/g
+            ];
+            
+            for (const pattern of headerPatterns) {
+                const matches = [...headerArea.matchAll(pattern)];
+                for (const match of matches) {
+                    if (match && match[1]) {
+                        let name = match[1].trim();
+                        // Clean up any HTML entities or extra whitespace
+                        name = name.replace(/&[^;]+;/g, '').trim();
+                        
+                        // Validate it's a real name (not username, not too short/long)
+                        if (name && name.length > 3 && name.length < 50 &&
+                            name !== cleanUsername && 
+                            !name.startsWith('@') &&
+                            !name.toLowerCase().includes('instagram') &&
+                            !name.toLowerCase().includes('login') &&
+                            name.includes(' ') && // Must have space (first and last name)
+                            /^[A-Z][a-z]+(\s+[A-Z][a-z]+)+$/.test(name)) { // Must be proper case
+                            console.log(`Found Instagram name from header area: ${name}`);
+                            return name;
+                        }
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.log(`Error in header area extraction: ${e.message}`);
+    }
+    
     // Try alternative method: look for meta tags or title - multiple patterns
     const metaTitlePatterns = [
         /<meta\s+property="og:title"\s+content="([^"]+)"/i,
