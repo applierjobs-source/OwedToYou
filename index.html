@@ -394,23 +394,38 @@
     </script>
     <script src="script.js"></script>
     <script>
-        // CRITICAL: Verify handleSearch is loaded after script.js
+        // CRITICAL: Verify handleSearch is loaded after script.js AND force export if needed
         (function() {
             'use strict';
             console.log('🔍 Verifying handleSearch after script.js load...');
             console.log('🔍 window.handleSearch type:', typeof window.handleSearch);
             
-            if (typeof window.handleSearch === 'function') {
-                const funcStr = window.handleSearch.toString();
-                if (funcStr.includes('PLACEHOLDER')) {
-                    console.error('❌❌❌ CRITICAL: Placeholder still active after script load!');
-                    console.error('❌ Script.js did not complete execution properly!');
+            // Wait a moment for script to finish executing
+            setTimeout(function() {
+                if (typeof window.handleSearch === 'function') {
+                    const funcStr = window.handleSearch.toString();
+                    if (funcStr.includes('PLACEHOLDER')) {
+                        console.error('❌❌❌ CRITICAL: Placeholder still active after script load!');
+                        console.error('❌ Script.js did not complete execution properly!');
+                        console.error('❌ Attempting to force export...');
+                        
+                        // Try to force export the real function
+                        if (typeof handleSearch === 'function') {
+                            const realFuncStr = handleSearch.toString();
+                            if (!realFuncStr.includes('PLACEHOLDER')) {
+                                console.log('🔄 Force exporting real function...');
+                                window.handleSearch = handleSearch;
+                                _realHandleSearch = handleSearch;
+                                console.log('✅✅✅ Force export completed');
+                            }
+                        }
+                    } else {
+                        console.log('✅✅✅ handleSearch verified: Real function is loaded');
+                    }
                 } else {
-                    console.log('✅✅✅ handleSearch verified: Real function is loaded');
+                    console.error('❌❌❌ CRITICAL: handleSearch not found after script load!');
                 }
-            } else {
-                console.error('❌❌❌ CRITICAL: handleSearch not found after script load!');
-            }
+            }, 100);
         })();
     </script>
 </body>

@@ -21,8 +21,16 @@ let _realHandleSearch = null;
         // CRITICAL FIX: Check if real function exists using the stored reference
         // The real function will set _realHandleSearch when it's defined
         if (_realHandleSearch && typeof _realHandleSearch === 'function') {
-            console.log('✅ Found real handleSearch via _realHandleSearch, calling it');
-            return _realHandleSearch.apply(this, arguments);
+            console.log('✅ Found real handleSearch via _realHandleSearch, calling it directly');
+            // IMPORTANT: Call the function directly, NOT via window.handleSearch
+            // This prevents infinite recursion
+            try {
+                return _realHandleSearch.apply(this, arguments);
+            } catch (e) {
+                console.error('❌ Error calling real function:', e);
+                alert('An error occurred while searching. Please refresh the page and try again.');
+                return;
+            }
         }
         
         // Also try to find it in the closure scope (if function is defined but not exported)
