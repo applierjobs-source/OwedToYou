@@ -465,14 +465,18 @@ async function fetchInstagramFullName(username) {
                     if (json) {
                         apiResponses.push({ url, data: json });
                         console.log(`[INSTAGRAM] Caught API response from: ${url.substring(0, 100)}`);
+                        console.log(`[INSTAGRAM] API response keys:`, Object.keys(json).slice(0, 10));
                         // Try to extract name immediately if we can
                         try {
                             if (json.data && json.data.user && json.data.user.full_name) {
                                 const extractedName = json.data.user.full_name;
                                 console.log(`[INSTAGRAM] ✅ Found name in API response: ${extractedName}`);
+                            } else {
+                                // Log structure for debugging
+                                console.log(`[INSTAGRAM] API response structure:`, JSON.stringify(json).substring(0, 500));
                             }
                         } catch (e) {
-                            // Continue to try later
+                            console.log(`[INSTAGRAM] Error checking API response: ${e.message}`);
                         }
                     }
                 } catch (e) {
