@@ -67,7 +67,7 @@ window.handleSearch = function() {
     try {
         if (typeof handleSearchImpl === 'function') {
             const realFuncStr = handleSearchImpl.toString();
-            if (realFuncStr.includes('STARTING SEARCH')) {
+            if (realFuncStr.includes('searchInProgress')) {
                 console.log('✅ Found real handleSearchImpl via fallback');
                 // Replace and call
                 window.handleSearch = handleSearchImpl;
@@ -2109,7 +2109,7 @@ try {
             throw new Error('handleSearchImpl is not the real function');
         }
         
-        console.log('✅✅✅ Found handleSearchImpl - verified it contains STARTING SEARCH');
+        console.log('✅✅✅ Found handleSearchImpl - verified it contains searchInProgress');
         console.log('🔍 Setting _realHandleSearch...');
         _realHandleSearch = handleSearchImpl;
         console.log('✅ _realHandleSearch set to REAL function');
@@ -2130,9 +2130,9 @@ try {
         const newIsPlaceholder = newFuncStr.includes('PLACEHOLDER');
         const hasSearchInProgress = newFuncStr.includes('searchInProgress');
         console.log('✅✅✅ New function is placeholder:', newIsPlaceholder);
-        console.log('✅✅✅ New function has STARTING SEARCH:', hasStartingSearch);
+        console.log('✅✅✅ New function has searchInProgress:', hasSearchInProgress);
         
-        if (newIsPlaceholder || !hasStartingSearch) {
+        if (newIsPlaceholder || !hasSearchInProgress) {
             console.error('❌❌❌ CRITICAL: Export FAILED - still placeholder!');
             console.error('❌ Function string:', newFuncStr.substring(0, 300));
             // Try again with Object.defineProperty
