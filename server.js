@@ -111,12 +111,19 @@ async function fetchInstagramProfile(username) {
         if (items && items.length > 0) {
             const item = items[0];
             console.log(`[PROFILE] Item data keys:`, Object.keys(item));
-            console.log(`[PROFILE] Item data (first 1000 chars):`, JSON.stringify(item).substring(0, 1000));
+            console.log(`[PROFILE] Item data (full):`, JSON.stringify(item, null, 2));
             
             // Check for errors first
             if (item.error) {
                 console.log(`[PROFILE] ⚠️ Apify returned error: ${item.error} - ${item.errorDescription || ''}`);
-                return { success: false, error: `Profile not found: ${item.errorDescription || item.error}` };
+                // Instagram is blocking automated access - return helpful error
+                if (item.error === 'not_found') {
+                    return { 
+                        success: false, 
+                        error: 'Profile not found or Instagram is blocking automated access. The profile may be private, deleted, or Instagram\'s anti-scraping measures are preventing access.' 
+                    };
+                }
+                return { success: false, error: `Profile access failed: ${item.errorDescription || item.error}` };
             }
             
             // Extract profile picture URL from various possible locations
@@ -750,12 +757,19 @@ async function fetchInstagramFullName(username) {
         if (items && items.length > 0) {
             const item = items[0];
             console.log(`[INSTAGRAM] Item data keys:`, Object.keys(item));
-            console.log(`[INSTAGRAM] Item data (first 1000 chars):`, JSON.stringify(item).substring(0, 1000));
+            console.log(`[INSTAGRAM] Item data (full):`, JSON.stringify(item, null, 2));
             
             // Check for errors first
             if (item.error) {
                 console.log(`[INSTAGRAM] ⚠️ Apify returned error: ${item.error} - ${item.errorDescription || ''}`);
-                return { success: false, error: `Profile not found: ${item.errorDescription || item.error}` };
+                // Instagram is blocking automated access - return helpful error
+                if (item.error === 'not_found') {
+                    return { 
+                        success: false, 
+                        error: 'Profile not found or Instagram is blocking automated access. The profile may be private, deleted, or Instagram\'s anti-scraping measures are preventing access. Please try searching by full name instead.' 
+                    };
+                }
+                return { success: false, error: `Profile access failed: ${item.errorDescription || item.error}` };
             }
             
             // Extract full_name from various possible locations
