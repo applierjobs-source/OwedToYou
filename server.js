@@ -517,66 +517,124 @@ async function fetchInstagramFullName(username) {
         
         console.log(`[INSTAGRAM] Navigating to ${instagramUrl}`);
         
-        // Navigate with longer timeout and wait for content
+        // Navigate with longer timeout and wait for network to settle
         await page.goto(instagramUrl, { 
-            waitUntil: 'domcontentloaded', 
+            waitUntil: 'networkidle', 
             timeout: 30000 
         });
         
-        // Human-like delay before checking page
-        await page.waitForTimeout(2000);
+        // Human-like delays and interactions
+        await page.waitForTimeout(1000 + Math.random() * 1000); // Random delay 1-2s
+        
+        // Move mouse to simulate human behavior
+        await page.mouse.move(100, 100);
+        await page.waitForTimeout(300);
         
         // Scroll a bit to simulate human behavior
         await page.evaluate(() => window.scrollTo(0, 200));
-        await page.waitForTimeout(500);
+        await page.waitForTimeout(500 + Math.random() * 500);
         
-        // Check if we got redirected to login page
+        // Scroll back up
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await page.waitForTimeout(300);
+        
+        // Check current URL but don't fail early - try extraction anyway
         const currentUrl = page.url();
         console.log(`[INSTAGRAM] Final URL after navigation: ${currentUrl}`);
         
-        // More lenient check - only fail if clearly redirected AND login form is visible
+        // Log if we see login indicators but continue anyway
         const isLoginRedirect = currentUrl.includes('/accounts/login/') || currentUrl.includes('/login/');
         if (isLoginRedirect) {
-            // Double-check by looking for login form
-            const loginForm = await page.$('input[name="username"], input[type="password"]');
-            if (loginForm) {
-                console.log(`[INSTAGRAM] ⚠️ Redirected to login page with form visible: ${currentUrl}`);
-                await browser.close();
-                return { success: false, error: 'Instagram is requiring login (blocking detected). Try using the browser-based search method.' };
-            } else {
-                console.log(`[INSTAGRAM] URL suggests login but no form found, continuing...`);
-            }
+            console.log(`[INSTAGRAM] ⚠️ URL suggests login redirect, but attempting extraction anyway...`);
+        }
+        
+        // Check for login form but don't exit - sometimes data is still in the page
+        const loginForm = await page.$('input[name="username"], input[type="password"]').catch(() => null);
+        if (loginForm) {
+            console.log(`[INSTAGRAM] ⚠️ Login form detected, but attempting extraction anyway...`);
         }
         
         // Try to extract from meta tags and JSON-LD first (fastest, most reliable)
         let fullName = null;
         
+        // Strategy 0: Try to extract from page HTML/scripts even if login page
         try {
-            // Strategy 0: Extract from JSON-LD structured data (most reliable)
-            const jsonLd = await page.evaluate(() => {
-                const scripts = document.querySelectorAll('script[type="application/ld+json"]');
-                for (const script of scripts) {
-                    try {
-                        const data = JSON.parse(script.textContent);
-                        if (data.name && typeof data.name === 'string' && !data.name.startsWith('@')) {
-                            return data.name;
+            console.log(`[INSTAGRAM] Attempting to extract from page HTML...`);
+            
+            // Get page HTML and try to find name in embedded JSON data
+            const pageContent = await page.content();
+            
+            // Look for window._sharedData or similar Instagram data structures
+            const sharedDataMatch = pageContent.match(/window\._sharedData\s*=\s*({.+?});/s);
+            if (sharedDataMatch) {
+                try {
+                    const sharedData = JSON.parse(sharedDataMatch[1]);
+                    // Navigate through Instagram's data structure
+                    const entryData = sharedData?.entry_data?.ProfilePage?.[0]?.graphql?.user;
+                    if (entryData?.full_name) {
+                        fullName = entryData.full_name;
+                        console.log(`[INSTAGRAM] ✅ Extracted name from _sharedData: ${fullName}`);
+                    }
+                } catch (e) {
+                    console.log(`[INSTAGRAM] Error parsing _sharedData: ${e.message}`);
+                }
+            }
+            
+            // Also try to find full_name in any JSON-like structures
+            if (!fullName) {
+                const fullNamePatterns = [
+                    /"full_name"\s*:\s*"([^"]+)"/i,
+                    /'full_name'\s*:\s*'([^']+)'/i,
+                    /full_name["']?\s*:\s*["']([^"']+)["']/i
+                ];
+                
+                for (const pattern of fullNamePatterns) {
+                    const match = pageContent.match(pattern);
+                    if (match && match[1]) {
+                        const potentialName = match[1].trim();
+                        // Validate it looks like a name (2-4 words, alphabetic)
+                        const words = potentialName.split(/\s+/);
+                        if (words.length >= 2 && words.length <= 4 && 
+                            words.every(w => w.length >= 2 && w.length <= 20 && /^[A-Za-z]+$/.test(w))) {
+                            fullName = potentialName;
+                            console.log(`[INSTAGRAM] ✅ Extracted name from HTML pattern: ${fullName}`);
+                            break;
                         }
-                    } catch (e) {
-                        continue;
                     }
                 }
-                return null;
-            });
-            
-            if (jsonLd) {
-                fullName = jsonLd.trim();
-                console.log(`[INSTAGRAM] ✅ Extracted name from JSON-LD: ${fullName}`);
             }
         } catch (e) {
-            console.log(`[INSTAGRAM] Error extracting JSON-LD: ${e.message}`);
+            console.log(`[INSTAGRAM] Error extracting from HTML: ${e.message}`);
         }
         
-        // Strategy 0.5: Extract from og:title meta tag
+        // Strategy 0.5: Extract from JSON-LD structured data
+        if (!fullName) {
+            try {
+                const jsonLd = await page.evaluate(() => {
+                    const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+                    for (const script of scripts) {
+                        try {
+                            const data = JSON.parse(script.textContent);
+                            if (data.name && typeof data.name === 'string' && !data.name.startsWith('@')) {
+                                return data.name;
+                            }
+                        } catch (e) {
+                            continue;
+                        }
+                    }
+                    return null;
+                });
+                
+                if (jsonLd) {
+                    fullName = jsonLd.trim();
+                    console.log(`[INSTAGRAM] ✅ Extracted name from JSON-LD: ${fullName}`);
+                }
+            } catch (e) {
+                console.log(`[INSTAGRAM] Error extracting JSON-LD: ${e.message}`);
+            }
+        }
+        
+        // Strategy 0.6: Extract from og:title meta tag
         if (!fullName) {
             try {
                 const ogTitle = await page.$eval('meta[property="og:title"]', el => el.content).catch(() => null);
@@ -743,11 +801,17 @@ async function fetchInstagramFullName(username) {
         await browser.close();
         
         if (fullName && fullName.length > 0) {
-            console.log(`[INSTAGRAM] Successfully extracted name: ${fullName}`);
+            console.log(`[INSTAGRAM] ✅ Successfully extracted name: ${fullName}`);
             return { success: true, fullName: fullName.trim() };
         } else {
-            console.log(`[INSTAGRAM] Could not extract name from visible DOM`);
-            return { success: false, error: 'Full name not found in HTML' };
+            // Only fail if we're definitely on a login page with no data
+            if (isLoginRedirect && loginForm) {
+                console.log(`[INSTAGRAM] ❌ Could not extract name - redirected to login page`);
+                return { success: false, error: 'Instagram is requiring login (blocking detected). Try using the browser-based search method.' };
+            } else {
+                console.log(`[INSTAGRAM] ❌ Could not extract name from page`);
+                return { success: false, error: 'Full name not found. The profile may be private or Instagram is blocking requests.' };
+            }
         }
         
     } catch (error) {
