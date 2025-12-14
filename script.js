@@ -1704,11 +1704,13 @@ async function handleSearch() {
         }
     }
 }
+console.log('✅✅✅✅✅ handleSearch FUNCTION DEFINITION COMPLETE');
 
 // CRITICAL: Export handleSearch to window IMMEDIATELY after function definition
 // This replaces the placeholder with the real function as soon as script loads
 // This MUST be synchronous and happen before any other code runs
 console.log('🔍🔍🔍 EXPORT BLOCK STARTING');
+console.log('✅✅✅✅✅ REACHED EXPORT BLOCK - FUNCTION SHOULD BE DEFINED');
 console.log('🔍 About to export handleSearch - function exists:', typeof handleSearch);
 console.log('🔍 About to export handleSearch - window exists:', typeof window !== 'undefined');
 console.log('🔍 Current window.handleSearch type:', typeof window.handleSearch);
@@ -1719,63 +1721,124 @@ if (typeof window.handleSearch === 'function') {
 
 // Use direct assignment, not IIFE, to ensure it executes immediately
 try {
-    if (typeof window !== 'undefined' && typeof handleSearch === 'function') {
-        console.log('🔍 Setting _realHandleSearch...');
-        _realHandleSearch = handleSearch;
-        console.log('✅ _realHandleSearch set');
+    if (typeof window !== 'undefined') {
+        // CRITICAL FIX: Get the function declaration directly, not via identifier resolution
+        // In global scope, 'handleSearch' might resolve to window.handleSearch (placeholder)
+        // We need to get the actual function declaration
+        let realFunction = null;
         
-        console.log('🔍 Replacing window.handleSearch...');
-        const oldHandleSearch = window.handleSearch;
-        const oldIsPlaceholder = oldHandleSearch ? oldHandleSearch.toString().includes('PLACEHOLDER') : false;
-        console.log('🔍 Old function was placeholder:', oldIsPlaceholder);
+        // Try to get it from the function declaration directly
+        // Function declarations are hoisted, so we can reference it
+        try {
+            // Use a closure to capture the function declaration before window.handleSearch shadows it
+            const funcRef = (function() {
+                // This IIFE runs before window.handleSearch assignment
+                // So handleSearch here refers to the function declaration
+                return handleSearch;
+            })();
+            
+            // But wait, that won't work because the function is defined later
+            // Instead, we need to check if handleSearch.toString() includes 'STARTING SEARCH'
+            // which is unique to the real function
+            if (typeof handleSearch === 'function') {
+                const funcStr = handleSearch.toString();
+                if (funcStr.includes('STARTING SEARCH')) {
+                    realFunction = handleSearch;
+                    console.log('✅ Found real function via function declaration');
+                } else {
+                    console.error('❌ handleSearch identifier resolved to placeholder!');
+                    console.error('❌ Function string:', funcStr.substring(0, 200));
+                    // Try to get it from the actual declaration using eval in a way that works
+                    realFunction = eval('(function() { return handleSearch; })()');
+                    const evalStr = realFunction ? realFunction.toString() : '';
+                    if (evalStr.includes('STARTING SEARCH')) {
+                        console.log('✅ Found real function via eval');
+                    } else {
+                        console.error('❌ Even eval returned placeholder!');
+                        realFunction = null;
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('❌ Error getting function declaration:', e);
+        }
         
-        // DIRECT ASSIGNMENT - no IIFE wrapper
-        window.handleSearch = handleSearch;
+        if (realFunction && typeof realFunction === 'function') {
+            const realFuncStr = realFunction.toString();
+            const isRealFunction = realFuncStr.includes('STARTING SEARCH');
+            console.log('🔍 Real function found, is actual function:', isRealFunction);
+            
+            if (isRealFunction) {
+                console.log('🔍 Setting _realHandleSearch...');
+                _realHandleSearch = realFunction;
+                console.log('✅ _realHandleSearch set to REAL function');
+                
+                console.log('🔍 Replacing window.handleSearch...');
+                const oldHandleSearch = window.handleSearch;
+                const oldIsPlaceholder = oldHandleSearch ? oldHandleSearch.toString().includes('PLACEHOLDER') : false;
+                console.log('🔍 Old function was placeholder:', oldIsPlaceholder);
+                
+                // DIRECT ASSIGNMENT - no IIFE wrapper
+                window.handleSearch = realFunction;
         
-        console.log('✅✅✅ window.handleSearch = handleSearch executed');
-        console.log('✅✅✅ New window.handleSearch type:', typeof window.handleSearch);
-        
-        // Immediate verification
-        const newFuncStr = window.handleSearch.toString();
-        const newIsPlaceholder = newFuncStr.includes('PLACEHOLDER');
-        console.log('✅✅✅ New function is placeholder:', newIsPlaceholder);
-        
-        if (newIsPlaceholder) {
-            console.error('❌❌❌ CRITICAL: Export FAILED - still placeholder!');
-            console.error('❌ Function string:', newFuncStr.substring(0, 300));
-            // Try again with Object.defineProperty
-            console.log('🔄 Trying Object.defineProperty...');
-            try {
-                Object.defineProperty(window, 'handleSearch', {
-                    value: handleSearch,
-                    writable: true,
-                    enumerable: true,
-                    configurable: true
-                });
-                const verifyStr = window.handleSearch.toString();
-                console.log('✅✅✅ After defineProperty, is placeholder:', verifyStr.includes('PLACEHOLDER'));
-            } catch (e) {
-                console.error('❌ defineProperty failed:', e);
+                console.log('✅✅✅ window.handleSearch = realFunction executed');
+                console.log('✅✅✅ New window.handleSearch type:', typeof window.handleSearch);
+                
+                // Immediate verification
+                const newFuncStr = window.handleSearch.toString();
+                const newIsPlaceholder = newFuncStr.includes('PLACEHOLDER');
+                const hasStartingSearch = newFuncStr.includes('STARTING SEARCH');
+                console.log('✅✅✅ New function is placeholder:', newIsPlaceholder);
+                console.log('✅✅✅ New function has STARTING SEARCH:', hasStartingSearch);
+                
+                if (newIsPlaceholder || !hasStartingSearch) {
+                    console.error('❌❌❌ CRITICAL: Export FAILED - still placeholder!');
+                    console.error('❌ Function string:', newFuncStr.substring(0, 300));
+                    // Try again with Object.defineProperty
+                    console.log('🔄 Trying Object.defineProperty...');
+                    try {
+                        Object.defineProperty(window, 'handleSearch', {
+                            value: realFunction,
+                            writable: true,
+                            enumerable: true,
+                            configurable: true
+                        });
+                        const verifyStr = window.handleSearch.toString();
+                        console.log('✅✅✅ After defineProperty, is placeholder:', verifyStr.includes('PLACEHOLDER'));
+                        console.log('✅✅✅ After defineProperty, has STARTING SEARCH:', verifyStr.includes('STARTING SEARCH'));
+                    } catch (e) {
+                        console.error('❌ defineProperty failed:', e);
+                    }
+                } else {
+                    console.log('✅✅✅✅✅ EXPORT SUCCESSFUL - Real function is in window.handleSearch');
+                    // Lock it in with defineProperty to prevent overwriting
+                    try {
+                        Object.defineProperty(window, 'handleSearch', {
+                            value: realFunction,
+                            writable: false,  // Make it read-only to prevent overwriting
+                            enumerable: true,
+                            configurable: false
+                        });
+                        console.log('✅✅✅ Locked window.handleSearch to prevent overwriting');
+                    } catch (e) {
+                        console.log('⚠️ Could not lock handleSearch (non-critical):', e.message);
+                    }
+                }
+            } else {
+                console.error('❌❌❌ CRITICAL: realFunction is placeholder!');
+                console.error('❌ This should never happen - function declaration should be real');
             }
         } else {
-            console.log('✅✅✅✅✅ EXPORT SUCCESSFUL - Real function is in window.handleSearch');
-            // Lock it in with defineProperty to prevent overwriting
-            try {
-                Object.defineProperty(window, 'handleSearch', {
-                    value: handleSearch,
-                    writable: false,  // Make it read-only to prevent overwriting
-                    enumerable: true,
-                    configurable: false
-                });
-                console.log('✅✅✅ Locked window.handleSearch to prevent overwriting');
-            } catch (e) {
-                console.log('⚠️ Could not lock handleSearch (non-critical):', e.message);
+            console.error('❌❌❌ CRITICAL: Could not get real function!');
+            console.error('❌ realFunction:', typeof realFunction);
+            console.error('❌ handleSearch type:', typeof handleSearch);
+            if (typeof handleSearch === 'function') {
+                console.error('❌ handleSearch.toString():', handleSearch.toString().substring(0, 200));
             }
         }
     } else {
-        console.error('❌❌❌ CRITICAL: window or handleSearch not available!');
+        console.error('❌❌❌ CRITICAL: window not available!');
         console.error('❌ window:', typeof window);
-        console.error('❌ handleSearch:', typeof handleSearch);
     }
 } catch (e) {
     console.error('❌❌❌ CRITICAL ERROR in export:', e);
