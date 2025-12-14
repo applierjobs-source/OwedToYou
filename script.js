@@ -5,6 +5,14 @@ let leaderboardData = [];
 console.log('✅ script.js loaded successfully');
 console.log('✅ Current time:', new Date().toISOString());
 
+// CRITICAL: Export handleSearch immediately (before function definition)
+// This ensures it's available for inline onclick handlers
+// We'll define it as a placeholder first, then replace it with the real function
+window.handleSearch = function() {
+    console.error('⚠️ handleSearch called before function definition - this should not happen');
+    alert('Search function is still loading. Please wait a moment and try again.');
+};
+
 // Get initials from name
 function getInitials(name) {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
@@ -1383,7 +1391,10 @@ function displayLeaderboard(users) {
 }
 
 // Handle search - CRITICAL FUNCTION - MUST WORK
+// Immediately export to window when function is defined
 async function handleSearch() {
+    // Update the window export with the real function
+    window.handleSearch = handleSearch;
     console.log('🔍🔍🔍 handleSearch CALLED - STARTING SEARCH');
     
     const input = document.getElementById('instagramHandle');
