@@ -408,29 +408,51 @@ async function fetchInstagramFullName(username) {
         const req = https.get(options, (res) => {
             console.log(`[INSTAGRAM] Response status: ${res.statusCode} for ${username}`);
             
-            // Check for redirects to login page - don't follow these
+            // Check for redirects - follow non-login redirects
             if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307 || res.statusCode === 308) {
                 const location = res.headers.location || '';
                 console.log(`[INSTAGRAM] Redirect detected to: ${location}`);
                 // If redirecting to login page, it means Instagram is blocking us
                 if (location.includes('/accounts/login/') || location.includes('login') || location.includes('is_from_rle')) {
                     console.log(`[INSTAGRAM] Redirect to login page detected - Instagram is blocking requests`);
-                    // Try to get cookies from response and retry with cookies (if any)
-                    const cookies = res.headers['set-cookie'] || [];
-                    if (cookies.length > 0) {
-                        console.log(`[INSTAGRAM] Received ${cookies.length} cookies, but still redirected to login - Instagram blocking is active`);
-                    }
                     resolve({ success: false, error: 'Instagram is requiring login (blocking detected). Try using the browser-based search method.' });
                     return;
                 }
-                // For other redirects, we could follow them, but Instagram usually redirects to login
-                // So we'll just treat it as a failure
-                resolve({ success: false, error: `Redirect to ${location} - likely blocked` });
-                return;
+                // For other redirects (like trailing slash redirects), follow them
+                if (location.startsWith('http')) {
+                    console.log(`[INSTAGRAM] Following redirect to: ${location}`);
+                    // Close current request
+                    res.destroy();
+                    // Make new request to redirected location
+                    const redirectUrl = new URL(location);
+                    const redirectOptions = {
+                        hostname: redirectUrl.hostname,
+                        path: redirectUrl.pathname + redirectUrl.search,
+                        method: 'GET',
+                        headers: options.headers
+                    };
+                    const redirectReq = https.get(redirectOptions, (redirectRes) => {
+                        // Process redirect response inline (same logic as below)
+                        processRedirectResponse(redirectRes);
+                    });
+                    
+                    function processRedirectResponse(res) {
+                    redirectReq.on('error', (err) => {
+                        console.error(`[INSTAGRAM] Redirect request error:`, err.message);
+                        resolve({ success: false, error: `Redirect failed: ${err.message}` });
+                    });
+                    redirectReq.setTimeout(10000, () => {
+                        redirectReq.destroy();
+                        resolve({ success: false, error: 'Redirect request timeout' });
+                    });
+                    return;
+                }
+                // For relative redirects, continue processing (might be handled by browser)
+                console.log(`[INSTAGRAM] Relative redirect, continuing...`);
             }
             
             // Check for error status codes
-            if (res.statusCode !== 200) {
+            if (res.statusCode !== 200 && res.statusCode !== 301 && res.statusCode !== 302 && res.statusCode !== 307 && res.statusCode !== 308) {
                 console.log(`[INSTAGRAM] Non-200 status code: ${res.statusCode} for ${username}`);
                 let errorBody = '';
                 res.on('data', (chunk) => { errorBody += chunk.toString(); });
@@ -441,6 +463,11 @@ async function fetchInstagramFullName(username) {
                 return;
             }
             
+            // Process the response
+            processResponse(res);
+        });
+        
+        function processResponse(res) {
             let html = '';
             let stream = res;
             
