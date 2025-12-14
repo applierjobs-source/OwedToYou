@@ -1485,11 +1485,20 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
                 storedProfilePics[handle] = profilePic;
                 storedProfilePics[cleanHandleValue] = profilePic;
                 saveProfilePicsToStorage(storedProfilePics);
-                console.log(`✅✅✅ Saved profilePic to localStorage for ${handle} (new entry)`);
+                console.log(`✅✅✅ Saved profilePic to localStorage for ${handle} (new entry): ${profilePic.substring(0, 50)}...`);
+            }
+            
+            // Verify profilePic is set in leaderboardData
+            const addedEntry = leaderboardData.find(e => cleanHandle(e.handle) === cleanHandleValue);
+            if (addedEntry) {
+                console.log(`✅✅✅ Verified entry in leaderboardData: handle=${addedEntry.handle}, profilePic=${addedEntry.profilePic ? addedEntry.profilePic.substring(0, 50) + '...' : 'MISSING'}`);
+            } else {
+                console.error(`❌❌❌ Entry NOT FOUND in leaderboardData for handle: ${handle}`);
             }
             
             // Only refresh display if explicitly requested (e.g., after a claim submission)
             if (refreshDisplay && !document.getElementById('leaderboard').classList.contains('hidden')) {
+                console.log(`🔄 Refreshing leaderboard display with ${leaderboardData.length} entries`);
                 displayLeaderboard(leaderboardData);
             }
         }
