@@ -3204,12 +3204,50 @@ function showNameSearchModal() {
 // Make functions available globally for onclick handlers
 // CRITICAL: Export handleSearch to window immediately when script loads
 // This ensures it's available for inline onclick handlers even if DOMContentLoaded hasn't fired
-if (typeof window !== 'undefined') {
-    if (typeof handleSearch === 'function') {
-        window.handleSearch = handleSearch;
-        console.log('✅ handleSearch exported to window (safety check)');
+(function() {
+    'use strict';
+    if (typeof window !== 'undefined') {
+        if (typeof handleSearch === 'function') {
+            window.handleSearch = handleSearch;
+            console.log('✅✅✅ handleSearch exported to window (FINAL SAFETY CHECK)');
+            console.log('✅✅✅ Verified: window.handleSearch is', typeof window.handleSearch);
+            
+            // Verify it's not the placeholder
+            const funcStr = window.handleSearch.toString();
+            if (funcStr.includes('PLACEHOLDER')) {
+                console.error('❌❌❌ CRITICAL ERROR: Placeholder still active in final check!');
+            } else {
+                console.log('✅✅✅ Final verification: Real function is exported');
+            }
+        } else {
+            console.error('❌❌❌ CRITICAL: handleSearch function not defined when trying to export!');
+        }
+    }
+})();
+
+// CRITICAL BACKUP: Also export on DOMContentLoaded in case script loaded before DOM
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof handleSearch === 'function' && typeof window.handleSearch !== 'undefined') {
+                const funcStr = window.handleSearch.toString();
+                if (funcStr.includes('PLACEHOLDER')) {
+                    console.log('🔄 DOMContentLoaded: Replacing placeholder with real function');
+                    window.handleSearch = handleSearch;
+                    console.log('✅✅✅ DOMContentLoaded backup export completed');
+                }
+            }
+        });
     } else {
-        console.error('❌ CRITICAL: handleSearch function not defined when trying to export!');
+        // DOM already loaded, do it now
+        if (typeof handleSearch === 'function') {
+            const funcStr = window.handleSearch ? window.handleSearch.toString() : '';
+            if (funcStr.includes('PLACEHOLDER')) {
+                console.log('🔄 DOM already loaded: Replacing placeholder with real function');
+                window.handleSearch = handleSearch;
+                console.log('✅✅✅ Immediate backup export completed');
+            }
+        }
     }
 }
 
