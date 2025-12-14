@@ -463,8 +463,6 @@ async function fetchInstagramFullName(username) {
             // Process the response inline
             let html = '';
             let stream = res;
-            let html = '';
-            let stream = res;
             
             // Handle gzip/deflate compression
             if (res.headers['content-encoding'] === 'gzip') {
