@@ -454,6 +454,24 @@ async function fetchInstagramFullName(username) {
         
         const page = await context.newPage();
         
+        // Intercept network requests to catch Instagram API calls
+        const apiResponses = [];
+        page.on('response', async (response) => {
+            const url = response.url();
+            // Catch Instagram GraphQL API calls
+            if (url.includes('graphql') || url.includes('api/v1') || url.includes('web_profile_info')) {
+                try {
+                    const json = await response.json().catch(() => null);
+                    if (json) {
+                        apiResponses.push({ url, data: json });
+                        console.log(`[INSTAGRAM] Caught API response from: ${url.substring(0, 100)}`);
+                    }
+                } catch (e) {
+                    // Not JSON, ignore
+                }
+            }
+        });
+        
         // Enhanced stealth: Override webdriver property and other automation indicators
         await context.addInitScript(() => {
             // Remove webdriver flag
@@ -513,10 +531,11 @@ async function fetchInstagramFullName(username) {
             }
         });
         
-        // Try multiple strategies: desktop site first, then mobile site
+        // Try multiple strategies: desktop site first, then mobile site, then try GraphQL endpoint
         const strategies = [
             { url: `https://www.instagram.com/${username}/`, name: 'desktop' },
-            { url: `https://m.instagram.com/${username}/`, name: 'mobile' }
+            { url: `https://m.instagram.com/${username}/`, name: 'mobile' },
+            { url: `https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`, name: 'graphql-api', isApi: true }
         ];
         
         let fullName = null;
@@ -526,11 +545,61 @@ async function fetchInstagramFullName(username) {
             try {
                 console.log(`[INSTAGRAM] Trying ${strategy.name} site: ${strategy.url}`);
                 
-                // Navigate with longer timeout and wait for network to settle
-                await page.goto(strategy.url, { 
-                    waitUntil: 'domcontentloaded', 
-                    timeout: 30000 
+                // For API endpoints, try direct fetch
+                if (strategy.isApi) {
+                    try {
+                        const response = await page.goto(strategy.url, {
+                            waitUntil: 'networkidle',
+                            timeout: 15000
+                        });
+                        
+                        if (response && response.ok()) {
+                            const json = await response.json().catch(() => null);
+                            if (json && json.data && json.data.user) {
+                                const fullNameFromApi = json.data.user.full_name;
+                                if (fullNameFromApi) {
+                                    fullName = fullNameFromApi;
+                                    console.log(`[INSTAGRAM] ✅ Extracted name from API endpoint: ${fullName}`);
+                                    break;
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.log(`[INSTAGRAM] API endpoint failed: ${e.message}`);
+                    }
+                    continue; // Skip to next strategy
+                }
+                
+                // For regular pages, try to prevent redirects by intercepting them
+                await page.route('**/*', (route) => {
+                    const url = route.request().url();
+                    // Allow all requests but log redirects
+                    if (url.includes('/accounts/login/')) {
+                        console.log(`[INSTAGRAM] Intercepted login redirect to: ${url}`);
+                    }
+                    route.continue();
                 });
+                
+                // Navigate and wait for network activity
+                try {
+                    await page.goto(strategy.url, { 
+                        waitUntil: 'networkidle', 
+                        timeout: 30000 
+                    });
+                } catch (e) {
+                    // Even if navigation fails, try to get the page content
+                    console.log(`[INSTAGRAM] Navigation had issues, but continuing: ${e.message}`);
+                }
+        
+                // Wait for JavaScript to execute
+                await page.waitForTimeout(3000);
+                
+                // Try to wait for content to load
+                try {
+                    await page.waitForSelector('body', { timeout: 5000 });
+                } catch (e) {
+                    console.log(`[INSTAGRAM] Body selector not found, but continuing...`);
+                }
         
                 // Human-like delays and interactions
                 await page.waitForTimeout(1000 + Math.random() * 1000); // Random delay 1-2s
@@ -571,12 +640,37 @@ async function fetchInstagramFullName(username) {
                 const pageContentLength = (await page.content()).length;
                 console.log(`[INSTAGRAM] Page content length: ${pageContentLength} characters`);
         
-                // Strategy 0: Try to extract from page HTML/scripts even if login page
-                try {
-                    console.log(`[INSTAGRAM] Attempting to extract from page HTML...`);
-                    
-                    // Get page HTML and try to find name in embedded JSON data
-                    const pageContent = await page.content();
+                // Strategy 0: Check intercepted API responses first
+                if (apiResponses.length > 0 && !fullName) {
+                    console.log(`[INSTAGRAM] Checking ${apiResponses.length} intercepted API responses...`);
+                    for (const apiResponse of apiResponses) {
+                        try {
+                            // Try to find full_name in the API response
+                            const responseStr = JSON.stringify(apiResponse.data);
+                            const fullNameMatch = responseStr.match(/"full_name"\s*:\s*"([^"]+)"/i);
+                            if (fullNameMatch && fullNameMatch[1]) {
+                                const potentialName = fullNameMatch[1].trim();
+                                const words = potentialName.split(/\s+/);
+                                if (words.length >= 2 && words.length <= 4 && 
+                                    words.every(w => w.length >= 2 && w.length <= 20 && /^[A-Za-z]+$/.test(w))) {
+                                    fullName = potentialName;
+                                    console.log(`[INSTAGRAM] ✅ Extracted name from intercepted API response: ${fullName}`);
+                                    break;
+                                }
+                            }
+                        } catch (e) {
+                            console.log(`[INSTAGRAM] Error parsing API response: ${e.message}`);
+                        }
+                    }
+                }
+                
+                // Strategy 0.5: Try to extract from page HTML/scripts even if login page
+                if (!fullName) {
+                    try {
+                        console.log(`[INSTAGRAM] Attempting to extract from page HTML...`);
+                        
+                        // Get page HTML and try to find name in embedded JSON data
+                        const pageContent = await page.content();
             
                     // Look for window._sharedData or similar Instagram data structures
                     const sharedDataMatch = pageContent.match(/window\._sharedData\s*=\s*({.+?});/s);
