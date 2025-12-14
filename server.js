@@ -433,10 +433,8 @@ async function fetchInstagramFullName(username) {
                     };
                     const redirectReq = https.get(redirectOptions, (redirectRes) => {
                         // Process redirect response inline (same logic as below)
-                        processRedirectResponse(redirectRes);
+                        processResponse(redirectRes);
                     });
-                    
-                    function processRedirectResponse(res) {
                     redirectReq.on('error', (err) => {
                         console.error(`[INSTAGRAM] Redirect request error:`, err.message);
                         resolve({ success: false, error: `Redirect failed: ${err.message}` });
@@ -463,11 +461,9 @@ async function fetchInstagramFullName(username) {
                 return;
             }
             
-            // Process the response
-            processResponse(res);
-        });
-        
-        function processResponse(res) {
+            // Process the response inline
+            let html = '';
+            let stream = res;
             let html = '';
             let stream = res;
             
