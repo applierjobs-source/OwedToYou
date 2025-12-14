@@ -131,14 +131,17 @@ async function fetchInstagramProfile(username) {
             let profilePicUrl = null;
             
             // Try different paths for profile picture (profile scraper structure)
-            if (item.profilePicUrl) {
+            // Apify returns profilePicUrl and profilePicUrlHD (uppercase HD)
+            if (item.profilePicUrlHD) {
+                profilePicUrl = item.profilePicUrlHD; // Prefer HD version
+            } else if (item.profilePicUrl) {
                 profilePicUrl = item.profilePicUrl;
-            } else if (item.profile_pic_url) {
-                profilePicUrl = item.profile_pic_url;
             } else if (item.profilePicUrlHd) {
-                profilePicUrl = item.profilePicUrlHd;
+                profilePicUrl = item.profilePicUrlHd; // Lowercase variant
             } else if (item.profile_pic_url_hd) {
                 profilePicUrl = item.profile_pic_url_hd;
+            } else if (item.profile_pic_url) {
+                profilePicUrl = item.profile_pic_url;
             } else if (item.profileImageUrl) {
                 profilePicUrl = item.profileImageUrl;
             } else if (item.profile_image_url) {
@@ -147,10 +150,14 @@ async function fetchInstagramProfile(username) {
                 profilePicUrl = item.imageUrl;
             } else if (item.image_url) {
                 profilePicUrl = item.image_url;
+            } else if (item.profile && item.profile.profilePicUrlHD) {
+                profilePicUrl = item.profile.profilePicUrlHD;
             } else if (item.profile && item.profile.profilePicUrl) {
                 profilePicUrl = item.profile.profilePicUrl;
             } else if (item.profile && item.profile.profile_pic_url) {
                 profilePicUrl = item.profile.profile_pic_url;
+            } else if (item.user && item.user.profilePicUrlHD) {
+                profilePicUrl = item.user.profilePicUrlHD;
             } else if (item.user && item.user.profilePicUrl) {
                 profilePicUrl = item.user.profilePicUrl;
             } else if (item.user && item.user.profile_pic_url) {
