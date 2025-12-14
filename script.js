@@ -263,11 +263,11 @@ async function extractNameFromHTML(html, cleanUsername) {
     const scriptMatches = html.match(/<script[^>]*>(.*?)<\/script>/gis);
     if (scriptMatches) {
         for (const scriptContent of scriptMatches) {
-            // Look for full_name in script content
+            // Look for full_name in script content with regex first (faster)
             const fullNamePatterns = [
                 /"full_name"\s*:\s*"([^"]+)"/i,
                 /"fullName"\s*:\s*"([^"]+)"/i,
-                /full_name["\s]*:["\s]*([^",\s}]+)/i,
+                /full_name["\s]*:["\s]*"([^"]+)"/i,
                 /"name"\s*:\s*"([^"]+)"[^}]*"username"\s*:\s*"[^"]*"/i
             ];
             
@@ -281,6 +281,28 @@ async function extractNameFromHTML(html, cleanUsername) {
                         return name;
                     }
                 }
+            }
+            
+            // Try to parse as JSON and search recursively
+            try {
+                // Look for JSON objects in script tags (larger objects that might contain nested data)
+                const jsonMatches = scriptContent.match(/\{[\s\S]{100,50000}\}/g);
+                if (jsonMatches) {
+                    for (const jsonStr of jsonMatches) {
+                        try {
+                            const jsonObj = JSON.parse(jsonStr);
+                            const foundName = findFullNameInObject(jsonObj, cleanUsername);
+                            if (foundName) {
+                                console.log(`Found Instagram name via recursive JSON search: ${foundName}`);
+                                return foundName;
+                            }
+                        } catch (e) {
+                            // Not valid JSON, continue
+                        }
+                    }
+                }
+            } catch (e) {
+                // Continue to next script tag
             }
         }
     }
