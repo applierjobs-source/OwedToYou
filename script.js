@@ -435,27 +435,25 @@ async function extractNameFromHTML(html, cleanUsername) {
     
     // PRIORITY: Look for name in visible HTML structure (Instagram always displays it)
     // The name appears in a <span> with obfuscated classes like "x1lliihq x1plvlek..." near the username
+    // Just extract whatever text is in that span - it's structured data, trust it
     try {
         const usernameIndex = html.indexOf(cleanUsername);
         if (usernameIndex !== -1) {
-            // Look in a larger window around the username (50000 chars to catch header area)
+            // Look in a large window around the username (50000 chars to catch header area)
             const start = Math.max(0, usernameIndex - 25000);
             const end = Math.min(html.length, usernameIndex + 25000);
             const headerArea = html.substring(start, end);
             
             console.log(`Searching for name in header area (${headerArea.length} chars around username)...`);
             
-            // Look for span elements with obfuscated Instagram classes that contain names
+            // Look for span elements with obfuscated Instagram classes - this is the structured name element
             // Pattern: <span class="x1lliihq x1plvlek..." dir="auto">Name</span>
             // Instagram uses obfuscated classes starting with 'x' followed by alphanumeric
-            // IMPORTANT: Names can be lowercase (e.g., "tyler thomas") or proper case
             const spanPatterns = [
-                // Match spans with obfuscated classes and dir="auto" - most reliable
+                // Match spans with obfuscated classes and dir="auto" - most reliable (this is the name element)
                 /<span[^>]*class="[^"]*x[a-z0-9]+[^"]*"[^>]*dir="auto"[^>]*>([^<]+)<\/span>/gi,
                 // Match spans with obfuscated classes (without dir requirement)
-                /<span[^>]*class="[^"]*x[a-z0-9]+[^"]*"[^>]*>([^<]+)<\/span>/gi,
-                // Match any span near username
-                /<span[^>]*>([^<]+)<\/span>/gi
+                /<span[^>]*class="[^"]*x[a-z0-9]+[^"]*"[^>]*>([^<]+)<\/span>/gi
             ];
             
             for (let i = 0; i < spanPatterns.length; i++) {
@@ -463,40 +461,23 @@ async function extractNameFromHTML(html, cleanUsername) {
                 const matches = [...headerArea.matchAll(pattern)];
                 console.log(`Span pattern ${i + 1} found ${matches.length} matches`);
                 
+                // Return the first match - it's structured data, trust whatever is in the name element
                 for (const match of matches) {
                     if (match && match[1]) {
                         let name = match[1].trim();
-                        // Clean up any HTML entities or extra whitespace
+                        // Clean up any HTML entities
                         name = name.replace(/&[^;]+;/g, '').trim();
                         
-                        // More lenient validation - allow lowercase first letters
-                        // Must be two words separated by space (first and last name)
-                        const nameParts = name.split(/\s+/);
-                        if (nameParts.length >= 2 && nameParts.length <= 4) { // Allow 2-4 words (first, middle, last, etc.)
-                            // Check if it looks like a name (all parts are alphabetic, reasonable length)
-                            const isValidName = nameParts.every(part => 
-                                part.length >= 2 && part.length <= 20 && /^[a-zA-Z]+$/.test(part)
-                            );
-                            
-                            if (isValidName &&
-                                name.length > 3 && name.length < 60 &&
-                                name !== cleanUsername && 
-                                !name.startsWith('@') &&
-                                !name.toLowerCase().includes('instagram') &&
-                                !name.toLowerCase().includes('login') &&
-                                !name.toLowerCase().includes('follow') &&
-                                !name.toLowerCase().includes('posts') &&
-                                !name.toLowerCase().includes('followers') &&
-                                !name.toLowerCase().includes('following')) {
-                                console.log(`Found Instagram name from span element (pattern ${i + 1}): ${name}`);
-                                return name;
-                            }
+                        // Basic sanity check - just make sure it's not empty and not the username
+                        if (name && name.length > 0 && name !== cleanUsername && !name.startsWith('@')) {
+                            console.log(`Found Instagram name from span element (pattern ${i + 1}): ${name}`);
+                            return name;
                         }
                     }
                 }
             }
             
-            // Also look for h1/h2 tags near username
+            // Also try h1/h2 tags near username
             const headerPatterns = [
                 /<h[12][^>]*>([^<]+)<\/h[12]>/gi
             ];
@@ -508,20 +489,9 @@ async function extractNameFromHTML(html, cleanUsername) {
                         let name = match[1].trim();
                         name = name.replace(/&[^;]+;/g, '').trim();
                         
-                        const nameParts = name.split(/\s+/);
-                        if (nameParts.length >= 2 && nameParts.length <= 4) {
-                            const isValidName = nameParts.every(part => 
-                                part.length >= 2 && part.length <= 20 && /^[a-zA-Z]+$/.test(part)
-                            );
-                            
-                            if (isValidName &&
-                                name.length > 3 && name.length < 60 &&
-                                name !== cleanUsername && 
-                                !name.startsWith('@') &&
-                                !name.toLowerCase().includes('instagram')) {
-                                console.log(`Found Instagram name from header tag: ${name}`);
-                                return name;
-                            }
+                        if (name && name.length > 0 && name !== cleanUsername && !name.startsWith('@')) {
+                            console.log(`Found Instagram name from header tag: ${name}`);
+                            return name;
                         }
                     }
                 }
