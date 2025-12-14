@@ -2558,11 +2558,11 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
         // Process cached result same as fresh result
         if (cachedResult.success && cachedResult.results && cachedResult.results.length > 0) {
             console.log('✅ Showing cached results modal with', cachedResult.results.length, 'results');
-            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), cachedResult.totalAmount, false, true, cachedResult.results || []);
+            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), cachedResult.totalAmount, false, true, cachedResult.results || [], claimData.profilePic);
             showResultsModal(claimData, cachedResult);
         } else if (cachedResult.success) {
             console.log('✅ Cached search completed successfully but no results found');
-            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 0, false, true, []);
+            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 0, false, true, [], claimData.profilePic);
             showNoResultsModal(claimData);
         } else {
             showErrorModal(cachedResult.error || 'Search failed');
