@@ -548,10 +548,8 @@ async function fetchInstagramFullName(username) {
             }
         });
         
-        // Try multiple strategies: desktop site first, then mobile site, then try GraphQL endpoint
+        // Only use GraphQL API endpoint - HTML extraction doesn't work
         const strategies = [
-            { url: `https://www.instagram.com/${username}/`, name: 'desktop' },
-            { url: `https://m.instagram.com/${username}/`, name: 'mobile' },
             { url: `https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`, name: 'graphql-api', isApi: true }
         ];
         
@@ -614,269 +612,65 @@ async function fetchInstagramFullName(username) {
                     } catch (e) {
                         console.log(`[INSTAGRAM] API endpoint failed: ${e.message}`);
                     }
-                    // Don't continue - check intercepted responses even if direct call failed
-                }
-                
-                // For regular pages, try to prevent redirects by intercepting them
-                await page.route('**/*', (route) => {
-                    const url = route.request().url();
-                    // Allow all requests but log redirects
-                    if (url.includes('/accounts/login/')) {
-                        console.log(`[INSTAGRAM] Intercepted login redirect to: ${url}`);
-                    }
-                    route.continue();
-                });
-                
-                // Navigate and wait for network activity
-                try {
-                    await page.goto(strategy.url, { 
-                        waitUntil: 'networkidle', 
-                        timeout: 30000 
-                    });
-                } catch (e) {
-                    // Even if navigation fails, try to get the page content
-                    console.log(`[INSTAGRAM] Navigation had issues, but continuing: ${e.message}`);
-                }
-        
-                // Wait for JavaScript to execute
-                await page.waitForTimeout(3000);
-                
-                // Try to wait for content to load
-                try {
-                    await page.waitForSelector('body', { timeout: 5000 });
-                } catch (e) {
-                    console.log(`[INSTAGRAM] Body selector not found, but continuing...`);
-                }
-        
-                // Human-like delays and interactions
-                await page.waitForTimeout(1000 + Math.random() * 1000); // Random delay 1-2s
-                
-                // Move mouse to simulate human behavior
-                await page.mouse.move(100, 100);
-                await page.waitForTimeout(300);
-                
-                // Scroll a bit to simulate human behavior
-                await page.evaluate(() => window.scrollTo(0, 200));
-                await page.waitForTimeout(500 + Math.random() * 500);
-                
-                // Scroll back up
-                await page.evaluate(() => window.scrollTo(0, 0));
-                await page.waitForTimeout(300);
-                
-                // Check current URL but don't fail early - try extraction anyway
-                const currentUrl = page.url();
-                console.log(`[INSTAGRAM] Final URL after navigation: ${currentUrl}`);
-                
-                // Log page title for debugging
-                const pageTitle = await page.title().catch(() => 'Unknown');
-                console.log(`[INSTAGRAM] Page title: ${pageTitle}`);
-                
-                // Log if we see login indicators but continue anyway
-                const isLoginRedirect = currentUrl.includes('/accounts/login/') || currentUrl.includes('/login/');
-                if (isLoginRedirect) {
-                    console.log(`[INSTAGRAM] ⚠️ URL suggests login redirect, but attempting extraction anyway...`);
-                }
-                
-                // Check for login form but don't exit - sometimes data is still in the page
-                const loginForm = await page.$('input[name="username"], input[type="password"]').catch(() => null);
-                if (loginForm) {
-                    console.log(`[INSTAGRAM] ⚠️ Login form detected, but attempting extraction anyway...`);
-                }
-                
-                // Log page content length for debugging
-                const pageContentLength = (await page.content()).length;
-                console.log(`[INSTAGRAM] Page content length: ${pageContentLength} characters`);
-        
-                // Strategy 0: Check intercepted API responses first
-                if (apiResponses.length > 0 && !fullName) {
-                    console.log(`[INSTAGRAM] Checking ${apiResponses.length} intercepted API responses...`);
-                    for (const apiResponse of apiResponses) {
-                        try {
-                            const data = apiResponse.data;
-                            console.log(`[INSTAGRAM] Parsing API response structure...`);
-                            
-                            // Try direct path: data.user.full_name
-                            if (data && data.data && data.data.user && data.data.user.full_name) {
-                                const potentialName = data.data.user.full_name.trim();
-                                if (potentialName && potentialName.length > 0) {
-                                    fullName = potentialName;
-                                    console.log(`[INSTAGRAM] ✅ Extracted name from API response (data.data.user.full_name): ${fullName}`);
-                                    break;
-                                }
-                            }
-                            
-                            // Try alternative path: data.user.full_name (without nested data)
-                            if (!fullName && data && data.user && data.user.full_name) {
-                                const potentialName = data.user.full_name.trim();
-                                if (potentialName && potentialName.length > 0) {
-                                    fullName = potentialName;
-                                    console.log(`[INSTAGRAM] ✅ Extracted name from API response (data.user.full_name): ${fullName}`);
-                                    break;
-                                }
-                            }
-                            
-                            // Fallback: search in stringified JSON
-                            if (!fullName) {
-                                const responseStr = JSON.stringify(data);
-                                const fullNameMatch = responseStr.match(/"full_name"\s*:\s*"([^"]+)"/i);
-                                if (fullNameMatch && fullNameMatch[1]) {
-                                    const potentialName = fullNameMatch[1].trim();
-                                    const words = potentialName.split(/\s+/);
-                                    if (words.length >= 1 && words.length <= 4 && 
-                                        words.every(w => w.length >= 1 && w.length <= 30 && /^[A-Za-z\s]+$/.test(w))) {
+                    // Check intercepted API responses after API call
+                    if (apiResponses.length > 0 && !fullName) {
+                        console.log(`[INSTAGRAM] Checking ${apiResponses.length} intercepted API responses...`);
+                        for (const apiResponse of apiResponses) {
+                            try {
+                                const data = apiResponse.data;
+                                console.log(`[INSTAGRAM] Parsing API response structure...`);
+                                
+                                // Try direct path: data.data.user.full_name
+                                if (data && data.data && data.data.user && data.data.user.full_name) {
+                                    const potentialName = data.data.user.full_name.trim();
+                                    if (potentialName && potentialName.length > 0) {
                                         fullName = potentialName;
-                                        console.log(`[INSTAGRAM] ✅ Extracted name from API response (regex): ${fullName}`);
+                                        console.log(`[INSTAGRAM] ✅ Extracted name from API response (data.data.user.full_name): ${fullName}`);
                                         break;
                                     }
                                 }
-                            }
-                        } catch (e) {
-                            console.log(`[INSTAGRAM] Error parsing API response: ${e.message}`);
-                            console.log(`[INSTAGRAM] Error stack: ${e.stack}`);
-                        }
-                    }
-                }
-                
-                // Strategy 0.5: Try to extract from page HTML/scripts even if login page
-                if (!fullName) {
-                    try {
-                        console.log(`[INSTAGRAM] Attempting to extract from page HTML...`);
-                        
-                        // Get page HTML and try to find name in embedded JSON data
-                        const pageContent = await page.content();
-            
-                    // Look for window._sharedData or similar Instagram data structures
-                    const sharedDataMatch = pageContent.match(/window\._sharedData\s*=\s*({.+?});/s);
-                    if (sharedDataMatch) {
-                        try {
-                            const sharedData = JSON.parse(sharedDataMatch[1]);
-                            // Navigate through Instagram's data structure
-                            const entryData = sharedData?.entry_data?.ProfilePage?.[0]?.graphql?.user;
-                            if (entryData?.full_name) {
-                                fullName = entryData.full_name;
-                                console.log(`[INSTAGRAM] ✅ Extracted name from _sharedData: ${fullName}`);
-                            }
-                        } catch (e) {
-                            console.log(`[INSTAGRAM] Error parsing _sharedData: ${e.message}`);
-                        }
-                    }
-                    
-                    // Also try to find full_name in any JSON-like structures
-                    if (!fullName) {
-                        const fullNamePatterns = [
-                            /"full_name"\s*:\s*"([^"]+)"/i,
-                            /'full_name'\s*:\s*'([^']+)'/i,
-                            /full_name["']?\s*:\s*["']([^"']+)["']/i
-                        ];
-                        
-                        for (const pattern of fullNamePatterns) {
-                            const match = pageContent.match(pattern);
-                            if (match && match[1]) {
-                                const potentialName = match[1].trim();
-                                // Validate it looks like a name (2-4 words, alphabetic)
-                                const words = potentialName.split(/\s+/);
-                                if (words.length >= 2 && words.length <= 4 && 
-                                    words.every(w => w.length >= 2 && w.length <= 20 && /^[A-Za-z]+$/.test(w))) {
-                                    fullName = potentialName;
-                                    console.log(`[INSTAGRAM] ✅ Extracted name from HTML pattern: ${fullName}`);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    } catch (e) {
-                        console.log(`[INSTAGRAM] Error extracting from HTML: ${e.message}`);
-                    }
-                }
-                
-                // Strategy 0.5: Extract from JSON-LD structured data
-                if (!fullName) {
-                    try {
-                        const jsonLd = await page.evaluate(() => {
-                            const scripts = document.querySelectorAll('script[type="application/ld+json"]');
-                            for (const script of scripts) {
-                                try {
-                                    const data = JSON.parse(script.textContent);
-                                    if (data.name && typeof data.name === 'string' && !data.name.startsWith('@')) {
-                                        return data.name;
+                                
+                                // Try alternative path: data.user.full_name (without nested data)
+                                if (!fullName && data && data.user && data.user.full_name) {
+                                    const potentialName = data.user.full_name.trim();
+                                    if (potentialName && potentialName.length > 0) {
+                                        fullName = potentialName;
+                                        console.log(`[INSTAGRAM] ✅ Extracted name from API response (data.user.full_name): ${fullName}`);
+                                        break;
                                     }
-                                } catch (e) {
-                                    continue;
                                 }
-                            }
-                            return null;
-                        });
-                        
-                        if (jsonLd) {
-                            fullName = jsonLd.trim();
-                            console.log(`[INSTAGRAM] ✅ Extracted name from JSON-LD: ${fullName}`);
-                        }
-                    } catch (e) {
-                        console.log(`[INSTAGRAM] Error extracting JSON-LD: ${e.message}`);
-                    }
-                }
-                
-                // Strategy 0.6: Extract from og:title meta tag
-                if (!fullName) {
-                    try {
-                        const ogTitle = await page.$eval('meta[property="og:title"]', el => el.content).catch(() => null);
-                        if (ogTitle && !ogTitle.includes('Login') && !ogTitle.includes('Instagram')) {
-                            // Clean up title (remove "• Instagram" etc)
-                            const cleaned = ogTitle.replace(/\s*•\s*Instagram.*$/i, '').replace(/\s*on\s*Instagram.*$/i, '').trim();
-                            if (cleaned && cleaned.length > 2 && !cleaned.startsWith('@')) {
-                                fullName = cleaned;
-                                console.log(`[INSTAGRAM] ✅ Extracted name from og:title: ${fullName}`);
+                                
+                                // Fallback: search in stringified JSON
+                                if (!fullName) {
+                                    const responseStr = JSON.stringify(data);
+                                    const fullNameMatch = responseStr.match(/"full_name"\s*:\s*"([^"]+)"/i);
+                                    if (fullNameMatch && fullNameMatch[1]) {
+                                        const potentialName = fullNameMatch[1].trim();
+                                        const words = potentialName.split(/\s+/);
+                                        if (words.length >= 1 && words.length <= 4 && 
+                                            words.every(w => w.length >= 1 && w.length <= 30 && /^[A-Za-z\s]+$/.test(w))) {
+                                            fullName = potentialName;
+                                            console.log(`[INSTAGRAM] ✅ Extracted name from API response (regex): ${fullName}`);
+                                            break;
+                                        }
+                                    }
+                                }
+                            } catch (e) {
+                                console.log(`[INSTAGRAM] Error parsing API response: ${e.message}`);
                             }
                         }
-                    } catch (e) {
-                        console.log(`[INSTAGRAM] Error extracting og:title: ${e.message}`);
                     }
-                }
-                
-                // Wait a bit more for dynamic content to load
-                if (!fullName) {
-                    await page.waitForTimeout(2000);
-                }
-                
-                // Try to find the name element - Instagram displays it in a span near the username
-                if (!fullName) {
-                    console.log(`[INSTAGRAM] Searching for name element in DOM...`);
                     
-                    // Strategy 1: Look for span with dir="auto" that contains text
-                    try {
-                        const nameSpans = await page.$$eval('span[dir="auto"]', spans => {
-                            return spans.map(span => span.textContent.trim())
-                                .filter(text => {
-                                    const words = text.split(/\s+/);
-                                    return words.length >= 2 && words.length <= 4 && 
-                                           words.every(w => w.length >= 2 && w.length <= 20 && /^[A-Za-z]+$/.test(w));
-                                })
-                                .filter(text => !text.toLowerCase().includes('instagram') &&
-                                                !text.toLowerCase().includes('login') &&
-                                                !text.toLowerCase().includes('follow') &&
-                                                !text.toLowerCase().includes('posts') &&
-                                                !text.toLowerCase().includes('followers') &&
-                                                !text.toLowerCase().includes('following'));
-                        });
-                        
-                        console.log(`[INSTAGRAM] Found ${nameSpans.length} potential name spans`);
-                        if (nameSpans.length > 0) {
-                            console.log(`[INSTAGRAM] Name spans found:`, nameSpans);
-                            fullName = nameSpans[0];
-                            console.log(`[INSTAGRAM] ✅ Extracted name from span[dir="auto"]: ${fullName}`);
-                        }
-                    } catch (e) {
-                        console.log(`[INSTAGRAM] Error finding span[dir="auto"]: ${e.message}`);
+                    // If we found a name, break out of the strategy loop
+                    if (fullName && fullName.length > 0) {
+                        console.log(`[INSTAGRAM] ✅ Successfully extracted name using ${strategy.name}: ${fullName}`);
+                        break;
                     }
+                } catch (e) {
+                    console.log(`[INSTAGRAM] API endpoint failed: ${e.message}`);
                 }
-                
-                // If we found a name, break out of the strategy loop
-                if (fullName && fullName.length > 0) {
-                    console.log(`[INSTAGRAM] ✅ Successfully extracted name using ${strategy.name} site: ${fullName}`);
-                    break;
-                } else {
-                    console.log(`[INSTAGRAM] ⚠️ Could not extract name from ${strategy.name} site, trying next strategy...`);
-                }
+                // Only API strategy, so break after trying it
+                break;
                 
             } catch (strategyError) {
                 console.log(`[INSTAGRAM] Error with ${strategy.name} strategy: ${strategyError.message}`);
