@@ -22,6 +22,10 @@ let _realHandleSearch = null;
         // The real function will set _realHandleSearch when it's defined
         if (_realHandleSearch && typeof _realHandleSearch === 'function') {
             console.log('✅ Found real handleSearch via _realHandleSearch, calling it directly');
+            console.log('🔄 Attempting to replace window.handleSearch with real function NOW');
+            // CRITICAL: Replace window.handleSearch BEFORE calling to prevent recursion
+            window.handleSearch = _realHandleSearch;
+            console.log('✅✅✅ window.handleSearch replaced, now calling real function');
             // IMPORTANT: Call the function directly, NOT via window.handleSearch
             // This prevents infinite recursion
             try {
