@@ -1415,6 +1415,29 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                     // Extract ALL rows with amounts, even if entity detection fails
                     tables.forEach((table) => {
                         const rows = Array.from(table.querySelectorAll('tr')).slice(1);
+                        if (rows.length === 0) return;
+                        
+                        // Calculate column indices for this table (same logic as above)
+                        const firstRow = rows[0];
+                        const firstRowCells = Array.from(firstRow.querySelectorAll('td, th'));
+                        let reportingBusinessIdx = -1;
+                        
+                        // Find Reporting Business Name column index
+                        firstRowCells.forEach((cell, idx) => {
+                            const headers = cell.getAttribute('headers') || '';
+                            const cellText = (cell.innerText || cell.textContent || '').toLowerCase();
+                            
+                            if (headers.includes('propholderName') || headers.includes('holderName') || headers.includes('holder')) {
+                                reportingBusinessIdx = idx;
+                            } else if (cellText.includes('reporting business') || cellText.includes('business name') || cellText.includes('holder')) {
+                                if (reportingBusinessIdx === -1) reportingBusinessIdx = idx;
+                            }
+                        });
+                        
+                        // Fallback: try index 3 if not found
+                        if (reportingBusinessIdx === -1 && firstRowCells.length > 3) {
+                            reportingBusinessIdx = 3;
+                        }
                         
                         rows.forEach((row) => {
                             const cells = Array.from(row.querySelectorAll('td, th'));
