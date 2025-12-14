@@ -370,13 +370,25 @@
             
             if (btn) {
                 console.log('✅ Adding click listener to search button');
-                btn.addEventListener('click', function() {
-                    console.log('🖱️ Button clicked (inline handler)');
-                    if (typeof handleSearch === 'function') {
-                        console.log('✅ handleSearch function exists, calling it');
-                        handleSearch();
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('🖱️ Button clicked (window.load handler)');
+                    // Use window.handleSearch to ensure we get the exported version
+                    if (typeof window.handleSearch === 'function') {
+                        const funcStr = window.handleSearch.toString();
+                        if (funcStr.includes('PLACEHOLDER')) {
+                            console.error('❌❌❌ Placeholder still active in click handler!');
+                            // Try to force export
+                            if (typeof handleSearch === 'function' && !handleSearch.toString().includes('PLACEHOLDER')) {
+                                window.handleSearch = handleSearch;
+                                console.log('🔄 Force exported in click handler');
+                            }
+                        }
+                        console.log('✅ Calling window.handleSearch');
+                        window.handleSearch();
                     } else {
-                        console.error('❌ handleSearch function not found!');
+                        console.error('❌ window.handleSearch function not found!');
                     }
                 });
             }
