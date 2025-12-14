@@ -1706,6 +1706,10 @@ async function handleSearchImpl() {
     
     searchInProgress = true;
     
+    // Show progress modal IMMEDIATELY - before any other operations
+    showProgressModal();
+    updateProgressStep(1, 'Extracting name from Instagram...');
+    
     const input = document.getElementById('instagramHandle');
     console.log('🔍 Input element:', input ? 'FOUND' : 'NOT FOUND');
     if (!input) {
@@ -1754,11 +1758,6 @@ async function handleSearchImpl() {
         // Always proceed with new search - don't redirect to existing entries
         // User doesn't exist or exists - get Instagram full name and start search automatically
         console.log(`🔍 Starting new search for ${cleanHandleValue}...`);
-        
-        // Show progress modal immediately
-        showProgressModal();
-        updateProgressStep(1, 'Extracting name from Instagram...');
-        
         console.log(`🔍 About to call getInstagramFullName...`);
         let fullName = null;
         let nameExtractionError = null;
