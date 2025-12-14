@@ -1471,10 +1471,28 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
                     // If this is the entry we just added and we have a profile pic, use it
                     let finalProfilePic = existingPic || null;
                     console.log(`[PROFILE PIC FLOW] Mapping entry: handle="${entry.handle}", cleanEntryHandle="${cleanEntryHandle}", cleanHandleValue="${cleanHandleValue}", match=${cleanEntryHandle === cleanHandleValue}, profilePic param=${profilePic ? 'SET' : 'NULL'}, existingPic=${existingPic ? 'SET' : 'NULL'}`);
-                    if (cleanEntryHandle === cleanHandleValue && profilePic) {
+                    
+                    // Try multiple matching strategies
+                    const handleMatches = (
+                        cleanEntryHandle === cleanHandleValue ||
+                        entry.handle === handle ||
+                        cleanEntryHandle === cleanHandle(handle) ||
+                        entry.handle === cleanHandleValue
+                    );
+                    
+                    if (handleMatches && profilePic) {
                         finalProfilePic = profilePic;
                         console.log(`✅✅✅ Set profilePic for ${entry.handle} in leaderboardData (new entry): ${profilePic.substring(0, 50)}...`);
+                    } else if (profilePic && !finalProfilePic) {
+                        // If we have a profilePic but no match yet, also check localStorage as fallback
+                        const storedProfilePics = loadProfilePicsFromStorage();
+                        const storedPic = storedProfilePics[entry.handle] || storedProfilePics[cleanEntryHandle] || storedProfilePics[handle] || storedProfilePics[cleanHandleValue];
+                        if (storedPic) {
+                            finalProfilePic = storedPic;
+                            console.log(`✅✅✅ Found profilePic in localStorage fallback for ${entry.handle}`);
+                        }
                     }
+                    
                     return {
                         ...entry,
                         profilePic: finalProfilePic,
