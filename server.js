@@ -819,7 +819,25 @@ async function fetchInstagramFullName(username) {
         let fullName = null;
         
         try {
-            // Navigate to the profile page - this will trigger Instagram's API calls automatically
+            // Add random delay to avoid rate limiting (1-3 seconds)
+            const delay = 1000 + Math.random() * 2000;
+            console.log(`[INSTAGRAM] Waiting ${Math.round(delay)}ms before request to avoid rate limiting...`);
+            await page.waitForTimeout(delay);
+            
+            // First, navigate to Instagram homepage to establish a session and avoid rate limiting
+            console.log(`[INSTAGRAM] Establishing session by visiting Instagram homepage first...`);
+            try {
+                await page.goto('https://www.instagram.com/', {
+                    waitUntil: 'domcontentloaded',
+                    timeout: 15000
+                });
+                await page.waitForTimeout(2000 + Math.random() * 1000); // Random delay 2-3 seconds
+                console.log(`[INSTAGRAM] Homepage visited, session established`);
+            } catch (e) {
+                console.log(`[INSTAGRAM] Warning: Could not visit homepage: ${e.message}`);
+            }
+            
+            // Now navigate to the profile page - this will trigger Instagram's API calls automatically
             const response = await page.goto(profileUrl, {
                 waitUntil: 'domcontentloaded',
                 timeout: 25000
@@ -827,6 +845,21 @@ async function fetchInstagramFullName(username) {
             
             console.log(`[INSTAGRAM] Profile page loaded, status: ${response ? response.status() : 'no response'}`);
             console.log(`[INSTAGRAM] Final URL: ${response ? response.url() : 'no response'}`);
+            
+            // Check if we got rate limited or redirected to login
+            if (response && (response.status() === 429 || response.url().includes('/accounts/login/'))) {
+                console.log(`[INSTAGRAM] ⚠️ Rate limited (429) or login required - Instagram is blocking requests`);
+                console.log(`[INSTAGRAM] This is expected behavior - Instagram actively blocks automated requests`);
+                console.log(`[INSTAGRAM] Returning error message to user`);
+                
+                // Don't retry immediately - Instagram will block again
+                // Instead, return a helpful error message
+                await browser.close();
+                return { 
+                    success: false, 
+                    error: 'Instagram is blocking automated requests. The profile may be private, or Instagram\'s rate limiting is preventing access. Please try again later or search by full name instead.' 
+                };
+            }
             
             // Wait for API calls to be intercepted (Instagram makes them automatically when loading profile)
             await page.waitForTimeout(5000);
