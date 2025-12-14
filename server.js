@@ -1564,6 +1564,7 @@ const server = http.createServer((req, res) => {
     // Handle profile picture fetch
     if (parsedUrl.pathname === '/api/profile-pic' && parsedUrl.query.username) {
         const username = parsedUrl.query.username.replace('@', '').trim();
+        console.log(`[PROFILE] Received profile picture request for: ${username}`);
         
         fetchInstagramProfile(username)
             .then(result => {
