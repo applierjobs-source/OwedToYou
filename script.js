@@ -563,6 +563,17 @@ async function extractNameFromHTML(html, cleanUsername) {
     if (html.includes('full_name')) {
         console.log(`HTML contains 'full_name' - searching comprehensively...`);
         
+        // Try multiple patterns - Instagram might use different quote styles or formats
+        const fullNamePatterns = [
+            /"full_name"\s*:\s*"([^"]+)"/gi,  // Standard JSON: "full_name":"Name"
+            /'full_name'\s*:\s*'([^']+)'/gi,  // Single quotes: 'full_name':'Name'
+            /"full_name"\s*:\s*'([^']+)'/gi,  // Mixed: "full_name":'Name'
+            /'full_name'\s*:\s*"([^"]+)"/gi,  // Mixed: 'full_name':"Name"
+            /full_name\s*:\s*"([^"]+)"/gi,    // No quotes on key: full_name:"Name"
+            /full_name\s*:\s*'([^']+)'/gi,    // No quotes on key: full_name:'Name'
+            /full_name\s*:\s*([^,}\]]+)/gi    // Unquoted value: full_name:Name
+        ];
+        
         // First, try to find full_name near the username (most reliable)
         const usernameIndex = html.indexOf(cleanUsername);
         if (usernameIndex !== -1) {
@@ -571,17 +582,60 @@ async function extractNameFromHTML(html, cleanUsername) {
             const end = Math.min(html.length, usernameIndex + 30000);
             const searchArea = html.substring(start, end);
             
-            // Find ALL full_name occurrences in this area
-            const fullNameMatches = [...searchArea.matchAll(/"full_name"\s*:\s*"([^"]+)"/gi)];
-            console.log(`Found ${fullNameMatches.length} full_name matches near username`);
+            // Try each pattern
+            for (const pattern of fullNamePatterns) {
+                const matches = [...searchArea.matchAll(pattern)];
+                console.log(`Pattern ${pattern.source.substring(0, 30)}... found ${matches.length} matches near username`);
+                
+                // Try each match, prefer ones closer to username
+                let bestName = null;
+                let bestDistance = Infinity;
+                
+                for (const match of matches) {
+                    if (match && match[1]) {
+                        let name = match[1].trim();
+                        // Clean up any trailing characters
+                        name = name.replace(/["'\s,}\]]+$/, '').trim();
+                        
+                        // Validate it's a real name
+                        if (name && name.length > 2 && name.length < 100 &&
+                            !name.startsWith('@') && 
+                            name !== cleanUsername && 
+                            !name.toLowerCase().includes('instagram') &&
+                            !name.toLowerCase().includes('null') &&
+                            !name.toLowerCase().includes('undefined') &&
+                            /[a-zA-Z]/.test(name)) {
+                            
+                            // Calculate distance from username
+                            const nameIndex = searchArea.indexOf(match[0]);
+                            if (nameIndex !== -1) {
+                                const distance = Math.abs(nameIndex - (usernameIndex - start));
+                                if (distance < bestDistance) {
+                                    bestName = name;
+                                    bestDistance = distance;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if (bestName) {
+                    console.log(`Found Instagram name via full_name search (distance: ${bestDistance}): ${bestName}`);
+                    return bestName;
+                }
+            }
+        }
+        
+        // If not found near username, search entire HTML with all patterns
+        for (const pattern of fullNamePatterns) {
+            const allMatches = [...html.matchAll(pattern)];
+            console.log(`Pattern ${pattern.source.substring(0, 30)}... found ${allMatches.length} total matches in HTML`);
             
-            // Try each match, prefer ones closer to username
-            let bestName = null;
-            let bestDistance = Infinity;
-            
-            for (const match of fullNameMatches) {
+            for (const match of allMatches) {
                 if (match && match[1]) {
-                    const name = match[1].trim();
+                    let name = match[1].trim();
+                    name = name.replace(/["'\s,}\]]+$/, '').trim();
+                    
                     // Validate it's a real name
                     if (name && name.length > 2 && name.length < 100 &&
                         !name.startsWith('@') && 
@@ -590,43 +644,9 @@ async function extractNameFromHTML(html, cleanUsername) {
                         !name.toLowerCase().includes('null') &&
                         !name.toLowerCase().includes('undefined') &&
                         /[a-zA-Z]/.test(name)) {
-                        
-                        // Calculate distance from username
-                        const nameIndex = searchArea.indexOf(`"full_name":"${name}"`);
-                        if (nameIndex !== -1) {
-                            const distance = Math.abs(nameIndex - (usernameIndex - start));
-                            if (distance < bestDistance) {
-                                bestName = name;
-                                bestDistance = distance;
-                            }
-                        }
+                        console.log(`Found Instagram name via full_name search: ${name}`);
+                        return name;
                     }
-                }
-            }
-            
-            if (bestName) {
-                console.log(`Found Instagram name via comprehensive full_name search (distance: ${bestDistance}): ${bestName}`);
-                return bestName;
-            }
-        }
-        
-        // If not found near username, search entire HTML
-        const allFullNameMatches = [...html.matchAll(/"full_name"\s*:\s*"([^"]+)"/gi)];
-        console.log(`Found ${allFullNameMatches.length} total full_name matches in HTML`);
-        
-        for (const match of allFullNameMatches) {
-            if (match && match[1]) {
-                const name = match[1].trim();
-                // Validate it's a real name
-                if (name && name.length > 2 && name.length < 100 &&
-                    !name.startsWith('@') && 
-                    name !== cleanUsername && 
-                    !name.toLowerCase().includes('instagram') &&
-                    !name.toLowerCase().includes('null') &&
-                    !name.toLowerCase().includes('undefined') &&
-                    /[a-zA-Z]/.test(name)) {
-                    console.log(`Found Instagram name via full_name search: ${name}`);
-                    return name;
                 }
             }
         }
