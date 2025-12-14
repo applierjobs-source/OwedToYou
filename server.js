@@ -623,7 +623,9 @@ async function fetchInstagramFullName(username) {
                     }
                     
                     // Recursive function to search for full_name in JSON objects
-                    function findFullNameInObject(obj, username) {
+                    function findFullNameInObject(obj, username, depth = 0) {
+                        // Prevent infinite recursion
+                        if (depth > 10) return null;
                         if (typeof obj !== 'object' || obj === null) return null;
                         
                         // Check if this object has full_name
@@ -640,10 +642,20 @@ async function fetchInstagramFullName(username) {
                             }
                         }
                         
+                        // Also check for 'name' field if it looks like a full name (has space)
+                        if (obj.name && typeof obj.name === 'string' && obj.name.trim().length > 0) {
+                            const name = obj.name.trim();
+                            // Check if it's a full name (has space and doesn't start with @)
+                            if (name.includes(' ') && name.length > 3 && !name.startsWith('@') && 
+                                name !== username && !name.toLowerCase().includes('instagram')) {
+                                return name;
+                            }
+                        }
+                        
                         // Recursively search in all properties
                         for (const key in obj) {
                             if (obj.hasOwnProperty(key)) {
-                                const result = findFullNameInObject(obj[key], username);
+                                const result = findFullNameInObject(obj[key], username, depth + 1);
                                 if (result) return result;
                             }
                         }
@@ -793,6 +805,52 @@ async function fetchInstagramFullName(username) {
                         }
                     }
                     
+                    // Try one more aggressive pattern - look for any JSON structure with user data
+                    // Instagram might have changed their data structure
+                    try {
+                        // Look for any large JSON objects that might contain user info
+                        const largeJsonMatches = html.match(/\{"config":\{[\s\S]{500,200000}\}/g);
+                        if (largeJsonMatches) {
+                            for (const jsonStr of largeJsonMatches) {
+                                try {
+                                    const jsonObj = JSON.parse(jsonStr);
+                                    const foundName = findFullNameInObject(jsonObj, username);
+                                    if (foundName) {
+                                        console.log(`Found Instagram name via large JSON search: ${foundName}`);
+                                        resolve({ success: true, fullName: foundName });
+                                        return;
+                                    }
+                                } catch (e) {
+                                    // Not valid JSON, continue
+                                }
+                            }
+                        }
+                        
+                        // Try to find name in any script tag with "user" or "profile" keywords
+                        const userScriptPatterns = [
+                            /"user":\s*\{[^}]{0,5000}"full_name":\s*"([^"]+)"/i,
+                            /"profile":\s*\{[^}]{0,5000}"full_name":\s*"([^"]+)"/i,
+                            /"owner":\s*\{[^}]{0,5000}"full_name":\s*"([^"]+)"/i,
+                            /"account":\s*\{[^}]{0,5000}"full_name":\s*"([^"]+)"/i
+                        ];
+                        
+                        for (const pattern of userScriptPatterns) {
+                            const matches = html.match(pattern);
+                            if (matches && matches[1]) {
+                                const name = matches[1].trim();
+                                if (name && name.length > 2 && !name.startsWith('@') && 
+                                    name !== username && !name.toLowerCase().includes('instagram') &&
+                                    /[a-zA-Z]/.test(name)) {
+                                    console.log(`Found Instagram name via user script pattern: ${name}`);
+                                    resolve({ success: true, fullName: name });
+                                    return;
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.log(`[INSTAGRAM] Error in final extraction attempts: ${e.message}`);
+                    }
+                    
                     // Log what we tried for debugging
                     console.log(`[INSTAGRAM] All extraction methods failed for ${username}`);
                     console.log(`[INSTAGRAM] HTML length: ${html.length}`);
@@ -800,6 +858,20 @@ async function fetchInstagramFullName(username) {
                     console.log(`[INSTAGRAM] Contains 'fullName': ${html.includes('fullName')}`);
                     console.log(`[INSTAGRAM] Contains 'og:title': ${html.includes('og:title')}`);
                     console.log(`[INSTAGRAM] Contains username '${username}': ${html.includes(username)}`);
+                    
+                    // Log a sample of the HTML to help debug (first 2000 chars)
+                    if (html.length > 0) {
+                        const sample = html.substring(0, 2000).replace(/\s+/g, ' ');
+                        console.log(`[INSTAGRAM] HTML sample (first 2000 chars): ${sample}`);
+                    }
+                    
+                    // Check if we got a login/challenge page
+                    if (html.includes('Log in to Instagram') || html.includes('login_required') || 
+                        html.includes('challenge') || html.includes('Please wait')) {
+                        console.log(`[INSTAGRAM] Detected login/challenge page in HTML`);
+                        resolve({ success: false, error: 'Instagram is requiring login or showing challenge page' });
+                        return;
+                    }
                     
                     resolve({ success: false, error: 'Full name not found in HTML' });
                 } catch (error) {
