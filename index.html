@@ -469,43 +469,46 @@
                             }
                         }
                         
-                        // Also try local handleSearch
-                        if (typeof handleSearch === 'function') {
-                            const realFuncStr = handleSearch.toString();
-                            const realIsPlaceholder = realFuncStr.includes('PLACEHOLDER');
-                            console.log('🔍 Local handleSearch is placeholder:', realIsPlaceholder);
-                            
-                            if (!realIsPlaceholder) {
-                                console.log('🔄🔄🔄 FORCE EXPORTING from local handleSearch NOW...');
-                                try {
-                                    Object.defineProperty(window, 'handleSearch', {
-                                        value: handleSearch,
-                                        writable: true,
-                                        enumerable: true,
-                                        configurable: true
-                                    });
-                                    console.log('✅✅✅ FORCE EXPORT via defineProperty COMPLETED');
-                                } catch (e) {
-                                    window.handleSearch = handleSearch;
-                                    console.log('✅✅✅ FORCE EXPORT via direct assignment COMPLETED');
-                                }
-                                
-                                const verifyStr = window.handleSearch.toString();
-                                const stillPlaceholder = verifyStr.includes('PLACEHOLDER');
-                                console.log('✅✅✅ Verification - contains PLACEHOLDER:', stillPlaceholder);
-                                
-                                if (!stillPlaceholder) {
-                                    console.log('✅✅✅✅✅ FORCE EXPORT SUCCESSFUL from local handleSearch!');
-                                }
-                            } else {
-                                console.error('❌ Local handleSearch is also placeholder!');
-                                console.error('❌ This means the real function was never defined!');
-                                console.error('❌ Check if script.js loaded completely - look for export block logs');
-                            }
-                        } else {
-                            console.error('❌ handleSearch function not found!');
-                            console.error('❌ This means script.js failed to load or define the function!');
-                        }
+                           // Also try handleSearchImpl (the actual function declaration)
+                           // CRITICAL: Use handleSearchImpl, not handleSearch, to avoid identifier resolution conflict
+                           if (typeof handleSearchImpl === 'function') {
+                               const realFuncStr = handleSearchImpl.toString();
+                               const realIsPlaceholder = realFuncStr.includes('PLACEHOLDER');
+                               const hasStartingSearch = realFuncStr.includes('STARTING SEARCH');
+                               console.log('🔍 handleSearchImpl is placeholder:', realIsPlaceholder);
+                               console.log('🔍 handleSearchImpl has STARTING SEARCH:', hasStartingSearch);
+                               
+                               if (!realIsPlaceholder && hasStartingSearch) {
+                                   console.log('🔄🔄🔄 FORCE EXPORTING from handleSearchImpl NOW...');
+                                   try {
+                                       Object.defineProperty(window, 'handleSearch', {
+                                           value: handleSearchImpl,
+                                           writable: true,
+                                           enumerable: true,
+                                           configurable: true
+                                       });
+                                       console.log('✅✅✅ FORCE EXPORT via defineProperty COMPLETED');
+                                   } catch (e) {
+                                       window.handleSearch = handleSearchImpl;
+                                       console.log('✅✅✅ FORCE EXPORT via direct assignment COMPLETED');
+                                   }
+                                   
+                                   const verifyStr = window.handleSearch.toString();
+                                   const stillPlaceholder = verifyStr.includes('PLACEHOLDER');
+                                   console.log('✅✅✅ Verification - contains PLACEHOLDER:', stillPlaceholder);
+                                   
+                                   if (!stillPlaceholder) {
+                                       console.log('✅✅✅✅✅ FORCE EXPORT SUCCESSFUL from handleSearchImpl!');
+                                   }
+                               } else {
+                                   console.error('❌ handleSearchImpl is also placeholder or invalid!');
+                                   console.error('❌ This means the real function was never defined!');
+                                   console.error('❌ Check if script.js loaded completely - look for export block logs');
+                               }
+                           } else {
+                               console.error('❌ handleSearchImpl function not found!');
+                               console.error('❌ This means script.js failed to load or define the function!');
+                           }
                     } else {
                         console.log('✅✅✅ handleSearch verified: Real function is loaded');
                     }
