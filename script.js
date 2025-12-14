@@ -467,7 +467,7 @@ async function extractNameFromHTML(html, cleanUsername) {
             // Strategy 1: Find all text content between HTML tags near username
             // Look for patterns like: >Name< or >Name Text< that appear before/after username
             // Extract text from all HTML elements and check if any look like names
-            const textContentPattern = />([A-Za-z]+(?:\s+[A-Za-z]+)+)</g;
+            const textContentPattern = />([^<]+)</g;
             const allTextMatches = [...profileArea.matchAll(textContentPattern)];
             console.log(`Found ${allTextMatches.length} text content matches in profile area`);
             
@@ -479,6 +479,27 @@ async function extractNameFromHTML(html, cleanUsername) {
                     // Clean HTML entities
                     text = text.replace(/&[^;]+;/g, '').trim();
                     
+                    // Skip if it's clearly not a name
+                    if (text.length < 3 || text.length > 60) continue;
+                    if (text === cleanUsername) continue;
+                    if (text.startsWith('@')) continue;
+                    if (/^\d+$/.test(text)) continue; // Skip pure numbers
+                    if (text.includes('•') || text.includes('|')) continue; // Skip separators
+                    
+                    const lowerText = text.toLowerCase();
+                    if (lowerText.includes('instagram') ||
+                        lowerText.includes('login') ||
+                        lowerText.includes('follow') ||
+                        lowerText.includes('posts') ||
+                        lowerText.includes('followers') ||
+                        lowerText.includes('following') ||
+                        lowerText.includes('edit profile') ||
+                        lowerText.includes('message') ||
+                        lowerText.includes('view') ||
+                        lowerText.includes('share')) {
+                        continue;
+                    }
+                    
                     // Check if it looks like a name (2-4 words, all alphabetic, reasonable length)
                     const words = text.split(/\s+/);
                     if (words.length >= 2 && words.length <= 4) {
@@ -486,18 +507,7 @@ async function extractNameFromHTML(html, cleanUsername) {
                             word.length >= 2 && word.length <= 20 && /^[A-Za-z]+$/.test(word)
                         );
                         
-                        if (isValid && 
-                            text.length > 3 && text.length < 60 &&
-                            text !== cleanUsername && 
-                            !text.toLowerCase().startsWith('@') &&
-                            !text.toLowerCase().includes('instagram') &&
-                            !text.toLowerCase().includes('login') &&
-                            !text.toLowerCase().includes('follow') &&
-                            !text.toLowerCase().includes('posts') &&
-                            !text.toLowerCase().includes('followers') &&
-                            !text.toLowerCase().includes('following') &&
-                            !text.toLowerCase().includes('edit profile') &&
-                            !text.toLowerCase().includes('message')) {
+                        if (isValid) {
                             potentialNames.push({
                                 name: text,
                                 index: match.index,
@@ -513,15 +523,23 @@ async function extractNameFromHTML(html, cleanUsername) {
             // Sort by distance from username (closer is better)
             potentialNames.sort((a, b) => a.distance - b.distance);
             
-            // Log first 10 potential names
-            for (let i = 0; i < Math.min(10, potentialNames.length); i++) {
+            // Log first 20 potential names for debugging
+            for (let i = 0; i < Math.min(20, potentialNames.length); i++) {
                 console.log(`  Potential name ${i + 1}: "${potentialNames[i].name}" (distance: ${potentialNames[i].distance})`);
             }
             
-            // Return the closest valid name to username
+            // Return the closest valid name to username (within reasonable distance)
             if (potentialNames.length > 0) {
+                // Prefer names that are close to username (within 10000 chars)
+                const closeNames = potentialNames.filter(n => n.distance < 10000);
+                if (closeNames.length > 0) {
+                    const bestMatch = closeNames[0];
+                    console.log(`✅ Found Instagram name (closest to username, distance ${bestMatch.distance}): ${bestMatch.name}`);
+                    return bestMatch.name;
+                }
+                // If no close names, use the closest one anyway
                 const bestMatch = potentialNames[0];
-                console.log(`✅ Found Instagram name (closest to username): ${bestMatch.name}`);
+                console.log(`✅ Found Instagram name (closest overall, distance ${bestMatch.distance}): ${bestMatch.name}`);
                 return bestMatch.name;
             }
             
