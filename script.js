@@ -1451,6 +1451,7 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
             
             // Filter out placeholders and deduplicate - only show real claims
             const seenHandles = new Set();
+            const cleanHandleValue = cleanHandle(handle);
             leaderboardData = data.leaderboard
                 .filter(entry => {
                     if (entry.isPlaceholder) return false; // Remove placeholders
@@ -1465,12 +1466,28 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
                 .map(entry => {
                     const cleanEntryHandle = cleanHandle(entry.handle);
                     const existingPic = existingProfilePics.get(cleanEntryHandle);
+                    // If this is the entry we just added and we have a profile pic, use it
+                    let finalProfilePic = existingPic || null;
+                    if (cleanEntryHandle === cleanHandleValue && profilePic) {
+                        finalProfilePic = profilePic;
+                        console.log(`✅✅✅ Set profilePic for ${entry.handle} in leaderboardData (new entry)`);
+                    }
                     return {
                         ...entry,
-                        profilePic: existingPic || null, // Preserve existing profile pic if available
+                        profilePic: finalProfilePic,
                         isPlaceholder: false
                     };
                 });
+            
+            // Also save profile pic to localStorage if provided
+            if (profilePic) {
+                const storedProfilePics = loadProfilePicsFromStorage();
+                storedProfilePics[handle] = profilePic;
+                storedProfilePics[cleanHandleValue] = profilePic;
+                saveProfilePicsToStorage(storedProfilePics);
+                console.log(`✅✅✅ Saved profilePic to localStorage for ${handle} (new entry)`);
+            }
+            
             // Only refresh display if explicitly requested (e.g., after a claim submission)
             if (refreshDisplay && !document.getElementById('leaderboard').classList.contains('hidden')) {
                 displayLeaderboard(leaderboardData);
