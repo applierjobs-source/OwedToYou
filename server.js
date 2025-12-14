@@ -429,9 +429,10 @@ async function fetchInstagramFullName(username) {
         });
         
         // Create context with realistic browser fingerprint
+        // Use a more recent Chrome user agent to avoid detection
         const context = await browser.newContext({
             viewport: { width: 1920, height: 1080 },
-            userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
             locale: 'en-US',
             timezoneId: 'America/Chicago',
             permissions: ['geolocation'],
@@ -440,7 +441,7 @@ async function fetchInstagramFullName(username) {
             extraHTTPHeaders: {
                 'Accept-Language': 'en-US,en;q=0.9',
                 'Accept-Encoding': 'gzip, deflate, br',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
                 'Connection': 'keep-alive',
                 'Upgrade-Insecure-Requests': '1',
                 'Sec-Fetch-Dest': 'document',
@@ -448,7 +449,10 @@ async function fetchInstagramFullName(username) {
                 'Sec-Fetch-Site': 'none',
                 'Sec-Fetch-User': '?1',
                 'Cache-Control': 'max-age=0',
-                'Referer': 'https://www.google.com/'
+                'Referer': 'https://www.google.com/',
+                'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+                'sec-ch-ua-mobile': '?0',
+                'sec-ch-ua-platform': '"macOS"'
             }
         });
         
@@ -558,10 +562,22 @@ async function fetchInstagramFullName(username) {
             try {
                 console.log(`[INSTAGRAM] Trying ${strategy.name} site: ${strategy.url}`);
                 
-                // For API endpoints, try direct fetch
+                // For API endpoints, try direct fetch with proper headers
                 if (strategy.isApi) {
                     try {
                         console.log(`[INSTAGRAM] Attempting direct API call to: ${strategy.url}`);
+                        
+                        // Set proper headers for API request
+                        await page.setExtraHTTPHeaders({
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-IG-App-ID': '936619743392459',
+                            'X-IG-WWW-Claim': '0',
+                            'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+                            'sec-ch-ua-mobile': '?0',
+                            'sec-ch-ua-platform': '"macOS"'
+                        });
+                        
                         const response = await page.goto(strategy.url, {
                             waitUntil: 'networkidle',
                             timeout: 15000
