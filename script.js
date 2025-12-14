@@ -3120,6 +3120,12 @@ async function showShareModal(firstName, lastName, amount, results = []) {
                     </ol>
                     <p style="margin: 0; padding-top: 12px; border-top: 1px solid #e0e0e0; color: #888; font-size: 0.9rem; line-height: 1.5; font-style: italic;">Your post may help someone else find money they didn't know they had.</p>
                 </div>
+                <div style="background: #fff; border: 2px solid #667eea; border-radius: 12px; padding: 20px; margin-bottom: 20px; text-align: center;">
+                    <p style="margin: 0 0 15px 0; color: #333; font-size: 1rem; font-weight: 500;">OR skip notifying others and pay $12.95 processing to begin the claim process now</p>
+                    <button class="btn-buy-now" onclick="handleBuyNow('${escapeHtml(firstName)}', '${escapeHtml(lastName)}', ${amount})" style="width: 100%; padding: 14px; font-size: 1.1rem; font-weight: 600; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);">
+                        Buy Now - $12.95
+                    </button>
+                </div>
             <div class="share-card" id="shareCard" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 16px; padding: 40px; color: white; text-align: center; max-width: 500px; margin: 0 auto; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); min-height: 400px; display: flex; flex-direction: column; justify-content: space-between;">
                 <div>
                     <p style="font-size: 1.2rem; opacity: 0.95; margin-bottom: 16px; font-weight: 600; color: white;">Rank #${userRank} on Leaderboard</p>
