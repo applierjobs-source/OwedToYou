@@ -174,17 +174,176 @@ async function fetchInstagramProfile(username) {
                 console.log(`[PROFILE] ✅✅✅ Successfully extracted profile picture: ${profilePicUrl.substring(0, 100)}...`);
                 return { success: true, url: profilePicUrl };
             } else {
-                console.log(`[PROFILE] ⚠️ No profile picture URL found in Apify response`);
-                return { success: false, error: 'Profile picture not found in profile data. The profile may be private or not exist.' };
+                console.log(`[PROFILE] ⚠️ No profile picture URL found in Apify response, trying Google search fallback...`);
             }
         } else {
-            console.log(`[PROFILE] ⚠️ Apify returned no items`);
+            console.log(`[PROFILE] ⚠️ Apify returned no items, trying Google search fallback...`);
+        }
+        
+        // Fallback: Use Playwright to Google search for Instagram profile
+        console.log(`[PROFILE] 🔍 Trying Google search fallback for ${username}...`);
+        try {
+            const googleResult = await fetchInstagramProfileGoogleFallback(username);
+            if (googleResult.success && googleResult.url) {
+                console.log(`[PROFILE] ✅✅✅ Google search fallback succeeded: ${googleResult.url.substring(0, 100)}...`);
+                return googleResult;
+            }
+        } catch (googleError) {
+            console.error(`[PROFILE] Google search fallback failed:`, googleError.message);
+        }
+        
+        // If both methods failed
+        if (items && items.length > 0) {
+            return { success: false, error: 'Profile picture not found in profile data. The profile may be private or not exist.' };
+        } else {
             return { success: false, error: 'Profile not found. The profile may be private or not exist.' };
         }
     } catch (error) {
         console.error(`[PROFILE] Apify error for ${username}:`, error.message);
         console.error(`[PROFILE] Error stack:`, error.stack);
+        
+        // Try Google search fallback even on Apify error
+        console.log(`[PROFILE] 🔍 Trying Google search fallback after Apify error...`);
+        try {
+            const googleResult = await fetchInstagramProfileGoogleFallback(username);
+            if (googleResult.success && googleResult.url) {
+                console.log(`[PROFILE] ✅✅✅ Google search fallback succeeded after Apify error: ${googleResult.url.substring(0, 100)}...`);
+                return googleResult;
+            }
+        } catch (googleError) {
+            console.error(`[PROFILE] Google search fallback also failed:`, googleError.message);
+        }
+        
         return { success: false, error: `Failed to fetch profile: ${error.message}` };
+    }
+}
+
+// Google search fallback for profile pictures
+async function fetchInstagramProfileGoogleFallback(username) {
+    let browser = null;
+    try {
+        console.log(`[PROFILE] 🔍 Google search fallback: Searching for Instagram profile ${username}`);
+        
+        browser = await chromium.launch({
+            headless: true,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-blink-features=AutomationControlled',
+                '--disable-dev-shm-usage',
+                '--window-size=1920,1080'
+            ]
+        });
+        
+        const context = await browser.newContext({
+            viewport: { width: 1920, height: 1080 },
+            userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            locale: 'en-US',
+            timezoneId: 'America/Chicago',
+            colorScheme: 'light',
+            extraHTTPHeaders: {
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Referer': 'https://www.google.com/',
+            }
+        });
+        
+        const page = await context.newPage();
+        
+        // Search Google for Instagram profile
+        const searchQuery = `site:instagram.com ${username}`;
+        const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
+        console.log(`[PROFILE] 🔍 Navigating to Google search: ${googleUrl}`);
+        
+        await page.goto(googleUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        await page.waitForTimeout(2000);
+        
+        // Look for Instagram profile picture in search results
+        // Google often shows profile pictures in image results or structured data
+        const pageContent = await page.content();
+        
+        // Try to find profile picture URL in the page
+        // Look for Instagram CDN URLs
+        const profilePicPatterns = [
+            /https:\/\/[^"'\s]*\.cdninstagram\.com\/v\/t51\.2885-19\/[^"'\s]*\.jpg[^"'\s]*/gi,
+            /https:\/\/[^"'\s]*scontent[^"'\s]*\.cdninstagram\.com\/[^"'\s]*\.jpg[^"'\s]*/gi,
+            /"profile_pic_url"\s*:\s*"([^"]+)"/i,
+            /profilePicUrl["\s]*:["\s]*"([^"]+)"/i,
+        ];
+        
+        let profilePicUrl = null;
+        for (const pattern of profilePicPatterns) {
+            const matches = pageContent.match(pattern);
+            if (matches && matches.length > 0) {
+                // Get the first match, prefer larger sizes
+                const urls = matches.map(m => {
+                    const urlMatch = m.match(/https:\/\/[^"'\s]+/);
+                    return urlMatch ? urlMatch[0] : null;
+                }).filter(Boolean);
+                
+                if (urls.length > 0) {
+                    // Prefer URLs with larger size indicators (320, 640, 1080)
+                    const sorted = urls.sort((a, b) => {
+                        const sizeA = a.match(/(\d{3,4})/)?.[1] || '0';
+                        const sizeB = b.match(/(\d{3,4})/)?.[1] || '0';
+                        return parseInt(sizeB) - parseInt(sizeA);
+                    });
+                    profilePicUrl = sorted[0];
+                    console.log(`[PROFILE] ✅ Found profile picture via Google search: ${profilePicUrl.substring(0, 100)}...`);
+                    break;
+                }
+            }
+        }
+        
+        // Also try clicking on the first Instagram result if no direct match
+        if (!profilePicUrl) {
+            try {
+                const instagramLink = await page.$('a[href*="instagram.com/' + username + '"]');
+                if (instagramLink) {
+                    console.log(`[PROFILE] 🔍 Clicking Instagram link in Google results...`);
+                    await instagramLink.click();
+                    await page.waitForTimeout(3000);
+                    
+                    const instagramContent = await page.content();
+                    // Look for profile picture in Instagram page
+                    const instagramPatterns = [
+                        /"profile_pic_url_hd"\s*:\s*"([^"]+)"/i,
+                        /"profile_pic_url"\s*:\s*"([^"]+)"/i,
+                        /profilePicUrlHD["\s]*:["\s]*"([^"]+)"/i,
+                        /profilePicUrl["\s]*:["\s]*"([^"]+)"/i,
+                    ];
+                    
+                    for (const pattern of instagramPatterns) {
+                        const match = instagramContent.match(pattern);
+                        if (match && match[1]) {
+                            profilePicUrl = match[1];
+                            console.log(`[PROFILE] ✅ Found profile picture on Instagram page: ${profilePicUrl.substring(0, 100)}...`);
+                            break;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.log(`[PROFILE] Error clicking Instagram link: ${e.message}`);
+            }
+        }
+        
+        await browser.close();
+        
+        if (profilePicUrl && profilePicUrl.length > 0) {
+            return { success: true, url: profilePicUrl };
+        } else {
+            return { success: false, error: 'Profile picture not found via Google search fallback' };
+        }
+    } catch (error) {
+        if (browser) {
+            try {
+                await browser.close();
+            } catch (e) {
+                // Ignore close errors
+            }
+        }
+        console.error(`[PROFILE] Google search fallback error for ${username}:`, error.message);
+        return { success: false, error: `Google search fallback failed: ${error.message}` };
     }
 }
 
