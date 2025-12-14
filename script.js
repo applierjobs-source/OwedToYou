@@ -1703,15 +1703,16 @@ async function handleSearchImpl() {
         }
     }
 }
-console.log('✅✅✅✅✅ handleSearch FUNCTION DEFINITION COMPLETE');
+console.log('✅✅✅✅✅ handleSearchImpl FUNCTION DEFINITION COMPLETE');
 
-// CRITICAL: Export handleSearch to window IMMEDIATELY after function definition
+// CRITICAL: Export handleSearchImpl to window.handleSearch IMMEDIATELY after function definition
 // This replaces the placeholder with the real function as soon as script loads
-// This MUST be synchronous and happen before any other code runs
+// CRITICAL FIX: Using handleSearchImpl name prevents identifier resolution conflicts
+// handleSearchImpl can NEVER resolve to window.handleSearch (placeholder)
 console.log('🔍🔍🔍 EXPORT BLOCK STARTING');
 console.log('✅✅✅✅✅ REACHED EXPORT BLOCK - FUNCTION SHOULD BE DEFINED');
-console.log('🔍 About to export handleSearch - function exists:', typeof handleSearch);
-console.log('🔍 About to export handleSearch - window exists:', typeof window !== 'undefined');
+console.log('🔍 About to export handleSearchImpl - function exists:', typeof handleSearchImpl);
+console.log('🔍 About to export handleSearchImpl - window exists:', typeof window !== 'undefined');
 console.log('🔍 Current window.handleSearch type:', typeof window.handleSearch);
 if (typeof window.handleSearch === 'function') {
     const currentStr = window.handleSearch.toString();
@@ -1794,10 +1795,19 @@ try {
 } catch (e) {
     console.error('❌❌❌ CRITICAL ERROR in export:', e);
     console.error('Error stack:', e.stack);
-    // Last resort - try to set it anyway
+    // Last resort - try to set it anyway using handleSearchImpl
     try {
-        window.handleSearch = handleSearch;
-        console.log('🔄 Last resort assignment attempted');
+        if (typeof handleSearchImpl === 'function') {
+            const funcStr = handleSearchImpl.toString();
+            if (funcStr.includes('STARTING SEARCH')) {
+                window.handleSearch = handleSearchImpl;
+                console.log('🔄 Last resort assignment attempted with handleSearchImpl');
+            } else {
+                console.error('❌ handleSearchImpl is not the real function in catch block');
+            }
+        } else {
+            console.error('❌ handleSearchImpl not available in catch block');
+        }
     } catch (e2) {
         console.error('❌ Even last resort failed:', e2);
     }
@@ -2872,9 +2882,12 @@ document.addEventListener('DOMContentLoaded', async function() {
                     if (funcStr.includes('PLACEHOLDER')) {
                         console.error('❌❌❌ Placeholder still active in keypress handler!');
                         // Try to force export
-                        if (typeof handleSearch === 'function' && !handleSearch.toString().includes('PLACEHOLDER')) {
-                            window.handleSearch = handleSearch;
-                            console.log('🔄 Force exported in keypress handler');
+                        if (typeof _realHandleSearch === 'function' && !_realHandleSearch.toString().includes('PLACEHOLDER')) {
+                            window.handleSearch = _realHandleSearch;
+                            console.log('🔄 Force exported from _realHandleSearch in keypress handler');
+                        } else if (typeof handleSearchImpl === 'function') {
+                            window.handleSearch = handleSearchImpl;
+                            console.log('🔄 Force exported from handleSearchImpl in keypress handler');
                         }
                     }
                     console.log('✅ Calling window.handleSearch');
