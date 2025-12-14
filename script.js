@@ -7,9 +7,16 @@ console.log('✅ Current time:', new Date().toISOString());
 
 // CRITICAL: Export handleSearch immediately (before function definition)
 // This ensures it's available for inline onclick handlers
-// We'll define it as a placeholder first, then replace it with the real function
+// The real function will be defined later and will replace this
 window.handleSearch = function() {
-    console.error('⚠️ handleSearch called before function definition - this should not happen');
+    console.log('⚠️ Placeholder handleSearch called - real function should be available soon');
+    // Try to call the real function if it exists
+    if (typeof handleSearch === 'function' && handleSearch !== window.handleSearch) {
+        console.log('✅ Real handleSearch found, calling it');
+        return handleSearch.apply(this, arguments);
+    }
+    // If real function not available yet, show helpful message
+    console.error('⚠️ handleSearch called before real function definition');
     alert('Search function is still loading. Please wait a moment and try again.');
 };
 
@@ -3123,11 +3130,15 @@ function showNameSearchModal() {
 }
 
 // Make functions available globally for onclick handlers
-// Note: handleSearch is already exported at function definition (line 1388)
-// This is just a safety check to ensure it's still available
-if (typeof window !== 'undefined' && typeof handleSearch === 'function') {
-    window.handleSearch = handleSearch;
-    console.log('✅ handleSearch confirmed exported to window');
+// CRITICAL: Export handleSearch to window immediately when script loads
+// This ensures it's available for inline onclick handlers even if DOMContentLoaded hasn't fired
+if (typeof window !== 'undefined') {
+    if (typeof handleSearch === 'function') {
+        window.handleSearch = handleSearch;
+        console.log('✅ handleSearch exported to window (safety check)');
+    } else {
+        console.error('❌ CRITICAL: handleSearch function not defined when trying to export!');
+    }
 }
 
 window.handleClaim = handleClaim;
