@@ -1884,14 +1884,25 @@ async function handleSearchImpl() {
             
             // Fetch profile picture immediately after name extraction
             if (fullName) {
-                console.log(`🖼️ Fetching profile picture for ${cleanHandleValue}...`);
+                console.log(`🖼️🖼️🖼️ Fetching profile picture for ${cleanHandleValue}...`);
                 try {
                     profilePic = await getInstagramProfilePicture(cleanHandleValue);
-                    console.log(`🖼️ Profile picture result: ${profilePic ? 'Found' : 'Not found'}`);
+                    console.log(`🖼️🖼️🖼️ Profile picture result for ${cleanHandleValue}: ${profilePic ? `FOUND: ${profilePic.substring(0, 80)}...` : 'NOT FOUND'}`);
+                    if (profilePic) {
+                        // Save to localStorage immediately
+                        const storedProfilePics = loadProfilePicsFromStorage();
+                        storedProfilePics[cleanHandleValue] = profilePic;
+                        storedProfilePics[handle] = profilePic;
+                        saveProfilePicsToStorage(storedProfilePics);
+                        console.log(`🖼️🖼️🖼️ Saved profilePic to localStorage immediately for ${cleanHandleValue}`);
+                    }
                 } catch (picError) {
                     console.error(`🖼️ Error fetching profile picture:`, picError);
+                    console.error(`🖼️ Error stack:`, picError.stack);
                     profilePic = null;
                 }
+            } else {
+                console.log(`⚠️ No fullName, skipping profile picture fetch`);
             }
         } catch (nameError) {
             console.error('❌ Error extracting Instagram name:', nameError);
