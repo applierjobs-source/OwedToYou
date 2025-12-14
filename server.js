@@ -519,21 +519,59 @@ async function fetchInstagramFullName(username) {
                         }
                     }
                     
-                    // Try meta tags (og:title)
-                    const metaTitleMatch = html.match(/property="og:title"\s+content="([^"]+)"/i);
-                    if (metaTitleMatch && metaTitleMatch[1]) {
-                        const title = metaTitleMatch[1].trim();
-                        // Extract name from title (format is usually "Name (@username) • Instagram")
-                        const nameMatch = title.match(/^([^(]+)/);
+                    // Try meta tags (og:title) - multiple patterns
+                    const metaTitlePatterns = [
+                        /property="og:title"\s+content="([^"]+)"/i,
+                        /property='og:title'\s+content='([^']+)'/i,
+                        /<meta[^>]*og:title[^>]*content="([^"]+)"/i,
+                        /<meta[^>]*og:title[^>]*content='([^']+)'/i
+                    ];
+                    
+                    for (const pattern of metaTitlePatterns) {
+                        const metaTitleMatch = html.match(pattern);
+                        if (metaTitleMatch && metaTitleMatch[1]) {
+                            const title = metaTitleMatch[1].trim();
+                            // Extract name from title (format is usually "Name (@username) • Instagram" or "Name (@username) on Instagram")
+                            const nameMatch = title.match(/^([^(•|on|Instagram)]+)/);
+                            if (nameMatch && nameMatch[1]) {
+                                let extractedName = nameMatch[1].trim();
+                                // Clean up common suffixes
+                                extractedName = extractedName.replace(/\s*•\s*Instagram.*$/i, '');
+                                extractedName = extractedName.replace(/\s*on\s*Instagram.*$/i, '');
+                                extractedName = extractedName.replace(/\s*@.*$/i, ''); // Remove @username if present
+                                extractedName = extractedName.trim();
+                                
+                                // Only return if it doesn't look like just a username or error page
+                                if (extractedName && extractedName.length > 2 && !extractedName.startsWith('@') && 
+                                    extractedName !== 'Instagram' && 
+                                    extractedName !== 'Login' &&
+                                    extractedName !== 'Page Not Found' &&
+                                    !extractedName.includes('Login • Instagram') &&
+                                    !extractedName.toLowerCase().includes('error')) {
+                                    console.log(`Found Instagram name from og:title: ${extractedName}`);
+                                    resolve({ success: true, fullName: extractedName });
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Also try regular title tag
+                    const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
+                    if (titleMatch && titleMatch[1]) {
+                        const title = titleMatch[1].trim();
+                        const nameMatch = title.match(/^([^(•|on|Instagram)]+)/);
                         if (nameMatch && nameMatch[1]) {
-                            const extractedName = nameMatch[1].trim();
-                            // Only return if it doesn't look like just a username
-                            // Basic check: reject if it's exactly "Login" or "Instagram" or contains "Login • Instagram"
-                            if (extractedName && !extractedName.startsWith('@') && extractedName.length > 0 && 
-                                extractedName !== 'Instagram' && 
-                                extractedName !== 'Login' &&
+                            let extractedName = nameMatch[1].trim();
+                            extractedName = extractedName.replace(/\s*•\s*Instagram.*$/i, '');
+                            extractedName = extractedName.replace(/\s*on\s*Instagram.*$/i, '');
+                            extractedName = extractedName.replace(/\s*@.*$/i, '');
+                            extractedName = extractedName.trim();
+                            
+                            if (extractedName && extractedName.length > 2 && !extractedName.startsWith('@') && 
+                                extractedName !== 'Instagram' && extractedName !== 'Login' &&
                                 !extractedName.includes('Login • Instagram')) {
-                                console.log(`Found Instagram name from og:title: ${extractedName}`);
+                                console.log(`Found Instagram name from title tag: ${extractedName}`);
                                 resolve({ success: true, fullName: extractedName });
                                 return;
                             }
@@ -688,22 +726,65 @@ async function fetchInstagramFullName(username) {
                         }
                     }
                     
-                    // Try to find in profile name elements
+                    // Try to find in profile name elements - expanded patterns
                     const profileNamePatterns = [
                         /<span[^>]*class="[^"]*profile[^"]*name[^"]*"[^>]*>([^<]+)<\/span>/i,
                         /<div[^>]*class="[^"]*profile[^"]*name[^"]*"[^>]*>([^<]+)<\/div>/i,
-                        /<span[^>]*data-testid="[^"]*name[^"]*"[^>]*>([^<]+)<\/span>/i
+                        /<span[^>]*data-testid="[^"]*name[^"]*"[^>]*>([^<]+)<\/span>/i,
+                        /<span[^>]*class="[^"]*x1lliihq[^"]*"[^>]*>([^<]+)<\/span>/i, // Instagram obfuscated classes
+                        /<div[^>]*class="[^"]*x1lliihq[^"]*"[^>]*>([^<]+)<\/div>/i,
+                        /<h1[^>]*>([^<]+)<\/h1>/i,
+                        /<h2[^>]*>([^<]+)<\/h2>/i,
+                        /<span[^>]*role="heading"[^>]*>([^<]+)<\/span>/i,
+                        /<div[^>]*role="heading"[^>]*>([^<]+)<\/div>/i
                     ];
                     
                     for (const pattern of profileNamePatterns) {
-                        const match = html.match(pattern);
-                        if (match && match[1]) {
-                            const name = match[1].trim();
-                            if (name && name.length > 2 && !name.startsWith('@') && name !== username && 
-                                !name.toLowerCase().includes('instagram')) {
-                                console.log(`Found Instagram name from profile element: ${name}`);
-                                resolve({ success: true, fullName: name });
-                                return;
+                        const matches = html.match(new RegExp(pattern.source, 'gi'));
+                        if (matches) {
+                            for (const matchStr of matches) {
+                                const match = matchStr.match(pattern);
+                                if (match && match[1]) {
+                                    const name = match[1].trim();
+                                    // More lenient validation - allow names with periods, hyphens, etc.
+                                    if (name && name.length > 2 && !name.startsWith('@') && name !== username && 
+                                        !name.toLowerCase().includes('instagram') &&
+                                        !name.toLowerCase().includes('follow') &&
+                                        !name.toLowerCase().includes('login') &&
+                                        // Must contain at least one letter
+                                        /[a-zA-Z]/.test(name)) {
+                                        console.log(`Found Instagram name from profile element: ${name}`);
+                                        resolve({ success: true, fullName: name });
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Last resort: Try to find any text that looks like a name (two capitalized words)
+                    // This is more aggressive and might catch names in unexpected places
+                    const nameLikePatterns = [
+                        /<[^>]*>([A-Z][a-z]+(?:\.[a-z]+)?\s+[A-Z][a-z]+)<\/[^>]*>/g,
+                        /"([A-Z][a-z]+(?:\.[a-z]+)?\s+[A-Z][a-z]+)"/g
+                    ];
+                    
+                    for (const pattern of nameLikePatterns) {
+                        const matches = [...html.matchAll(pattern)];
+                        for (const match of matches) {
+                            if (match && match[1]) {
+                                const potentialName = match[1].trim();
+                                // Validate it looks like a real name
+                                if (potentialName && potentialName.length > 3 && 
+                                    potentialName.includes(' ') &&
+                                    !potentialName.toLowerCase().includes('instagram') &&
+                                    !potentialName.toLowerCase().includes('login') &&
+                                    potentialName !== username &&
+                                    !potentialName.startsWith('@')) {
+                                    console.log(`Found potential Instagram name via name-like pattern: ${potentialName}`);
+                                    resolve({ success: true, fullName: potentialName });
+                                    return;
+                                }
                             }
                         }
                     }
@@ -714,6 +795,7 @@ async function fetchInstagramFullName(username) {
                     console.log(`[INSTAGRAM] Contains 'full_name': ${html.includes('full_name')}`);
                     console.log(`[INSTAGRAM] Contains 'fullName': ${html.includes('fullName')}`);
                     console.log(`[INSTAGRAM] Contains 'og:title': ${html.includes('og:title')}`);
+                    console.log(`[INSTAGRAM] Contains username '${username}': ${html.includes(username)}`);
                     
                     resolve({ success: false, error: 'Full name not found in HTML' });
                 } catch (error) {
