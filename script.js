@@ -1682,45 +1682,70 @@ async function handleSearch() {
 // CRITICAL: Export handleSearch to window IMMEDIATELY after function definition
 // This replaces the placeholder with the real function as soon as script loads
 // This MUST be synchronous and happen before any other code runs
+console.log('🔍🔍🔍 EXPORT BLOCK STARTING');
 console.log('🔍 About to export handleSearch - function exists:', typeof handleSearch);
 console.log('🔍 About to export handleSearch - window exists:', typeof window !== 'undefined');
-(function() {
-    'use strict';
-    try {
-        if (typeof window !== 'undefined') {
-            // Store reference for placeholder fallback FIRST
-            _realHandleSearch = handleSearch;
-            console.log('✅ Stored _realHandleSearch reference');
-            
-            // Force immediate replacement of placeholder
-            const oldHandleSearch = window.handleSearch;
-            window.handleSearch = handleSearch;
-            console.log('✅✅✅ Real handleSearch function exported to window (replaced placeholder)');
-            console.log('✅✅✅ handleSearch type:', typeof window.handleSearch);
-            console.log('✅✅✅ handleSearch === window.handleSearch:', handleSearch === window.handleSearch);
-            console.log('✅✅✅ Old function was placeholder:', oldHandleSearch ? oldHandleSearch.toString().includes('PLACEHOLDER') : 'N/A');
-            
-            // Verify it worked
-            if (typeof window.handleSearch !== 'function') {
-                console.error('❌❌❌ CRITICAL: Export failed! window.handleSearch is not a function!');
-            } else {
-                const funcStr = window.handleSearch.toString();
-                if (funcStr.includes('PLACEHOLDER')) {
-                    console.error('❌❌❌ CRITICAL: Placeholder still active! Export did not work!');
-                    console.error('❌ Function string starts with:', funcStr.substring(0, 200));
-                } else {
-                    console.log('✅✅✅ Export verified: Real function is now in window.handleSearch');
-                    console.log('✅✅✅ Function string starts with:', funcStr.substring(0, 100));
-                }
-            }
+console.log('🔍 Current window.handleSearch type:', typeof window.handleSearch);
+if (typeof window.handleSearch === 'function') {
+    const currentStr = window.handleSearch.toString();
+    console.log('🔍 Current window.handleSearch is placeholder:', currentStr.includes('PLACEHOLDER'));
+}
+
+// Use direct assignment, not IIFE, to ensure it executes immediately
+try {
+    if (typeof window !== 'undefined' && typeof handleSearch === 'function') {
+        console.log('🔍 Setting _realHandleSearch...');
+        _realHandleSearch = handleSearch;
+        console.log('✅ _realHandleSearch set');
+        
+        console.log('🔍 Replacing window.handleSearch...');
+        const oldHandleSearch = window.handleSearch;
+        const oldIsPlaceholder = oldHandleSearch ? oldHandleSearch.toString().includes('PLACEHOLDER') : false;
+        console.log('🔍 Old function was placeholder:', oldIsPlaceholder);
+        
+        // DIRECT ASSIGNMENT - no IIFE wrapper
+        window.handleSearch = handleSearch;
+        
+        console.log('✅✅✅ window.handleSearch = handleSearch executed');
+        console.log('✅✅✅ New window.handleSearch type:', typeof window.handleSearch);
+        
+        // Immediate verification
+        const newFuncStr = window.handleSearch.toString();
+        const newIsPlaceholder = newFuncStr.includes('PLACEHOLDER');
+        console.log('✅✅✅ New function is placeholder:', newIsPlaceholder);
+        
+        if (newIsPlaceholder) {
+            console.error('❌❌❌ CRITICAL: Export FAILED - still placeholder!');
+            console.error('❌ Function string:', newFuncStr.substring(0, 300));
+            // Try again with Object.defineProperty
+            console.log('🔄 Trying Object.defineProperty...');
+            Object.defineProperty(window, 'handleSearch', {
+                value: handleSearch,
+                writable: true,
+                enumerable: true,
+                configurable: true
+            });
+            const verifyStr = window.handleSearch.toString();
+            console.log('✅✅✅ After defineProperty, is placeholder:', verifyStr.includes('PLACEHOLDER'));
         } else {
-            console.error('❌❌❌ CRITICAL: window is undefined!');
+            console.log('✅✅✅✅✅ EXPORT SUCCESSFUL - Real function is in window.handleSearch');
         }
-    } catch (e) {
-        console.error('❌❌❌ CRITICAL ERROR in export block:', e);
-        console.error('Error stack:', e.stack);
+    } else {
+        console.error('❌❌❌ CRITICAL: window or handleSearch not available!');
+        console.error('❌ window:', typeof window);
+        console.error('❌ handleSearch:', typeof handleSearch);
     }
-})();
+} catch (e) {
+    console.error('❌❌❌ CRITICAL ERROR in export:', e);
+    console.error('Error stack:', e.stack);
+    // Last resort - try to set it anyway
+    try {
+        window.handleSearch = handleSearch;
+        console.log('🔄 Last resort assignment attempted');
+    } catch (e2) {
+        console.error('❌ Even last resort failed:', e2);
+    }
+}
 
 // Show phone number collection modal
 function showPhoneModal(handle, name) {
@@ -3269,51 +3294,69 @@ function showNameSearchModal() {
 // Make functions available globally for onclick handlers
 // CRITICAL: Export handleSearch to window immediately when script loads
 // This ensures it's available for inline onclick handlers even if DOMContentLoaded hasn't fired
-(function() {
-    'use strict';
-    if (typeof window !== 'undefined') {
-        if (typeof handleSearch === 'function') {
-            window.handleSearch = handleSearch;
-            console.log('✅✅✅ handleSearch exported to window (FINAL SAFETY CHECK)');
-            console.log('✅✅✅ Verified: window.handleSearch is', typeof window.handleSearch);
-            
-            // Verify it's not the placeholder
-            const funcStr = window.handleSearch.toString();
-            if (funcStr.includes('PLACEHOLDER')) {
-                console.error('❌❌❌ CRITICAL ERROR: Placeholder still active in final check!');
-            } else {
-                console.log('✅✅✅ Final verification: Real function is exported');
-            }
+console.log('🔍🔍🔍 FINAL SAFETY CHECK STARTING');
+if (typeof window !== 'undefined') {
+    if (typeof handleSearch === 'function') {
+        console.log('🔍 Final check: handleSearch is a function, replacing window.handleSearch...');
+        const beforeStr = window.handleSearch ? window.handleSearch.toString() : 'undefined';
+        const beforeIsPlaceholder = beforeStr.includes('PLACEHOLDER');
+        console.log('🔍 Before replacement - is placeholder:', beforeIsPlaceholder);
+        
+        window.handleSearch = handleSearch;
+        
+        const afterStr = window.handleSearch.toString();
+        const afterIsPlaceholder = afterStr.includes('PLACEHOLDER');
+        console.log('✅✅✅ Final check: window.handleSearch replaced');
+        console.log('✅✅✅ After replacement - is placeholder:', afterIsPlaceholder);
+        
+        if (afterIsPlaceholder) {
+            console.error('❌❌❌ CRITICAL ERROR: Placeholder STILL active in final check!');
+            console.error('❌ This means something is overwriting our export!');
+            // Try one more time with force
+            console.log('🔄🔄🔄 FORCING replacement one more time...');
+            Object.defineProperty(window, 'handleSearch', {
+                value: handleSearch,
+                writable: true,
+                enumerable: true,
+                configurable: true
+            });
+            const finalStr = window.handleSearch.toString();
+            console.log('✅✅✅ After force - is placeholder:', finalStr.includes('PLACEHOLDER'));
         } else {
-            console.error('❌❌❌ CRITICAL: handleSearch function not defined when trying to export!');
+            console.log('✅✅✅✅✅ FINAL CHECK SUCCESS: Real function is exported');
         }
+    } else {
+        console.error('❌❌❌ CRITICAL: handleSearch function not defined when trying to export!');
     }
-})();
+} else {
+    console.error('❌❌❌ CRITICAL: window is undefined in final check!');
+}
 
 // CRITICAL BACKUP: Also export on DOMContentLoaded in case script loaded before DOM
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function() {
-            if (typeof handleSearch === 'function' && typeof window.handleSearch !== 'undefined') {
-                const funcStr = window.handleSearch.toString();
-                if (funcStr.includes('PLACEHOLDER')) {
-                    console.log('🔄 DOMContentLoaded: Replacing placeholder with real function');
-                    window.handleSearch = handleSearch;
-                    console.log('✅✅✅ DOMContentLoaded backup export completed');
-                }
-            }
-        });
-    } else {
-        // DOM already loaded, do it now
+    function forceExportIfNeeded() {
         if (typeof handleSearch === 'function') {
-            const funcStr = window.handleSearch ? window.handleSearch.toString() : '';
-            if (funcStr.includes('PLACEHOLDER')) {
-                console.log('🔄 DOM already loaded: Replacing placeholder with real function');
+            const currentStr = window.handleSearch ? window.handleSearch.toString() : '';
+            if (currentStr.includes('PLACEHOLDER')) {
+                console.log('🔄🔄🔄 BACKUP: Replacing placeholder with real function');
                 window.handleSearch = handleSearch;
-                console.log('✅✅✅ Immediate backup export completed');
+                _realHandleSearch = handleSearch;
+                const verifyStr = window.handleSearch.toString();
+                console.log('✅✅✅ Backup export completed, is placeholder:', verifyStr.includes('PLACEHOLDER'));
             }
         }
     }
+    
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', forceExportIfNeeded);
+    } else {
+        // DOM already loaded, do it now
+        forceExportIfNeeded();
+    }
+    
+    // Also try after a short delay
+    setTimeout(forceExportIfNeeded, 100);
+    setTimeout(forceExportIfNeeded, 500);
 }
 
 window.handleClaim = handleClaim;
