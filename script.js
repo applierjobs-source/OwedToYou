@@ -347,6 +347,46 @@ async function getInstagramFullName(username) {
 
 // Helper function to extract name from HTML
 async function extractNameFromHTML(html, cleanUsername) {
+    // Recursive function to search for full_name in JSON objects
+    function findFullNameInObject(obj, cleanUsername, depth = 0) {
+        // Prevent infinite recursion
+        if (depth > 10) return null;
+        if (typeof obj !== 'object' || obj === null) return null;
+        
+        // Check if this object has full_name
+        if (obj.full_name && typeof obj.full_name === 'string' && obj.full_name.trim().length > 0) {
+            const name = obj.full_name.trim();
+            if (name.length > 2 && !name.startsWith('@') && !name.includes('instagram') && name !== cleanUsername) {
+                return name;
+            }
+        }
+        if (obj.fullName && typeof obj.fullName === 'string' && obj.fullName.trim().length > 0) {
+            const name = obj.fullName.trim();
+            if (name.length > 2 && !name.startsWith('@') && !name.includes('instagram') && name !== cleanUsername) {
+                return name;
+            }
+        }
+        
+        // Also check for 'name' field if it looks like a full name (has space)
+        if (obj.name && typeof obj.name === 'string' && obj.name.trim().length > 0) {
+            const name = obj.name.trim();
+            // Check if it's a full name (has space and doesn't start with @)
+            if (name.includes(' ') && name.length > 3 && !name.startsWith('@') && 
+                name !== cleanUsername && !name.toLowerCase().includes('instagram')) {
+                return name;
+            }
+        }
+        
+        // Recursively search in all properties
+        for (const key in obj) {
+            if (obj.hasOwnProperty(key)) {
+                const result = findFullNameInObject(obj[key], cleanUsername, depth + 1);
+                if (result) return result;
+            }
+        }
+        return null;
+    }
+    
     // Try to extract from window._sharedData
     const sharedDataPatterns = [
         /window\._sharedData\s*=\s*({[\s\S]+?});\s*<\/script>/,
@@ -369,7 +409,9 @@ async function extractNameFromHTML(html, cleanUsername) {
                     sharedData?.entry_data?.ProfilePage?.[0]?.user?.full_name,
                     sharedData?.entry_data?.ProfilePage?.[0]?.user?.fullName,
                     sharedData?.graphql?.user?.full_name,
-                    sharedData?.graphql?.user?.fullName
+                    sharedData?.graphql?.user?.fullName,
+                    // Try recursive search in sharedData
+                    findFullNameInObject(sharedData, cleanUsername)
                 ];
                 
                 for (const fullName of possiblePaths) {
@@ -557,58 +599,131 @@ async function extractNameFromHTML(html, cleanUsername) {
         }
     }
     
-    // Recursive function to search for full_name in JSON objects
-    function findFullNameInObject(obj, cleanUsername) {
-        if (typeof obj !== 'object' || obj === null) return null;
-        
-        // Check if this object has full_name
-        if (obj.full_name && typeof obj.full_name === 'string' && obj.full_name.trim().length > 0) {
-            const name = obj.full_name.trim();
-            if (name.length > 2 && !name.startsWith('@') && !name.includes('instagram') && name !== cleanUsername) {
-                return name;
+    
+    // Try to find name near username in HTML (Instagram often places them close together)
+    try {
+        const usernameIndex = html.indexOf(cleanUsername);
+        if (usernameIndex !== -1) {
+            // Look in a 5000 char window around the username
+            const start = Math.max(0, usernameIndex - 2500);
+            const end = Math.min(html.length, usernameIndex + 2500);
+            const window = html.substring(start, end);
+            
+            // Look for full_name near username
+            const nearPatterns = [
+                /"full_name":\s*"([^"]+)"/i,
+                /"fullName":\s*"([^"]+)"/i,
+                /"name":\s*"([^"]+)"/i,
+                /full_name["\s]*:["\s]*"([^"]+)"/i
+            ];
+            
+            for (const pattern of nearPatterns) {
+                const match = window.match(pattern);
+                if (match && match[1]) {
+                    const name = match[1].trim();
+                    if (name && name.length > 2 && !name.startsWith('@') && 
+                        name !== cleanUsername && !name.toLowerCase().includes('instagram') &&
+                        /[a-zA-Z]/.test(name)) {
+                        console.log(`Found Instagram name near username: ${name}`);
+                        return name;
+                    }
+                }
             }
         }
-        if (obj.fullName && typeof obj.fullName === 'string' && obj.fullName.trim().length > 0) {
-            const name = obj.fullName.trim();
-            if (name.length > 2 && !name.startsWith('@') && !name.includes('instagram') && name !== cleanUsername) {
-                return name;
-            }
-        }
-        
-        // Recursively search in all properties
-        for (const key in obj) {
-            if (obj.hasOwnProperty(key)) {
-                const result = findFullNameInObject(obj[key], cleanUsername);
-                if (result) return result;
-            }
-        }
-        return null;
+    } catch (e) {
+        console.log(`Error in near-username extraction: ${e.message}`);
     }
     
     // Last resort: Try to find any text that looks like a name (two capitalized words)
-    // This is more aggressive and might catch names in unexpected places
+    // This is VERY aggressive and should only be used if all other methods fail
+    // Add blacklist of common non-name words/phrases
+    const nameBlacklist = [
+        'bahasa indonesia', 'english', 'spanish', 'french', 'german', 'italian', 'portuguese',
+        'chinese', 'japanese', 'korean', 'arabic', 'hindi', 'russian', 'turkish',
+        'follow me', 'follow back', 'click here', 'read more', 'see more', 'learn more',
+        'get started', 'sign up', 'log in', 'create account', 'forgot password',
+        'terms of', 'privacy policy', 'cookie policy', 'about us', 'contact us',
+        'instagram', 'facebook', 'twitter', 'youtube', 'tiktok', 'snapchat',
+        'download', 'install', 'update', 'upgrade', 'version', 'latest',
+        'new post', 'new story', 'new reel', 'new video', 'new photo',
+        'view profile', 'edit profile', 'settings', 'account', 'help',
+        'notifications', 'messages', 'activity', 'discover', 'explore',
+        'bahasa', 'indonesia' // Also check individual words
+    ];
+    
     const nameLikePatterns = [
         /<[^>]*>([A-Z][a-z]+(?:\.[a-z]+)?\s+[A-Z][a-z]+)<\/[^>]*>/g,
         /"([A-Z][a-z]+(?:\.[a-z]+)?\s+[A-Z][a-z]+)"/g
     ];
     
+    // Collect all potential names first, then validate them
+    const potentialNames = [];
     for (const pattern of nameLikePatterns) {
         const matches = [...html.matchAll(pattern)];
         for (const match of matches) {
             if (match && match[1]) {
                 const potentialName = match[1].trim();
-                // Validate it looks like a real name
+                const lowerName = potentialName.toLowerCase();
+                
+                // Skip if it's in the blacklist (check both full phrase and individual words)
+                const isBlacklisted = nameBlacklist.some(blacklisted => 
+                    lowerName === blacklisted || 
+                    lowerName.includes(blacklisted) ||
+                    blacklisted.split(' ').every(word => lowerName.includes(word))
+                );
+                
+                if (isBlacklisted) {
+                    console.log(`⚠️ Skipping blacklisted name-like pattern: ${potentialName}`);
+                    continue;
+                }
+                
+                // More strict validation - must look like a real person's name
                 if (potentialName && potentialName.length > 3 && 
                     potentialName.includes(' ') &&
                     !potentialName.toLowerCase().includes('instagram') &&
                     !potentialName.toLowerCase().includes('login') &&
+                    !potentialName.toLowerCase().includes('follow') &&
+                    !potentialName.toLowerCase().includes('click') &&
+                    !potentialName.toLowerCase().includes('read') &&
+                    !potentialName.toLowerCase().includes('see') &&
+                    !potentialName.toLowerCase().includes('more') &&
+                    !potentialName.toLowerCase().includes('download') &&
+                    !potentialName.toLowerCase().includes('install') &&
+                    !potentialName.toLowerCase().includes('update') &&
+                    !potentialName.toLowerCase().includes('version') &&
                     potentialName !== cleanUsername &&
-                    !potentialName.startsWith('@')) {
-                    console.log(`Found potential Instagram name via name-like pattern: ${potentialName}`);
-                    return potentialName;
+                    !potentialName.startsWith('@') &&
+                    // Must not be all caps (likely not a name)
+                    potentialName !== potentialName.toUpperCase() &&
+                    // Must have at least one lowercase letter (names usually have lowercase)
+                    /[a-z]/.test(potentialName) &&
+                    // Must not be a common phrase pattern
+                    !/^(the|a|an|this|that|these|those)\s+/i.test(potentialName)) {
+                    potentialNames.push(potentialName);
                 }
             }
         }
+    }
+    
+    // If we found potential names, prefer ones that appear near the username or in structured data areas
+    if (potentialNames.length > 0) {
+        // Try to find names that appear near the username
+        const usernameIndex = html.indexOf(cleanUsername);
+        if (usernameIndex !== -1) {
+            for (const name of potentialNames) {
+                const nameIndex = html.indexOf(name);
+                if (nameIndex !== -1 && Math.abs(nameIndex - usernameIndex) < 10000) {
+                    console.log(`Found potential Instagram name via name-like pattern (near username): ${name}`);
+                    console.log(`⚠️ Using name-like pattern as last resort - may not be accurate`);
+                    return name;
+                }
+            }
+        }
+        
+        // If no name near username, return the first one (but log warning)
+        console.log(`Found potential Instagram name via name-like pattern: ${potentialNames[0]}`);
+        console.log(`⚠️ Using name-like pattern as last resort - may not be accurate`);
+        return potentialNames[0];
     }
     
     // Try to find in all script tags for any JSON data containing full_name
