@@ -379,13 +379,13 @@ async function fetchInstagramProfile(username) {
 // Fetch Instagram full name
 async function fetchInstagramFullName(username) {
     // Use Playwright to render the page and extract name from visible DOM
-    // Use same stealth settings as missingMoneySearch.js to avoid detection
+    // Enhanced stealth settings to bypass Instagram detection
     let browser = null;
     try {
         console.log(`[INSTAGRAM] Using Playwright to extract name for ${username}`);
         
         browser = await chromium.launch({
-            headless: true, // Required for Railway (no X server)
+            headless: 'new', // Use new headless mode (harder to detect)
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -396,11 +396,39 @@ async function fetchInstagramFullName(username) {
                 '--no-zygote',
                 '--disable-gpu',
                 '--disable-web-security',
-                '--disable-features=IsolateOrigins,site-per-process'
+                '--disable-features=IsolateOrigins,site-per-process',
+                '--disable-background-networking',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-breakpad',
+                '--disable-client-side-phishing-detection',
+                '--disable-component-update',
+                '--disable-default-apps',
+                '--disable-domain-reliability',
+                '--disable-features=AudioServiceOutOfProcess',
+                '--disable-hang-monitor',
+                '--disable-ipc-flooding-protection',
+                '--disable-notifications',
+                '--disable-offer-store-unmasked-wallet-cards',
+                '--disable-popup-blocking',
+                '--disable-print-preview',
+                '--disable-prompt-on-repost',
+                '--disable-renderer-backgrounding',
+                '--disable-speech-api',
+                '--disable-sync',
+                '--hide-scrollbars',
+                '--ignore-gpu-blacklist',
+                '--metrics-recording-only',
+                '--mute-audio',
+                '--no-default-browser-check',
+                '--no-pings',
+                '--password-store=basic',
+                '--use-mock-keychain',
+                '--window-size=1920,1080'
             ]
         });
         
-        // Create context with realistic browser fingerprint (same as missingMoneySearch.js)
+        // Create context with realistic browser fingerprint
         const context = await browser.newContext({
             viewport: { width: 1920, height: 1080 },
             userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -419,14 +447,16 @@ async function fetchInstagramFullName(username) {
                 'Sec-Fetch-Mode': 'navigate',
                 'Sec-Fetch-Site': 'none',
                 'Sec-Fetch-User': '?1',
-                'Cache-Control': 'max-age=0'
+                'Cache-Control': 'max-age=0',
+                'Referer': 'https://www.google.com/'
             }
         });
         
         const page = await context.newPage();
         
-        // Override webdriver property and other automation indicators (same as missingMoneySearch.js)
+        // Enhanced stealth: Override webdriver property and other automation indicators
         await context.addInitScript(() => {
+            // Remove webdriver flag
             Object.defineProperty(navigator, 'webdriver', {
                 get: () => false,
             });
@@ -434,6 +464,9 @@ async function fetchInstagramFullName(username) {
             // Override chrome property
             window.chrome = {
                 runtime: {},
+                loadTimes: function() {},
+                csi: function() {},
+                app: {}
             };
             
             // Override permissions
@@ -453,75 +486,151 @@ async function fetchInstagramFullName(username) {
             Object.defineProperty(navigator, 'languages', {
                 get: () => ['en-US', 'en'],
             });
+            
+            // Override platform
+            Object.defineProperty(navigator, 'platform', {
+                get: () => 'MacIntel',
+            });
+            
+            // Override hardwareConcurrency
+            Object.defineProperty(navigator, 'hardwareConcurrency', {
+                get: () => 8,
+            });
+            
+            // Override deviceMemory
+            Object.defineProperty(navigator, 'deviceMemory', {
+                get: () => 8,
+            });
+            
+            // Mock getBattery
+            if (navigator.getBattery) {
+                navigator.getBattery = () => Promise.resolve({
+                    charging: true,
+                    chargingTime: 0,
+                    dischargingTime: Infinity,
+                    level: 1
+                });
+            }
         });
         
         const instagramUrl = `https://www.instagram.com/${username}/`;
         
         console.log(`[INSTAGRAM] Navigating to ${instagramUrl}`);
-        await page.goto(instagramUrl, { waitUntil: 'networkidle', timeout: 20000 });
         
-        // Wait for content to load
-        await page.waitForTimeout(3000);
+        // Navigate with longer timeout and wait for content
+        await page.goto(instagramUrl, { 
+            waitUntil: 'domcontentloaded', 
+            timeout: 30000 
+        });
+        
+        // Human-like delay before checking page
+        await page.waitForTimeout(2000);
+        
+        // Scroll a bit to simulate human behavior
+        await page.evaluate(() => window.scrollTo(0, 200));
+        await page.waitForTimeout(500);
         
         // Check if we got redirected to login page
         const currentUrl = page.url();
         console.log(`[INSTAGRAM] Final URL after navigation: ${currentUrl}`);
         
-        if (currentUrl.includes('/accounts/login/') || currentUrl.includes('login')) {
-            console.log(`[INSTAGRAM] ⚠️ Redirected to login page: ${currentUrl}`);
-            console.log(`[INSTAGRAM] ⚠️ Instagram is blocking Playwright requests`);
-            await browser.close();
-            return { success: false, error: 'Instagram is requiring login (blocking detected). Try using the browser-based search method.' };
-        }
-        
-        // Check page title to see if we got blocked
-        const pageTitle = await page.title();
-        console.log(`[INSTAGRAM] Page title: ${pageTitle}`);
-        
-        if (pageTitle.includes('Login') || pageTitle.includes('Instagram')) {
-            // Check if there's a login form visible
+        // More lenient check - only fail if clearly redirected AND login form is visible
+        const isLoginRedirect = currentUrl.includes('/accounts/login/') || currentUrl.includes('/login/');
+        if (isLoginRedirect) {
+            // Double-check by looking for login form
             const loginForm = await page.$('input[name="username"], input[type="password"]');
             if (loginForm) {
-                console.log(`[INSTAGRAM] ⚠️ Login form detected on page`);
+                console.log(`[INSTAGRAM] ⚠️ Redirected to login page with form visible: ${currentUrl}`);
                 await browser.close();
                 return { success: false, error: 'Instagram is requiring login (blocking detected). Try using the browser-based search method.' };
+            } else {
+                console.log(`[INSTAGRAM] URL suggests login but no form found, continuing...`);
             }
+        }
+        
+        // Try to extract from meta tags and JSON-LD first (fastest, most reliable)
+        let fullName = null;
+        
+        try {
+            // Strategy 0: Extract from JSON-LD structured data (most reliable)
+            const jsonLd = await page.evaluate(() => {
+                const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+                for (const script of scripts) {
+                    try {
+                        const data = JSON.parse(script.textContent);
+                        if (data.name && typeof data.name === 'string' && !data.name.startsWith('@')) {
+                            return data.name;
+                        }
+                    } catch (e) {
+                        continue;
+                    }
+                }
+                return null;
+            });
+            
+            if (jsonLd) {
+                fullName = jsonLd.trim();
+                console.log(`[INSTAGRAM] ✅ Extracted name from JSON-LD: ${fullName}`);
+            }
+        } catch (e) {
+            console.log(`[INSTAGRAM] Error extracting JSON-LD: ${e.message}`);
+        }
+        
+        // Strategy 0.5: Extract from og:title meta tag
+        if (!fullName) {
+            try {
+                const ogTitle = await page.$eval('meta[property="og:title"]', el => el.content).catch(() => null);
+                if (ogTitle && !ogTitle.includes('Login') && !ogTitle.includes('Instagram')) {
+                    // Clean up title (remove "• Instagram" etc)
+                    const cleaned = ogTitle.replace(/\s*•\s*Instagram.*$/i, '').replace(/\s*on\s*Instagram.*$/i, '').trim();
+                    if (cleaned && cleaned.length > 2 && !cleaned.startsWith('@')) {
+                        fullName = cleaned;
+                        console.log(`[INSTAGRAM] ✅ Extracted name from og:title: ${fullName}`);
+                    }
+                }
+            } catch (e) {
+                console.log(`[INSTAGRAM] Error extracting og:title: ${e.message}`);
+            }
+        }
+        
+        // Wait a bit more for dynamic content to load
+        if (!fullName) {
+            await page.waitForTimeout(2000);
         }
         
         // Try to find the name element - Instagram displays it in a span near the username
         // The name is in a span with obfuscated classes, usually with dir="auto"
-        console.log(`[INSTAGRAM] Searching for name element in DOM...`);
-        
-        // Strategy 1: Look for span with dir="auto" that contains text (this is usually the name)
-        let fullName = null;
-        
-        try {
-            // Find span elements with dir="auto" that contain text (2-4 words)
-            const nameSpans = await page.$$eval('span[dir="auto"]', spans => {
-                return spans.map(span => span.textContent.trim())
-                    .filter(text => {
-                        const words = text.split(/\s+/);
-                        return words.length >= 2 && words.length <= 4 && 
-                               words.every(w => w.length >= 2 && w.length <= 20 && /^[A-Za-z]+$/.test(w));
-                    })
-                    .filter(text => !text.toLowerCase().includes('instagram') &&
-                                    !text.toLowerCase().includes('login') &&
-                                    !text.toLowerCase().includes('follow') &&
-                                    !text.toLowerCase().includes('posts') &&
-                                    !text.toLowerCase().includes('followers') &&
-                                    !text.toLowerCase().includes('following'));
-            });
+        if (!fullName) {
+            console.log(`[INSTAGRAM] Searching for name element in DOM...`);
             
-            console.log(`[INSTAGRAM] Found ${nameSpans.length} potential name spans`);
-            if (nameSpans.length > 0) {
-                console.log(`[INSTAGRAM] Name spans found:`, nameSpans);
-                // Use the first one (usually the name is the first span with dir="auto")
-                fullName = nameSpans[0];
-                console.log(`[INSTAGRAM] ✅ Extracted name from span[dir="auto"]: ${fullName}`);
+            // Strategy 1: Look for span with dir="auto" that contains text (this is usually the name)
+            try {
+                // Find span elements with dir="auto" that contain text (2-4 words)
+                const nameSpans = await page.$$eval('span[dir="auto"]', spans => {
+                    return spans.map(span => span.textContent.trim())
+                        .filter(text => {
+                            const words = text.split(/\s+/);
+                            return words.length >= 2 && words.length <= 4 && 
+                                   words.every(w => w.length >= 2 && w.length <= 20 && /^[A-Za-z]+$/.test(w));
+                        })
+                        .filter(text => !text.toLowerCase().includes('instagram') &&
+                                        !text.toLowerCase().includes('login') &&
+                                        !text.toLowerCase().includes('follow') &&
+                                        !text.toLowerCase().includes('posts') &&
+                                        !text.toLowerCase().includes('followers') &&
+                                        !text.toLowerCase().includes('following'));
+                });
+                
+                console.log(`[INSTAGRAM] Found ${nameSpans.length} potential name spans`);
+                if (nameSpans.length > 0) {
+                    console.log(`[INSTAGRAM] Name spans found:`, nameSpans);
+                    // Use the first one (usually the name is the first span with dir="auto")
+                    fullName = nameSpans[0];
+                    console.log(`[INSTAGRAM] ✅ Extracted name from span[dir="auto"]: ${fullName}`);
+                }
+            } catch (e) {
+                console.log(`[INSTAGRAM] Error finding span[dir="auto"]: ${e.message}`);
             }
-        } catch (e) {
-            console.log(`[INSTAGRAM] Error finding span[dir="auto"]: ${e.message}`);
-            console.log(`[INSTAGRAM] Error stack: ${e.stack}`);
         }
         
         // Strategy 2: If not found, look for h1/h2 tags (sometimes Instagram uses these)

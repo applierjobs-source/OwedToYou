@@ -113,15 +113,15 @@ async function getInstagramFullName(username) {
         }
     }
     
-    // Try backend server first (if available)
+    // Use backend Playwright API only (no HTML extraction fallback)
     try {
         const apiBase = window.location.origin;
-        console.log(`🌐 Attempting backend API call to: ${apiBase}/api/instagram-name?username=${encodeURIComponent(cleanUsername)}`);
+        console.log(`🌐 Attempting backend Playwright API call to: ${apiBase}/api/instagram-name?username=${encodeURIComponent(cleanUsername)}`);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => {
-            console.log('⏰ Backend API timeout after 15s, aborting...');
+            console.log('⏰ Backend API timeout after 30s, aborting...');
             controller.abort();
-        }, 15000); // 15 second timeout
+        }, 30000); // 30 second timeout (Playwright needs more time)
         
         let response;
         try {
@@ -164,206 +164,27 @@ async function getInstagramFullName(username) {
                 return fullName;
             } else {
                 const errorMsg = data.error || 'Unknown error';
-                console.log(`⚠️ Backend returned but no name found:`, errorMsg);
-                // If it's a timeout, throw a specific error
-                if (errorMsg.includes('timeout') || errorMsg.includes('Request timeout')) {
-                    throw new Error('Instagram request timed out. Please try again.');
-                }
-                // Don't throw here - let it fall through to proxy methods
-                console.log('⚠️ Backend API failed, will try client-side proxies as fallback');
+                console.log(`⚠️ Backend Playwright returned but no name found:`, errorMsg);
+                // Return null - no fallback to HTML extraction
+                return null;
             }
         } else {
             const errorText = await response.text().catch(() => '');
-                console.log(`⚠️ Backend request failed with status: ${response.status}`);
+            console.log(`⚠️ Backend request failed with status: ${response.status}`);
             console.log(`⚠️ Error response: ${errorText.substring(0, 200)}`);
-            // If backend returns a specific error message, log it
-            try {
-                const errorData = JSON.parse(errorText);
-                if (errorData.error) {
-                    console.log(`⚠️ Backend error message: ${errorData.error}`);
-                }
-            } catch (e) {
-                // Not JSON, ignore
-            }
-            // Don't throw - fall through to proxy methods
+            // Return null - no fallback to HTML extraction
+            return null;
         }
     } catch (e) {
         // Check if it's a timeout error
         if (e.name === 'AbortError' || e.message.includes('timeout') || e.message.includes('aborted')) {
-            console.log('❌ Backend request timed out');
+            console.log('❌ Backend Playwright request timed out');
             throw new Error('Instagram request timed out. Please try again.');
         }
-        console.log('⚠️ Backend server not available for name extraction, using browser methods:', e.message);
-        // Re-throw if it's a timeout error so caller can handle it
-        if (e.message.includes('timeout')) {
-            throw e;
-        }
-        // For other errors, continue to proxy fallback
+        console.log('❌ Backend Playwright server error:', e.message);
+        // Return null - no fallback to HTML extraction
+        return null;
     }
-    
-    // Fallback to browser methods - try multiple proxies
-    // Using multiple CORS proxies to increase success rate
-    const proxies = [
-        { url: 'https://api.allorigins.win/raw?url=', name: 'allorigins' },
-        { url: 'https://corsproxy.io/?', name: 'corsproxy' },
-        { url: 'https://api.codetabs.com/v1/proxy?quest=', name: 'codetabs' },
-        { url: 'https://cors-anywhere.herokuapp.com/', name: 'cors-anywhere' },
-        { url: 'https://thingproxy.freeboard.io/fetch/', name: 'thingproxy' }
-    ];
-    
-    const apiUrl = `https://www.instagram.com/${cleanUsername}/`;
-    console.log(`🌐 Starting client-side Instagram fetch for: ${cleanUsername}`);
-    console.log(`📡 Will try ${proxies.length} different CORS proxies`);
-    
-    for (let i = 0; i < proxies.length; i++) {
-        const proxy = proxies[i];
-        const proxyUrl = proxy.url;
-        const proxyName = proxy.name;
-        
-        try {
-            console.log(`📡 [${i + 1}/${proxies.length}] Trying proxy: ${proxyName} for ${cleanUsername}`);
-            
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => {
-                console.log(`⏰ [${proxyName}] Timeout after 15s, aborting...`);
-                controller.abort();
-            }, 15000); // 15 second timeout
-            
-            let response;
-            try {
-                let fetchUrl;
-                if (proxyUrl.includes('codetabs')) {
-                    fetchUrl = `${proxyUrl}${apiUrl}`;
-                } else if (proxyUrl.includes('allorigins')) {
-                    fetchUrl = `${proxyUrl}${encodeURIComponent(apiUrl)}`;
-                } else {
-                    fetchUrl = `${proxyUrl}${encodeURIComponent(apiUrl)}`;
-                }
-                
-                console.log(`🔗 [${proxyName}] Fetching: ${fetchUrl.substring(0, 80)}...`);
-                
-                response = await fetch(fetchUrl, {
-                    method: 'GET',
-                    signal: controller.signal,
-                    headers: {
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                        'Accept-Language': 'en-US,en;q=0.9',
-                        'Referer': 'https://www.instagram.com/',
-                        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                    }
-                });
-                
-                clearTimeout(timeoutId);
-                console.log(`📥 [${proxyName}] Response status: ${response.status} ${response.statusText}`);
-            } catch (fetchError) {
-                clearTimeout(timeoutId);
-                if (fetchError.name === 'AbortError') {
-                    console.log(`⏰ [${proxyName}] Request timed out after 15s`);
-                    if (i === proxies.length - 1) {
-                        // Last proxy, throw timeout error
-                        throw new Error('Instagram request timed out. All proxies failed.');
-                    }
-                    continue; // Try next proxy
-                }
-                console.log(`❌ [${proxyName}] Fetch error: ${fetchError.message}`);
-                if (i === proxies.length - 1) {
-                    // Last proxy failed
-                    console.log(`❌ All ${proxies.length} proxies failed`);
-                }
-                continue; // Try next proxy
-            }
-        
-            if (response.ok) {
-                const html = await response.text();
-                console.log(`✅ [${proxyName}] Received HTML, length: ${html.length} characters`);
-                
-                // Check if we got a valid response (not empty or error page)
-                if (html.length === 0) {
-                    console.log(`⚠️ [${proxyName}] Empty response, trying next proxy...`);
-                    continue;
-                }
-                
-                // Check for login/error pages - be more lenient with large HTML
-                // Instagram login pages are usually small, so if HTML is large, try extraction anyway
-                const isLoginPage = html.includes('Log in to Instagram') || 
-                                   html.includes('login_required') || 
-                                   html.includes('/accounts/login/');
-                
-                if (html.length < 1000) {
-                    console.log(`⚠️ [${proxyName}] Insufficient content (${html.length} chars), trying next...`);
-                    continue;
-                }
-                
-                // Only skip if it's clearly a login page AND HTML is small
-                if (isLoginPage && html.length < 50000) {
-                    console.log(`⚠️ [${proxyName}] Got login page (${html.length} chars), trying next...`);
-                    continue;
-                }
-                
-                // If HTML is large, try extraction even if login indicators are present
-                // (Instagram sometimes includes login indicators in challenge pages but still has profile data)
-                if (isLoginPage && html.length >= 50000) {
-                    console.log(`⚠️ [${proxyName}] Large HTML with login indicators (${html.length} chars), attempting extraction anyway...`);
-                }
-                
-                console.log(`🔍 [${proxyName}] Attempting to extract name from HTML...`);
-                
-                // DEBUG: Log actual full_name occurrences to see the format
-                if (html.includes('full_name')) {
-                    const fullNameSamples = [];
-                    // Find all occurrences of 'full_name' with context
-                    const regex = /full_name[^}]{0,100}/gi;
-                    const matches = html.match(regex);
-                    if (matches) {
-                        for (let i = 0; i < Math.min(10, matches.length); i++) {
-                            fullNameSamples.push(matches[i]);
-                        }
-                        console.log(`📋 [${proxyName}] Sample 'full_name' occurrences:`, fullNameSamples);
-                    }
-                }
-                
-                const fullName = await extractNameFromHTML(html, cleanUsername);
-                if (fullName) {
-                    console.log(`✅ [${proxyName}] Successfully extracted name: ${fullName}`);
-                    // Cache the result
-                    saveInstagramNameToStorage(cleanUsername, fullName);
-                    return fullName;
-                } else {
-                    console.log(`⚠️ [${proxyName}] Could not extract name from HTML, trying next proxy...`);
-                    // Log more details for debugging
-                    console.log(`📄 [${proxyName}] HTML length: ${html.length}`);
-                    console.log(`📄 [${proxyName}] Contains 'window._sharedData': ${html.includes('window._sharedData')}`);
-                    console.log(`📄 [${proxyName}] Contains 'full_name': ${html.includes('full_name')}`);
-                    console.log(`📄 [${proxyName}] Contains 'og:title': ${html.includes('og:title')}`);
-                    console.log(`📄 [${proxyName}] Contains username '${cleanUsername}': ${html.includes(cleanUsername)}`);
-                    // Log a snippet of HTML for debugging
-                    const htmlSnippet = html.substring(0, 1000).replace(/\s+/g, ' ');
-                    console.log(`📄 [${proxyName}] HTML snippet (first 1000 chars): ${htmlSnippet}...`);
-                    continue;
-                }
-            } else {
-                console.log(`❌ [${proxyName}] Response not OK: ${response.status} ${response.statusText}`);
-                if (i === proxies.length - 1) {
-                    console.log(`❌ All proxies returned non-OK status codes`);
-                }
-                continue;
-            }
-        } catch (proxyError) {
-            console.log(`❌ [${proxyName}] Proxy error: ${proxyError.message}`);
-            // If it's the last proxy and it's a timeout, throw it
-            if (i === proxies.length - 1 && (proxyError.message && proxyError.message.includes('timeout'))) {
-                throw new Error('Instagram request timed out. All proxies failed.');
-            }
-            if (i < proxies.length - 1) {
-                console.log(`🔄 Continuing to next proxy...`);
-                continue;
-            }
-        }
-    }
-    
-    // All proxies failed
-    console.log(`❌ All proxy methods failed for ${cleanUsername}`);
-    return null;
 }
 
 // Helper function to extract name from HTML
