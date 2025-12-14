@@ -394,30 +394,39 @@
     </script>
     <script src="script.js"></script>
     <script>
-        // CRITICAL: Verify handleSearch is loaded after script.js AND force export if needed
+        // CRITICAL: Force export handleSearch IMMEDIATELY after script loads
+        // This is a failsafe in case the export block in script.js doesn't execute
         (function() {
             'use strict';
-            console.log('🔍 Verifying handleSearch after script.js load...');
+            console.log('🔍🔍🔍 POST-LOAD CHECK: Verifying handleSearch after script.js load...');
             console.log('🔍 window.handleSearch type:', typeof window.handleSearch);
             
-            // Wait a moment for script to finish executing
-            setTimeout(function() {
+            // Check immediately and also after a delay
+            function forceExport() {
                 if (typeof window.handleSearch === 'function') {
                     const funcStr = window.handleSearch.toString();
                     if (funcStr.includes('PLACEHOLDER')) {
-                        console.error('❌❌❌ CRITICAL: Placeholder still active after script load!');
-                        console.error('❌ Script.js did not complete execution properly!');
-                        console.error('❌ Attempting to force export...');
+                        console.error('❌❌❌ CRITICAL: Placeholder still active!');
+                        console.error('❌ Attempting FORCE EXPORT...');
                         
                         // Try to force export the real function
                         if (typeof handleSearch === 'function') {
                             const realFuncStr = handleSearch.toString();
                             if (!realFuncStr.includes('PLACEHOLDER')) {
-                                console.log('🔄 Force exporting real function...');
+                                console.log('🔄🔄🔄 FORCE EXPORTING real function NOW...');
                                 window.handleSearch = handleSearch;
-                                _realHandleSearch = handleSearch;
-                                console.log('✅✅✅ Force export completed');
+                                if (typeof _realHandleSearch !== 'undefined') {
+                                    _realHandleSearch = handleSearch;
+                                }
+                                console.log('✅✅✅ FORCE EXPORT COMPLETED');
+                                console.log('✅✅✅ window.handleSearch is now:', typeof window.handleSearch);
+                                const verifyStr = window.handleSearch.toString();
+                                console.log('✅✅✅ Verification - contains PLACEHOLDER:', verifyStr.includes('PLACEHOLDER'));
+                            } else {
+                                console.error('❌ handleSearch function is also placeholder!');
                             }
+                        } else {
+                            console.error('❌ handleSearch function not found!');
                         }
                     } else {
                         console.log('✅✅✅ handleSearch verified: Real function is loaded');
@@ -425,7 +434,15 @@
                 } else {
                     console.error('❌❌❌ CRITICAL: handleSearch not found after script load!');
                 }
-            }, 100);
+            }
+            
+            // Try immediately
+            forceExport();
+            
+            // Also try after delay in case script is still loading
+            setTimeout(forceExport, 50);
+            setTimeout(forceExport, 200);
+            setTimeout(forceExport, 500);
         })();
     </script>
 </body>
