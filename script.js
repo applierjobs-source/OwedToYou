@@ -345,6 +345,34 @@ async function extractNameFromHTML(html, cleanUsername) {
         }
     }
     
+    // Recursive function to search for full_name in JSON objects
+    function findFullNameInObject(obj, cleanUsername) {
+        if (typeof obj !== 'object' || obj === null) return null;
+        
+        // Check if this object has full_name
+        if (obj.full_name && typeof obj.full_name === 'string' && obj.full_name.trim().length > 0) {
+            const name = obj.full_name.trim();
+            if (name.length > 2 && !name.startsWith('@') && !name.includes('instagram') && name !== cleanUsername) {
+                return name;
+            }
+        }
+        if (obj.fullName && typeof obj.fullName === 'string' && obj.fullName.trim().length > 0) {
+            const name = obj.fullName.trim();
+            if (name.length > 2 && !name.startsWith('@') && !name.includes('instagram') && name !== cleanUsername) {
+                return name;
+            }
+        }
+        
+        // Recursively search in all properties
+        for (const key in obj) {
+            if (obj.hasOwnProperty(key)) {
+                const result = findFullNameInObject(obj[key], cleanUsername);
+                if (result) return result;
+            }
+        }
+        return null;
+    }
+    
     // Try to find in all script tags for any JSON data containing full_name
     const allScriptMatches = html.match(/<script[^>]*type="application\/json"[^>]*>(.*?)<\/script>/gis);
     if (allScriptMatches) {

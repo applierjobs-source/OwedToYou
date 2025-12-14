@@ -472,11 +472,14 @@ async function fetchInstagramFullName(username) {
                     if (html.length < 10000) {
                         console.log(`[INSTAGRAM] Insufficient HTML for name extraction: ${html.length} bytes`);
                         if (html.length > 0) {
-                            console.log(`[INSTAGRAM] Response preview:`, html.substring(0, 200));
+                            console.log(`[INSTAGRAM] Response preview:`, html.substring(0, 500));
                         }
                         resolve({ success: false, error: 'Insufficient HTML received' });
                         return;
                     }
+                    
+                    // Log a sample of the HTML to help debug extraction issues
+                    console.log(`[INSTAGRAM] HTML sample (first 1000 chars):`, html.substring(0, 1000));
                     
                     // Try to extract from window._sharedData
                     const sharedDataPatterns = [
@@ -577,11 +580,39 @@ async function fetchInstagramFullName(username) {
                         }
                     }
                     
+                    // Recursive function to search for full_name in JSON objects
+                    function findFullNameInObject(obj, username) {
+                        if (typeof obj !== 'object' || obj === null) return null;
+                        
+                        // Check if this object has full_name
+                        if (obj.full_name && typeof obj.full_name === 'string' && obj.full_name.trim().length > 0) {
+                            const name = obj.full_name.trim();
+                            if (name.length > 2 && !name.startsWith('@') && !name.includes('instagram') && name !== username) {
+                                return name;
+                            }
+                        }
+                        if (obj.fullName && typeof obj.fullName === 'string' && obj.fullName.trim().length > 0) {
+                            const name = obj.fullName.trim();
+                            if (name.length > 2 && !name.startsWith('@') && !name.includes('instagram') && name !== username) {
+                                return name;
+                            }
+                        }
+                        
+                        // Recursively search in all properties
+                        for (const key in obj) {
+                            if (obj.hasOwnProperty(key)) {
+                                const result = findFullNameInObject(obj[key], username);
+                                if (result) return result;
+                            }
+                        }
+                        return null;
+                    }
+                    
                     // Try searching in all script tags for JSON data
                     const scriptMatches = html.match(/<script[^>]*>(.*?)<\/script>/gis);
                     if (scriptMatches) {
                         for (const scriptContent of scriptMatches) {
-                            // Look for full_name in script content
+                            // Look for full_name in script content with regex first (faster)
                             const scriptPatterns = [
                                 /"full_name"\s*:\s*"([^"]+)"/i,
                                 /"fullName"\s*:\s*"([^"]+)"/i,
@@ -598,6 +629,29 @@ async function fetchInstagramFullName(username) {
                                         return;
                                     }
                                 }
+                            }
+                            
+                            // Try to parse as JSON and search recursively
+                            try {
+                                // Look for JSON objects in script tags
+                                const jsonMatches = scriptContent.match(/\{[\s\S]{100,50000}\}/g);
+                                if (jsonMatches) {
+                                    for (const jsonStr of jsonMatches) {
+                                        try {
+                                            const jsonObj = JSON.parse(jsonStr);
+                                            const foundName = findFullNameInObject(jsonObj, username);
+                                            if (foundName) {
+                                                console.log(`Found Instagram name via recursive JSON search: ${foundName}`);
+                                                resolve({ success: true, fullName: foundName });
+                                                return;
+                                            }
+                                        } catch (e) {
+                                            // Not valid JSON, continue
+                                        }
+                                    }
+                                }
+                            } catch (e) {
+                                // Continue to next script tag
                             }
                         }
                     }
@@ -653,6 +707,13 @@ async function fetchInstagramFullName(username) {
                             }
                         }
                     }
+                    
+                    // Log what we tried for debugging
+                    console.log(`[INSTAGRAM] All extraction methods failed for ${username}`);
+                    console.log(`[INSTAGRAM] HTML length: ${html.length}`);
+                    console.log(`[INSTAGRAM] Contains 'full_name': ${html.includes('full_name')}`);
+                    console.log(`[INSTAGRAM] Contains 'fullName': ${html.includes('fullName')}`);
+                    console.log(`[INSTAGRAM] Contains 'og:title': ${html.includes('og:title')}`);
                     
                     resolve({ success: false, error: 'Full name not found in HTML' });
                 } catch (error) {
