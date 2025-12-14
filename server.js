@@ -8,6 +8,12 @@ const { Pool } = require('pg');
 const { searchMissingMoney } = require('./missingMoneySearch');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { chromium } = require('playwright');
+const { ApifyClient } = require('apify-client');
+
+// Initialize Apify client
+const apifyClient = new ApifyClient({
+    token: process.env.APIFY_API_TOKEN,
+});
 
 const PORT = process.env.PORT || 3000;
 
@@ -81,8 +87,82 @@ const corsHeaders = {
     'Content-Type': 'application/json'
 };
 
-// Fetch Instagram profile picture using Playwright API interception (same as name extraction)
+// Fetch Instagram profile picture using Apify
 async function fetchInstagramProfile(username) {
+    // Use Apify Instagram scraper to get profile picture
+    try {
+        console.log(`[PROFILE] Using Apify to extract profile picture for ${username}`);
+        
+        // Prepare Apify Actor input
+        const input = {
+            directUrls: [`https://www.instagram.com/${username}/`],
+            resultsType: "details", // Get profile details, not posts
+            resultsLimit: 1,
+        };
+        
+        console.log(`[PROFILE] Calling Apify actor with input:`, JSON.stringify(input));
+        
+        // Run the Actor synchronously and get dataset items
+        const run = await apifyClient.actor("apify~instagram-scraper").call(input);
+        const { items } = await apifyClient.dataset(run.defaultDatasetId).listItems();
+        
+        console.log(`[PROFILE] Apify returned ${items ? items.length : 0} items`);
+        
+        if (items && items.length > 0) {
+            const profileData = items[0];
+            console.log(`[PROFILE] Profile data keys:`, Object.keys(profileData));
+            console.log(`[PROFILE] Profile data (first 500 chars):`, JSON.stringify(profileData).substring(0, 500));
+            
+            // Extract profile picture URL from various possible locations
+            let profilePicUrl = null;
+            
+            // Try different paths for profile picture
+            if (profileData.profilePicUrl) {
+                profilePicUrl = profileData.profilePicUrl;
+            } else if (profileData.profile_pic_url) {
+                profilePicUrl = profileData.profile_pic_url;
+            } else if (profileData.profilePicUrlHd) {
+                profilePicUrl = profileData.profilePicUrlHd;
+            } else if (profileData.profile_pic_url_hd) {
+                profilePicUrl = profileData.profile_pic_url_hd;
+            } else if (profileData.profile && profileData.profile.profilePicUrl) {
+                profilePicUrl = profileData.profile.profilePicUrl;
+            } else if (profileData.profile && profileData.profile.profile_pic_url) {
+                profilePicUrl = profileData.profile.profile_pic_url;
+            } else if (profileData.profile && profileData.profile.profilePicUrlHd) {
+                profilePicUrl = profileData.profile.profilePicUrlHd;
+            } else if (profileData.profile && profileData.profile.profile_pic_url_hd) {
+                profilePicUrl = profileData.profile.profile_pic_url_hd;
+            } else if (profileData.user && profileData.user.profilePicUrl) {
+                profilePicUrl = profileData.user.profilePicUrl;
+            } else if (profileData.user && profileData.user.profile_pic_url) {
+                profilePicUrl = profileData.user.profile_pic_url;
+            } else if (profileData.user && profileData.user.profilePicUrlHd) {
+                profilePicUrl = profileData.user.profilePicUrlHd;
+            } else if (profileData.user && profileData.user.profile_pic_url_hd) {
+                profilePicUrl = profileData.user.profile_pic_url_hd;
+            }
+            
+            if (profilePicUrl && profilePicUrl.length > 0) {
+                console.log(`[PROFILE] ✅✅✅ Successfully extracted profile picture: ${profilePicUrl.substring(0, 100)}...`);
+                return { success: true, url: profilePicUrl };
+            } else {
+                console.log(`[PROFILE] ⚠️ No profile picture URL found in Apify response`);
+                return { success: false, error: 'Profile picture not found in profile data. The profile may be private or not exist.' };
+            }
+        } else {
+            console.log(`[PROFILE] ⚠️ Apify returned no items`);
+            return { success: false, error: 'Profile not found. The profile may be private or not exist.' };
+        }
+    } catch (error) {
+        console.error(`[PROFILE] Apify error for ${username}:`, error.message);
+        console.error(`[PROFILE] Error stack:`, error.stack);
+        return { success: false, error: `Failed to fetch profile: ${error.message}` };
+    }
+}
+
+// OLD Playwright implementation (keeping for reference)
+async function fetchInstagramProfile_OLD_PLAYWRIGHT(username) {
     // Use Playwright to intercept API responses (same method as name extraction)
     let browser = null;
     try {
@@ -641,6 +721,70 @@ async function fetchInstagramProfile_OLD(username) {
 
 // Fetch Instagram full name
 async function fetchInstagramFullName(username) {
+    // Use Apify Instagram scraper to get profile data
+    try {
+        console.log(`[INSTAGRAM] Using Apify to extract name for ${username}`);
+        
+        // Prepare Apify Actor input
+        const input = {
+            directUrls: [`https://www.instagram.com/${username}/`],
+            resultsType: "details", // Get profile details, not posts
+            resultsLimit: 1,
+        };
+        
+        console.log(`[INSTAGRAM] Calling Apify actor with input:`, JSON.stringify(input));
+        
+        // Run the Actor synchronously and get dataset items
+        const run = await apifyClient.actor("apify~instagram-scraper").call(input);
+        const { items } = await apifyClient.dataset(run.defaultDatasetId).listItems();
+        
+        console.log(`[INSTAGRAM] Apify returned ${items ? items.length : 0} items`);
+        
+        if (items && items.length > 0) {
+            const profileData = items[0];
+            console.log(`[INSTAGRAM] Profile data keys:`, Object.keys(profileData));
+            console.log(`[INSTAGRAM] Profile data (first 500 chars):`, JSON.stringify(profileData).substring(0, 500));
+            
+            // Extract full_name from various possible locations
+            let fullName = null;
+            
+            // Try different paths for full_name
+            if (profileData.fullName) {
+                fullName = profileData.fullName.trim();
+            } else if (profileData.full_name) {
+                fullName = profileData.full_name.trim();
+            } else if (profileData.name) {
+                fullName = profileData.name.trim();
+            } else if (profileData.profile && profileData.profile.fullName) {
+                fullName = profileData.profile.fullName.trim();
+            } else if (profileData.profile && profileData.profile.full_name) {
+                fullName = profileData.profile.full_name.trim();
+            } else if (profileData.user && profileData.user.fullName) {
+                fullName = profileData.user.fullName.trim();
+            } else if (profileData.user && profileData.user.full_name) {
+                fullName = profileData.user.full_name.trim();
+            }
+            
+            if (fullName && fullName.length > 0) {
+                console.log(`[INSTAGRAM] ✅✅✅ Successfully extracted name: ${fullName}`);
+                return { success: true, fullName: fullName };
+            } else {
+                console.log(`[INSTAGRAM] ⚠️ No full_name found in Apify response`);
+                return { success: false, error: 'Full name not found in profile data. The profile may be private or not exist.' };
+            }
+        } else {
+            console.log(`[INSTAGRAM] ⚠️ Apify returned no items`);
+            return { success: false, error: 'Profile not found. The profile may be private or not exist.' };
+        }
+    } catch (error) {
+        console.error(`[INSTAGRAM] Apify error for ${username}:`, error.message);
+        console.error(`[INSTAGRAM] Error stack:`, error.stack);
+        return { success: false, error: `Failed to fetch profile: ${error.message}` };
+    }
+}
+
+// OLD Playwright implementation (keeping for reference)
+async function fetchInstagramFullName_OLD_PLAYWRIGHT(username) {
     // Use Playwright to render the page and extract name from visible DOM
     // Enhanced stealth settings to bypass Instagram detection
     let browser = null;
