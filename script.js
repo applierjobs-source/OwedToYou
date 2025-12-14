@@ -172,6 +172,7 @@ async function getInstagramFullName(username) {
     // All proxies failed
     console.log(`❌ All proxy methods failed for ${cleanUsername}`);
     return null;
+}
 
 // Helper function to extract name from HTML
 async function extractNameFromHTML(html, cleanUsername) {
