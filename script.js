@@ -1679,8 +1679,9 @@ async function handleSearchImpl() {
                         return;
                     }
                     
-                    // For other errors, show a helpful message
-                    alert('Unable to extract name from Instagram profile. This can happen if the profile is private, doesn\'t exist, or Instagram is blocking requests. Please try searching by name directly using the link below.');
+                    // For other errors, show a helpful message with more details
+                    const errorDetails = nameExtractionError ? ` Error: ${nameExtractionError.message}` : '';
+                    alert(`Unable to extract name from Instagram profile.${errorDetails}\n\nThis can happen if:\n- The profile is private\n- The profile doesn't exist\n- Instagram is blocking requests\n\nPlease try searching by name directly using the "Search by Full Name instead" link below.`);
                     return;
                 }
                 
