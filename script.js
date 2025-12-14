@@ -1897,55 +1897,57 @@ async function handleSearchImpl() {
         let fullName = null;
         let nameExtractionError = null;
         let profilePic = null;
+        
+        // Extract name first
         try {
             console.log(`📞 Calling getInstagramFullName for: ${cleanHandleValue}`);
             console.log(`📞 getInstagramFullName function type:`, typeof getInstagramFullName);
             fullName = await getInstagramFullName(cleanHandleValue);
             console.log(`📋 getInstagramFullName returned: ${fullName || 'null'}`);
             console.log(`📋 Return type:`, typeof fullName);
-            
-            // ALWAYS fetch profile picture, even if fullName extraction failed
-            // Check localStorage first as a fallback
-            const storedProfilePics = loadProfilePicsFromStorage();
-            profilePic = storedProfilePics[cleanHandleValue] || storedProfilePics[handle] || null;
-            
-            if (profilePic) {
-                console.log(`🖼️ Found cached profile picture for ${cleanHandleValue}`);
-            } else {
-                console.log(`🖼️🖼️🖼️ Fetching profile picture for ${cleanHandleValue}...`);
-                try {
-                    profilePic = await getInstagramProfilePicture(cleanHandleValue);
-                    console.log(`🖼️🖼️🖼️ Profile picture result for ${cleanHandleValue}: ${profilePic ? `FOUND: ${profilePic.substring(0, 80)}...` : 'NOT FOUND'}`);
-                } catch (picError) {
-                    console.error(`🖼️ Error fetching profile picture:`, picError);
-                    console.error(`🖼️ Error message:`, picError.message);
-                    console.error(`🖼️ Error stack:`, picError.stack);
-                    profilePic = null;
-                }
-            }
-            
-            // Always save to localStorage if we have a profile pic (from cache or fresh fetch)
-            if (profilePic) {
-                const storedProfilePicsToSave = loadProfilePicsFromStorage();
-                storedProfilePicsToSave[cleanHandleValue] = profilePic;
-                storedProfilePicsToSave[handle] = profilePic;
-                saveProfilePicsToStorage(storedProfilePicsToSave);
-                console.log(`🖼️🖼️🖼️ Saved profilePic to localStorage for ${cleanHandleValue}`);
-            }
         } catch (nameError) {
             console.error('❌ Error extracting Instagram name:', nameError);
             console.error('Error stack:', nameError.stack);
             nameExtractionError = nameError;
             // If it's a timeout, show user feedback
-                if (nameError.message && nameError.message.includes('timeout')) {
-                    // Re-enable button
-                    searchBtn.disabled = false;
-                    searchBtn.textContent = 'Search';
-                    searchInProgress = false;
-                    hideProgressModal(); // Hide progress modal on error
-                    alert('Instagram request timed out. This can happen if Instagram is slow or blocking requests. Please try again in a moment, or search by name directly using the link below.');
-                    return;
-                }
+            if (nameError.message && nameError.message.includes('timeout')) {
+                // Re-enable button
+                searchBtn.disabled = false;
+                searchBtn.textContent = 'Search';
+                searchInProgress = false;
+                hideProgressModal(); // Hide progress modal on error
+                alert('Instagram request timed out. This can happen if Instagram is slow or blocking requests. Please try again in a moment, or search by name directly using the link below.');
+                return;
+            }
+        }
+        
+        // ALWAYS fetch profile picture, regardless of whether name extraction succeeded or failed
+        // Check localStorage first as a fallback
+        const storedProfilePics = loadProfilePicsFromStorage();
+        profilePic = storedProfilePics[cleanHandleValue] || storedProfilePics[handle] || null;
+        
+        if (profilePic) {
+            console.log(`🖼️ Found cached profile picture for ${cleanHandleValue}`);
+        } else {
+            console.log(`🖼️🖼️🖼️ Fetching profile picture for ${cleanHandleValue}...`);
+            try {
+                profilePic = await getInstagramProfilePicture(cleanHandleValue);
+                console.log(`🖼️🖼️🖼️ Profile picture result for ${cleanHandleValue}: ${profilePic ? `FOUND: ${profilePic.substring(0, 80)}...` : 'NOT FOUND'}`);
+            } catch (picError) {
+                console.error(`🖼️ Error fetching profile picture:`, picError);
+                console.error(`🖼️ Error message:`, picError.message);
+                console.error(`🖼️ Error stack:`, picError.stack);
+                profilePic = null;
+            }
+        }
+        
+        // Always save to localStorage if we have a profile pic (from cache or fresh fetch)
+        if (profilePic) {
+            const storedProfilePicsToSave = loadProfilePicsFromStorage();
+            storedProfilePicsToSave[cleanHandleValue] = profilePic;
+            storedProfilePicsToSave[handle] = profilePic;
+            saveProfilePicsToStorage(storedProfilePicsToSave);
+            console.log(`🖼️🖼️🖼️ Saved profilePic to localStorage for ${cleanHandleValue}`);
         }
         
         // Split full name into first and last name
