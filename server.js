@@ -1592,6 +1592,7 @@ const server = http.createServer((req, res) => {
     }
     // Handle Stripe checkout session creation
     else if (parsedUrl.pathname === '/api/create-checkout-session' && req.method === 'POST') {
+        console.log('[STRIPE] Received checkout session creation request');
         let body = '';
         
         req.on('data', chunk => {
@@ -1600,22 +1601,30 @@ const server = http.createServer((req, res) => {
         
         req.on('end', async () => {
             try {
+                console.log('[STRIPE] Request body:', body);
+                
                 if (!stripe) {
+                    console.error('[STRIPE] ❌ Stripe not configured - STRIPE_SECRET_KEY not set');
                     res.writeHead(500, corsHeaders);
                     res.end(JSON.stringify({ error: 'Stripe not configured. Please set STRIPE_SECRET_KEY environment variable.' }));
                     return;
                 }
                 
+                console.log('[STRIPE] ✅ Stripe initialized, parsing request data...');
                 const data = JSON.parse(body);
                 const { firstName, lastName, amount, processingFee } = data;
                 
+                console.log('[STRIPE] Request data:', { firstName, lastName, amount, processingFee });
+                
                 if (!firstName || !lastName) {
+                    console.error('[STRIPE] ❌ Missing required fields');
                     res.writeHead(400, corsHeaders);
                     res.end(JSON.stringify({ error: 'First name and last name are required' }));
                     return;
                 }
                 
                 // Create Stripe Checkout Session
+                console.log('[STRIPE] Creating checkout session...');
                 const session = await stripe.checkout.sessions.create({
                     payment_method_types: ['card'],
                     line_items: [
@@ -1641,12 +1650,17 @@ const server = http.createServer((req, res) => {
                     }
                 });
                 
+                console.log('[STRIPE] ✅ Checkout session created successfully:', session.id);
+                console.log('[STRIPE] Session URL:', session.url);
                 res.writeHead(200, corsHeaders);
                 res.end(JSON.stringify({ id: session.id }));
             } catch (error) {
-                console.error('Error creating checkout session:', error);
+                console.error('[STRIPE] ❌ Error creating checkout session:', error);
+                console.error('[STRIPE] Error message:', error.message);
+                console.error('[STRIPE] Error type:', error.type);
+                console.error('[STRIPE] Error stack:', error.stack);
                 res.writeHead(500, corsHeaders);
-                res.end(JSON.stringify({ error: error.message }));
+                res.end(JSON.stringify({ error: error.message || 'Failed to create checkout session' }));
             }
         });
     }

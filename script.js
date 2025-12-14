@@ -3768,24 +3768,36 @@ try {
 
 // Handle Buy Now button click
 async function handleBuyNow(firstName, lastName, amount) {
-    console.log('Buy Now clicked:', { firstName, lastName, amount });
+    console.log('🛒 Buy Now clicked:', { firstName, lastName, amount });
     
     // Get the button element
     const button = document.querySelector('.btn-buy-now');
     if (!button) {
-        console.error('Buy Now button not found');
+        console.error('❌ Buy Now button not found');
+        alert('Error: Buy Now button not found. Please refresh the page.');
         return;
     }
     
     const originalText = button.textContent;
     
     try {
+        // Check if Stripe is initialized
+        if (!stripe) {
+            console.error('❌ Stripe not initialized');
+            console.error('Stripe publishable key:', stripePublishableKey ? stripePublishableKey.substring(0, 20) + '...' : 'NOT SET');
+            throw new Error('Stripe payment system not initialized. Please refresh the page.');
+        }
+        
+        console.log('✅ Stripe initialized, creating checkout session...');
+        
         // Disable button and show loading
         button.disabled = true;
         button.textContent = 'Processing...';
         
         // Create checkout session via backend
         const apiBase = window.location.origin;
+        console.log('📡 Calling checkout API:', `${apiBase}/api/create-checkout-session`);
+        
         const response = await fetch(`${apiBase}/api/create-checkout-session`, {
             method: 'POST',
             headers: {
@@ -3799,28 +3811,45 @@ async function handleBuyNow(firstName, lastName, amount) {
             })
         });
         
+        console.log('📥 Checkout API response status:', response.status);
+        
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ error: 'Failed to create checkout session' }));
+            const errorText = await response.text().catch(() => '');
+            console.error('❌ Checkout API error response:', errorText);
+            let errorData;
+            try {
+                errorData = JSON.parse(errorText);
+            } catch (e) {
+                errorData = { error: errorText || 'Failed to create checkout session' };
+            }
             throw new Error(errorData.error || 'Failed to create checkout session');
         }
         
         const session = await response.json();
+        console.log('✅ Checkout session created:', session.id);
         
-        if (!stripe) {
-            throw new Error('Stripe not initialized');
+        if (!session || !session.id) {
+            throw new Error('Invalid checkout session response');
         }
         
         // Redirect to Stripe Checkout
+        console.log('🔄 Redirecting to Stripe Checkout...');
         const result = await stripe.redirectToCheckout({
             sessionId: session.id
         });
         
         if (result.error) {
-            throw new Error(result.error.message);
+            console.error('❌ Stripe redirect error:', result.error);
+            throw new Error(result.error.message || 'Failed to redirect to checkout');
         }
     } catch (error) {
-        console.error('Error processing payment:', error);
-        alert('Error processing payment: ' + error.message);
+        console.error('❌ Error processing payment:', error);
+        console.error('Error details:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        });
+        alert('Error processing payment: ' + error.message + '\n\nPlease check the browser console for more details.');
         if (button) {
             button.disabled = false;
             button.textContent = originalText;
