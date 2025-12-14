@@ -434,8 +434,7 @@ async function extractNameFromHTML(html, cleanUsername) {
     }
     
     // PRIORITY: Look for name in visible HTML structure (Instagram always displays it)
-    // The name appears in a <span> with obfuscated classes like "x1lliihq x1plvlek..." near the username
-    // Just extract whatever text is in that span - it's structured data, trust it
+    // The name appears near the username in the HTML. Search broadly for any text that looks like a name.
     try {
         const usernameIndex = html.indexOf(cleanUsername);
         if (usernameIndex === -1) {
@@ -443,72 +442,103 @@ async function extractNameFromHTML(html, cleanUsername) {
         } else {
             console.log(`Found username at index ${usernameIndex}, searching for name...`);
             
-            // Look in a large window around the username (50000 chars to catch header area)
-            const start = Math.max(0, usernameIndex - 25000);
-            const end = Math.min(html.length, usernameIndex + 25000);
-            const headerArea = html.substring(start, end);
+            // Look in a large window around the username (100000 chars to catch entire profile section)
+            const start = Math.max(0, usernameIndex - 50000);
+            const end = Math.min(html.length, usernameIndex + 50000);
+            const profileArea = html.substring(start, end);
             
-            console.log(`Searching for name in header area (${headerArea.length} chars around username, HTML total: ${html.length})...`);
+            console.log(`Searching for name in profile area (${profileArea.length} chars around username, HTML total: ${html.length})...`);
             
-            // Look for span elements with obfuscated Instagram classes - this is the structured name element
-            // Pattern: <span class="x1lliihq x1plvlek..." dir="auto">Name</span>
-            // Instagram uses obfuscated classes starting with 'x' followed by alphanumeric
-            const spanPatterns = [
-                // Match spans with obfuscated classes and dir="auto" - most reliable (this is the name element)
-                /<span[^>]*class="[^"]*x[a-z0-9]+[^"]*"[^>]*dir="auto"[^>]*>([^<]+)<\/span>/gi,
-                // Match spans with obfuscated classes (without dir requirement)
-                /<span[^>]*class="[^"]*x[a-z0-9]+[^"]*"[^>]*>([^<]+)<\/span>/gi,
-                // Match any span near username (fallback)
-                /<span[^>]*>([^<]+)<\/span>/gi
-            ];
+            // Strategy 1: Find all text content between HTML tags near username
+            // Look for patterns like: >Name< or >Name Text< that appear before/after username
+            // Extract text from all HTML elements and check if any look like names
+            const textContentPattern = />([A-Za-z]+(?:\s+[A-Za-z]+)+)</g;
+            const allTextMatches = [...profileArea.matchAll(textContentPattern)];
+            console.log(`Found ${allTextMatches.length} text content matches in profile area`);
             
-            for (let i = 0; i < spanPatterns.length; i++) {
-                const pattern = spanPatterns[i];
-                const matches = [...headerArea.matchAll(pattern)];
-                console.log(`Span pattern ${i + 1} found ${matches.length} matches`);
-                
-                // Log first few matches for debugging
-                if (matches.length > 0) {
-                    for (let j = 0; j < Math.min(5, matches.length); j++) {
-                        const match = matches[j];
-                        if (match && match[1]) {
-                            const text = match[1].trim().substring(0, 50);
-                            console.log(`  Match ${j + 1}: "${text}"`);
-                        }
-                    }
-                }
-                
-                // Return the first match - it's structured data, trust whatever is in the name element
-                for (const match of matches) {
-                    if (match && match[1]) {
-                        let name = match[1].trim();
-                        // Clean up any HTML entities
-                        name = name.replace(/&[^;]+;/g, '').trim();
+            // Collect potential names (2-4 words, alphabetic only)
+            const potentialNames = [];
+            for (const match of allTextMatches) {
+                if (match && match[1]) {
+                    let text = match[1].trim();
+                    // Clean HTML entities
+                    text = text.replace(/&[^;]+;/g, '').trim();
+                    
+                    // Check if it looks like a name (2-4 words, all alphabetic, reasonable length)
+                    const words = text.split(/\s+/);
+                    if (words.length >= 2 && words.length <= 4) {
+                        const isValid = words.every(word => 
+                            word.length >= 2 && word.length <= 20 && /^[A-Za-z]+$/.test(word)
+                        );
                         
-                        // Basic sanity check - just make sure it's not empty and not the username
-                        if (name && name.length > 0 && name !== cleanUsername && !name.startsWith('@')) {
-                            console.log(`✅ Found Instagram name from span element (pattern ${i + 1}): ${name}`);
-                            return name;
+                        if (isValid && 
+                            text.length > 3 && text.length < 60 &&
+                            text !== cleanUsername && 
+                            !text.toLowerCase().startsWith('@') &&
+                            !text.toLowerCase().includes('instagram') &&
+                            !text.toLowerCase().includes('login') &&
+                            !text.toLowerCase().includes('follow') &&
+                            !text.toLowerCase().includes('posts') &&
+                            !text.toLowerCase().includes('followers') &&
+                            !text.toLowerCase().includes('following') &&
+                            !text.toLowerCase().includes('edit profile') &&
+                            !text.toLowerCase().includes('message')) {
+                            potentialNames.push({
+                                name: text,
+                                index: match.index,
+                                distance: Math.abs(match.index - (usernameIndex - start))
+                            });
                         }
                     }
                 }
             }
             
-            // Also try h1/h2 tags near username
-            const headerPatterns = [
-                /<h[12][^>]*>([^<]+)<\/h[12]>/gi
+            console.log(`Found ${potentialNames.length} potential names near username`);
+            
+            // Sort by distance from username (closer is better)
+            potentialNames.sort((a, b) => a.distance - b.distance);
+            
+            // Log first 10 potential names
+            for (let i = 0; i < Math.min(10, potentialNames.length); i++) {
+                console.log(`  Potential name ${i + 1}: "${potentialNames[i].name}" (distance: ${potentialNames[i].distance})`);
+            }
+            
+            // Return the closest valid name to username
+            if (potentialNames.length > 0) {
+                const bestMatch = potentialNames[0];
+                console.log(`✅ Found Instagram name (closest to username): ${bestMatch.name}`);
+                return bestMatch.name;
+            }
+            
+            // Strategy 2: Try span patterns (more specific but might work)
+            const spanPatterns = [
+                /<span[^>]*class="[^"]*x[a-z0-9]+[^"]*"[^>]*dir="auto"[^>]*>([^<]+)<\/span>/gi,
+                /<span[^>]*class="[^"]*x[a-z0-9]+[^"]*"[^>]*>([^<]+)<\/span>/gi,
+                /<span[^>]*>([^<]+)<\/span>/gi
             ];
             
-            for (const pattern of headerPatterns) {
-                const matches = [...headerArea.matchAll(pattern)];
-                console.log(`Header pattern found ${matches.length} matches`);
+            for (let i = 0; i < spanPatterns.length; i++) {
+                const pattern = spanPatterns[i];
+                const matches = [...profileArea.matchAll(pattern)];
+                console.log(`Span pattern ${i + 1} found ${matches.length} matches`);
+                
+                if (matches.length > 0) {
+                    for (let j = 0; j < Math.min(5, matches.length); j++) {
+                        const match = matches[j];
+                        if (match && match[1]) {
+                            const text = match[1].trim().substring(0, 50);
+                            console.log(`  Span match ${j + 1}: "${text}"`);
+                        }
+                    }
+                }
+                
                 for (const match of matches) {
                     if (match && match[1]) {
                         let name = match[1].trim();
                         name = name.replace(/&[^;]+;/g, '').trim();
                         
                         if (name && name.length > 0 && name !== cleanUsername && !name.startsWith('@')) {
-                            console.log(`✅ Found Instagram name from header tag: ${name}`);
+                            console.log(`✅ Found Instagram name from span element (pattern ${i + 1}): ${name}`);
                             return name;
                         }
                     }
