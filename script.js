@@ -7,16 +7,12 @@ console.log('✅ Current time:', new Date().toISOString());
 
 // CRITICAL: Export handleSearch immediately (before function definition)
 // This ensures it's available for inline onclick handlers
-// The real function will be defined later and will replace this
+// The real function will be defined later and will replace this at line ~1585
 window.handleSearch = function() {
-    console.log('⚠️ Placeholder handleSearch called - real function should be available soon');
-    // Try to call the real function if it exists
-    if (typeof handleSearch === 'function' && handleSearch !== window.handleSearch) {
-        console.log('✅ Real handleSearch found, calling it');
-        return handleSearch.apply(this, arguments);
-    }
-    // If real function not available yet, show helpful message
-    console.error('⚠️ handleSearch called before real function definition');
+    console.log('⚠️ Placeholder handleSearch called');
+    // The real function should have replaced this by now
+    // If we're still here, the script hasn't finished loading
+    console.error('⚠️ Real handleSearch not available - script may still be loading');
     alert('Search function is still loading. Please wait a moment and try again.');
 };
 
@@ -1402,10 +1398,6 @@ function displayLeaderboard(users) {
 async function handleSearch() {
     console.log('🔍🔍🔍 handleSearch CALLED - STARTING SEARCH');
     
-    // Immediately update window export with the real function (replaces placeholder)
-    if (typeof window !== 'undefined') {
-        window.handleSearch = handleSearch;
-    }
     
     const input = document.getElementById('instagramHandle');
     if (!input) {
