@@ -1311,9 +1311,19 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
                 }
             });
             
-            // Filter out placeholders - only show real claims
+            // Filter out placeholders and deduplicate - only show real claims
+            const seenHandles = new Set();
             leaderboardData = data.leaderboard
-                .filter(entry => !entry.isPlaceholder) // Remove placeholders
+                .filter(entry => {
+                    if (entry.isPlaceholder) return false; // Remove placeholders
+                    const cleanEntryHandle = cleanHandle(entry.handle);
+                    if (seenHandles.has(cleanEntryHandle)) {
+                        console.log(`⚠️ Duplicate entry detected for handle: ${entry.handle}, skipping`);
+                        return false; // Skip duplicates
+                    }
+                    seenHandles.add(cleanEntryHandle);
+                    return true;
+                })
                 .map(entry => {
                     const cleanEntryHandle = cleanHandle(entry.handle);
                     const existingPic = existingProfilePics.get(cleanEntryHandle);

@@ -1152,33 +1152,34 @@ const server = http.createServer((req, res) => {
                     return;
                 }
                 
-                // Check if entry already exists
+                // Check if entry already exists (handle is UNIQUE in database)
                 const existingResult = await pool.query(
                     'SELECT id, amount, is_placeholder FROM leaderboard WHERE handle = $1',
                     [entry.handle]
                 );
                 
                 if (existingResult.rows.length > 0) {
-                    // Update existing entry
+                    // Update existing entry (prevents duplicates)
                     const existing = existingResult.rows[0];
-                    console.log(`[LEADERBOARD] Existing entry found:`, {
+                    console.log(`[LEADERBOARD] Existing entry found, updating (preventing duplicate):`, {
                         id: existing.id,
+                        handle: entry.handle,
                         existingAmount: existing.amount,
                         newAmount: entry.amount,
                         existingIsPlaceholder: existing.is_placeholder,
                         newIsPlaceholder: entry.isPlaceholder || false
                     });
                     
-                    // ALWAYS UPDATE - no conditions, just update the entry
+                    // UPDATE existing entry - this prevents duplicates
                     await pool.query(
                         `UPDATE leaderboard 
                          SET name = $1, amount = $2, is_placeholder = $3, entities = $4, updated_at = CURRENT_TIMESTAMP
                          WHERE handle = $5`,
                         [entry.name, entry.amount, entry.isPlaceholder || false, entry.entities ? JSON.stringify(entry.entities) : null, entry.handle]
                     );
-                    console.log(`[LEADERBOARD] Updated existing entry for handle: ${entry.handle}`);
+                    console.log(`[LEADERBOARD] Updated existing entry for handle: ${entry.handle} (duplicate prevented)`);
                 } else {
-                    // Insert new entry
+                    // Insert new entry (only if it doesn't exist)
                     await pool.query(
                         `INSERT INTO leaderboard (name, handle, amount, is_placeholder, entities)
                          VALUES ($1, $2, $3, $4, $5)`,
@@ -1187,9 +1188,10 @@ const server = http.createServer((req, res) => {
                     console.log(`[LEADERBOARD] Added new entry for handle: ${entry.handle}`);
                 }
                 
-                // Fetch updated leaderboard
+                // Fetch updated leaderboard - deduplicate by handle (case-insensitive)
+                // Use DISTINCT ON to ensure only one entry per handle
                 const result = await pool.query(`
-                    SELECT 
+                    SELECT DISTINCT ON (LOWER(handle))
                         name,
                         handle,
                         amount,
@@ -1199,8 +1201,10 @@ const server = http.createServer((req, res) => {
                         updated_at as "updatedAt"
                     FROM leaderboard
                     ORDER BY 
+                        LOWER(handle),
                         CASE WHEN is_placeholder THEN 1 ELSE 0 END,
-                        amount DESC
+                        amount DESC,
+                        created_at DESC
                 `);
                 
                 const leaderboard = result.rows.map(row => ({
