@@ -307,6 +307,21 @@ async function getInstagramFullName(username) {
                 }
                 
                 console.log(`🔍 [${proxyName}] Attempting to extract name from HTML...`);
+                
+                // DEBUG: Log actual full_name occurrences to see the format
+                if (html.includes('full_name')) {
+                    const fullNameSamples = [];
+                    // Find all occurrences of 'full_name' with context
+                    const regex = /full_name[^}]{0,100}/gi;
+                    const matches = html.match(regex);
+                    if (matches) {
+                        for (let i = 0; i < Math.min(10, matches.length); i++) {
+                            fullNameSamples.push(matches[i]);
+                        }
+                        console.log(`📋 [${proxyName}] Sample 'full_name' occurrences:`, fullNameSamples);
+                    }
+                }
+                
                 const fullName = await extractNameFromHTML(html, cleanUsername);
                 if (fullName) {
                     console.log(`✅ [${proxyName}] Successfully extracted name: ${fullName}`);
