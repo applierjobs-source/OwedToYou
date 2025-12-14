@@ -3167,14 +3167,6 @@ async function showShareModal(firstName, lastName, amount, results = []) {
                     After sharing, your claim will be processed for free!
                 </p>
             </div>
-            <div class="payment-option" style="margin-top: 30px; padding-top: 30px; border-top: 2px solid #e0e0e0; text-align: center;">
-                <p style="color: #666; font-size: 0.95rem; margin-bottom: 15px; line-height: 1.6;">
-                    OR skip notifying others and pay $12.95 processing to begin the claim process now
-                </p>
-                <button class="btn btn-buy-now" onclick="handleBuyNow('${escapeHtml(firstName)}', '${escapeHtml(lastName)}', ${amount})" style="width: 100%; max-width: 400px; padding: 14px; font-size: 1.1rem; font-weight: 600; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);">
-                    Buy Now - $12.95
-                </button>
-            </div>
         </div>
     `;
     
@@ -3642,6 +3634,10 @@ async function handleBuyNow(firstName, lastName, amount) {
         }
         
         const session = await response.json();
+        
+        if (!stripe) {
+            throw new Error('Stripe not initialized');
+        }
         
         // Redirect to Stripe Checkout
         const result = await stripe.redirectToCheckout({
