@@ -1452,6 +1452,8 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
             // Filter out placeholders and deduplicate - only show real claims
             const seenHandles = new Set();
             const cleanHandleValue = cleanHandle(handle);
+            console.log(`[PROFILE PIC FLOW] addToLeaderboard: handle="${handle}", cleanHandleValue="${cleanHandleValue}", profilePic=${profilePic ? `SET (${profilePic.substring(0, 40)}...)` : 'NULL'}`);
+            
             leaderboardData = data.leaderboard
                 .filter(entry => {
                     if (entry.isPlaceholder) return false; // Remove placeholders
@@ -1468,9 +1470,10 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
                     const existingPic = existingProfilePics.get(cleanEntryHandle);
                     // If this is the entry we just added and we have a profile pic, use it
                     let finalProfilePic = existingPic || null;
+                    console.log(`[PROFILE PIC FLOW] Mapping entry: handle="${entry.handle}", cleanEntryHandle="${cleanEntryHandle}", cleanHandleValue="${cleanHandleValue}", match=${cleanEntryHandle === cleanHandleValue}, profilePic param=${profilePic ? 'SET' : 'NULL'}, existingPic=${existingPic ? 'SET' : 'NULL'}`);
                     if (cleanEntryHandle === cleanHandleValue && profilePic) {
                         finalProfilePic = profilePic;
-                        console.log(`✅✅✅ Set profilePic for ${entry.handle} in leaderboardData (new entry)`);
+                        console.log(`✅✅✅ Set profilePic for ${entry.handle} in leaderboardData (new entry): ${profilePic.substring(0, 50)}...`);
                     }
                     return {
                         ...entry,
@@ -2598,6 +2601,8 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
         amount: 0,
         profilePic: profilePic // Include profile picture if available
     };
+    
+    console.log(`[PROFILE PIC FLOW] claimData.profilePic: ${claimData.profilePic ? `SET (${claimData.profilePic.substring(0, 40)}...)` : 'NOT SET'}`);
     
     console.log(`📝 claimData created:`, {
         firstName: claimData.firstName,
