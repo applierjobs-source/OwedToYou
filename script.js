@@ -532,6 +532,80 @@ async function extractNameFromHTML(html, cleanUsername) {
         }
     }
     
+    // PRIORITY: If HTML contains 'full_name', search comprehensively for it
+    // Instagram always includes full_name somewhere in the HTML, even if not in _sharedData
+    if (html.includes('full_name')) {
+        console.log(`HTML contains 'full_name' - searching comprehensively...`);
+        
+        // First, try to find full_name near the username (most reliable)
+        const usernameIndex = html.indexOf(cleanUsername);
+        if (usernameIndex !== -1) {
+            // Look in a large window around username
+            const start = Math.max(0, usernameIndex - 30000);
+            const end = Math.min(html.length, usernameIndex + 30000);
+            const searchArea = html.substring(start, end);
+            
+            // Find ALL full_name occurrences in this area
+            const fullNameMatches = [...searchArea.matchAll(/"full_name"\s*:\s*"([^"]+)"/gi)];
+            console.log(`Found ${fullNameMatches.length} full_name matches near username`);
+            
+            // Try each match, prefer ones closer to username
+            let bestName = null;
+            let bestDistance = Infinity;
+            
+            for (const match of fullNameMatches) {
+                if (match && match[1]) {
+                    const name = match[1].trim();
+                    // Validate it's a real name
+                    if (name && name.length > 2 && name.length < 100 &&
+                        !name.startsWith('@') && 
+                        name !== cleanUsername && 
+                        !name.toLowerCase().includes('instagram') &&
+                        !name.toLowerCase().includes('null') &&
+                        !name.toLowerCase().includes('undefined') &&
+                        /[a-zA-Z]/.test(name)) {
+                        
+                        // Calculate distance from username
+                        const nameIndex = searchArea.indexOf(`"full_name":"${name}"`);
+                        if (nameIndex !== -1) {
+                            const distance = Math.abs(nameIndex - (usernameIndex - start));
+                            if (distance < bestDistance) {
+                                bestName = name;
+                                bestDistance = distance;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if (bestName) {
+                console.log(`Found Instagram name via comprehensive full_name search (distance: ${bestDistance}): ${bestName}`);
+                return bestName;
+            }
+        }
+        
+        // If not found near username, search entire HTML
+        const allFullNameMatches = [...html.matchAll(/"full_name"\s*:\s*"([^"]+)"/gi)];
+        console.log(`Found ${allFullNameMatches.length} total full_name matches in HTML`);
+        
+        for (const match of allFullNameMatches) {
+            if (match && match[1]) {
+                const name = match[1].trim();
+                // Validate it's a real name
+                if (name && name.length > 2 && name.length < 100 &&
+                    !name.startsWith('@') && 
+                    name !== cleanUsername && 
+                    !name.toLowerCase().includes('instagram') &&
+                    !name.toLowerCase().includes('null') &&
+                    !name.toLowerCase().includes('undefined') &&
+                    /[a-zA-Z]/.test(name)) {
+                    console.log(`Found Instagram name via full_name search: ${name}`);
+                    return name;
+                }
+            }
+        }
+    }
+    
     // Try to find name in various script tags with JSON data
     const scriptMatches = html.match(/<script[^>]*>(.*?)<\/script>/gis);
     if (scriptMatches) {
