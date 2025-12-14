@@ -418,34 +418,9 @@ async function fetchInstagramFullName(username) {
                     resolve({ success: false, error: 'Instagram is requiring login (blocking detected). Try using the browser-based search method.' });
                     return;
                 }
-                // For other redirects (like trailing slash redirects), follow them
-                if (location.startsWith('http')) {
-                    console.log(`[INSTAGRAM] Following redirect to: ${location}`);
-                    // Close current request
-                    res.destroy();
-                    // Make new request to redirected location
-                    const redirectUrl = new URL(location);
-                    const redirectOptions = {
-                        hostname: redirectUrl.hostname,
-                        path: redirectUrl.pathname + redirectUrl.search,
-                        method: 'GET',
-                        headers: options.headers
-                    };
-                    // For redirects, just continue with the original response
-                    // (The redirect URL is usually just adding/removing trailing slash)
-                    console.log(`[INSTAGRAM] Continuing with redirect URL: ${location}`);
-                    redirectReq.on('error', (err) => {
-                        console.error(`[INSTAGRAM] Redirect request error:`, err.message);
-                        resolve({ success: false, error: `Redirect failed: ${err.message}` });
-                    });
-                    redirectReq.setTimeout(10000, () => {
-                        redirectReq.destroy();
-                        resolve({ success: false, error: 'Redirect request timeout' });
-                    });
-                    return;
-                }
-                // For relative redirects, continue processing (might be handled by browser)
-                console.log(`[INSTAGRAM] Relative redirect, continuing...`);
+                // For other redirects, continue processing the response
+                // (Instagram often redirects but still serves content)
+                console.log(`[INSTAGRAM] Non-login redirect detected, continuing with response...`);
             }
             
             // Check for error status codes

@@ -174,8 +174,17 @@ async function getInstagramFullName(username) {
             }
         } else {
             const errorText = await response.text().catch(() => '');
-            console.log(`⚠️ Backend request failed with status: ${response.status}`);
+                console.log(`⚠️ Backend request failed with status: ${response.status}`);
             console.log(`⚠️ Error response: ${errorText.substring(0, 200)}`);
+            // If backend returns a specific error message, log it
+            try {
+                const errorData = JSON.parse(errorText);
+                if (errorData.error) {
+                    console.log(`⚠️ Backend error message: ${errorData.error}`);
+                }
+            } catch (e) {
+                // Not JSON, ignore
+            }
             // Don't throw - fall through to proxy methods
         }
     } catch (e) {
@@ -1128,8 +1137,19 @@ async function loadLeaderboard() {
             });
             
             // Filter out placeholders - only show real claims
+            // Also deduplicate by handle (case-insensitive) - keep only the first occurrence
+            const seenHandles = new Set();
             leaderboardData = data.leaderboard
-                .filter(entry => !entry.isPlaceholder) // Remove placeholders
+                .filter(entry => {
+                    if (entry.isPlaceholder) return false; // Remove placeholders
+                    const cleanEntryHandle = cleanHandle(entry.handle);
+                    if (seenHandles.has(cleanEntryHandle)) {
+                        console.log(`⚠️ Duplicate entry detected for handle: ${entry.handle}, skipping`);
+                        return false; // Skip duplicates
+                    }
+                    seenHandles.add(cleanEntryHandle);
+                    return true;
+                })
                 .map(entry => {
                     const cleanEntryHandle = cleanHandle(entry.handle);
                     const existingPic = existingProfilePics.get(cleanEntryHandle);
@@ -1139,7 +1159,7 @@ async function loadLeaderboard() {
                         isPlaceholder: false
                     };
                 });
-            console.log(`Loaded ${leaderboardData.length} real leaderboard entries from backend (placeholders filtered out)`);
+            console.log(`Loaded ${leaderboardData.length} unique real leaderboard entries from backend (placeholders and duplicates filtered out)`);
             return leaderboardData;
         }
         console.log('No leaderboard data in response');
@@ -1589,21 +1609,9 @@ async function handleSearchImpl() {
         console.log(`🔍 Cleaned handle value: "${cleanHandleValue}"`);
         console.log(`🔍 Leaderboard data length: ${leaderboardData ? leaderboardData.length : 'NULL'}`);
         
-        // Check if this handle exists in the leaderboard (real entries only)
-        const foundEntry = leaderboardData.find(entry => cleanHandle(entry.handle) === cleanHandleValue);
-        console.log(`🔍 Found entry in leaderboard:`, foundEntry ? 'YES' : 'NO');
-        
-        if (foundEntry) {
-            console.log('🔍 Entry found, displaying leaderboard...');
-            // User exists in leaderboard - show all entries with this one highlighted
-            const usersToShow = generateLeaderboard(handle);
-            displayLeaderboard(usersToShow);
-            // Re-enable button immediately
-            searchBtn.disabled = false;
-            searchBtn.textContent = 'Search';
-        } else {
-            // User doesn't exist - get Instagram full name and start search automatically
-            console.log(`🔍 User ${cleanHandleValue} not in leaderboard, extracting Instagram name...`);
+        // Always proceed with new search - don't redirect to existing entries
+        // User doesn't exist or exists - get Instagram full name and start search automatically
+        console.log(`🔍 Starting new search for ${cleanHandleValue}...`);
             console.log(`🔍 About to call getInstagramFullName...`);
             let fullName = null;
             let nameExtractionError = null;
