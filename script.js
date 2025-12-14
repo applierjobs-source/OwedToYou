@@ -1411,8 +1411,9 @@ async function clearLeaderboardHandles() {
 }
 
 // Add entry to leaderboard (or update if exists)
-async function addToLeaderboard(name, handle, amount, isPlaceholder = false, refreshDisplay = false, entities = null) {
+async function addToLeaderboard(name, handle, amount, isPlaceholder = false, refreshDisplay = false, entities = null, profilePic = null) {
     try {
+        console.log(`📝 addToLeaderboard called with profilePic: ${profilePic ? 'provided' : 'not provided'}`);
         const apiBase = window.location.origin;
         const response = await fetch(`${apiBase}/api/leaderboard`, {
             method: 'POST',
@@ -1849,12 +1850,25 @@ async function handleSearchImpl() {
         console.log(`🔍 About to call getInstagramFullName...`);
         let fullName = null;
         let nameExtractionError = null;
+        let profilePic = null;
         try {
             console.log(`📞 Calling getInstagramFullName for: ${cleanHandleValue}`);
             console.log(`📞 getInstagramFullName function type:`, typeof getInstagramFullName);
             fullName = await getInstagramFullName(cleanHandleValue);
             console.log(`📋 getInstagramFullName returned: ${fullName || 'null'}`);
             console.log(`📋 Return type:`, typeof fullName);
+            
+            // Fetch profile picture immediately after name extraction
+            if (fullName) {
+                console.log(`🖼️ Fetching profile picture for ${cleanHandleValue}...`);
+                try {
+                    profilePic = await getInstagramProfilePicture(cleanHandleValue);
+                    console.log(`🖼️ Profile picture result: ${profilePic ? 'Found' : 'Not found'}`);
+                } catch (picError) {
+                    console.error(`🖼️ Error fetching profile picture:`, picError);
+                    profilePic = null;
+                }
+            }
         } catch (nameError) {
             console.error('❌ Error extracting Instagram name:', nameError);
             console.error('Error stack:', nameError.stack);
@@ -1912,12 +1926,13 @@ async function handleSearchImpl() {
             // If we got a valid name, start the search automatically
             if (firstName && lastName) {
                 console.log(`✅ Starting search with extracted Instagram name: "${firstName} ${lastName}"`);
+                console.log(`🖼️ Profile picture available: ${profilePic ? 'Yes' : 'No'}`);
                 // Re-enable button immediately
                 searchBtn.disabled = false;
                 searchBtn.textContent = 'Search';
                 
-                // Start the search automatically
-                await startMissingMoneySearch(firstName, lastName, cleanHandleValue);
+                // Start the search automatically (pass profile pic if available)
+                await startMissingMoneySearch(firstName, lastName, cleanHandleValue, profilePic);
                 searchInProgress = false;
             } else if (firstName && !lastName && fullName) {
                 // Handle single-word names (e.g., "Naval", "Madonna")
@@ -1927,7 +1942,7 @@ async function handleSearchImpl() {
                 searchBtn.textContent = 'Search';
                 
                 // Use firstName as both first and last name
-                await startMissingMoneySearch(firstName, firstName, cleanHandleValue);
+                await startMissingMoneySearch(firstName, firstName, cleanHandleValue, profilePic);
                 searchInProgress = false;
             } else {
                 console.log('⚠️ Could not extract name from Instagram');
@@ -1966,7 +1981,7 @@ async function handleSearchImpl() {
                         console.log(`✅ Using split name: "${firstName} ${lastName}"`);
                         searchBtn.disabled = false;
                         searchBtn.textContent = 'Search';
-                        await startMissingMoneySearch(firstName, lastName, cleanHandleValue);
+                        await startMissingMoneySearch(firstName, lastName, cleanHandleValue, profilePic);
                         searchInProgress = false;
                         return;
                     } else if (nameParts.length === 1) {
@@ -1975,7 +1990,7 @@ async function handleSearchImpl() {
                         console.log(`✅ Using single-word name as both first and last: "${firstName}"`);
                         searchBtn.disabled = false;
                         searchBtn.textContent = 'Search';
-                        await startMissingMoneySearch(firstName, firstName, cleanHandleValue);
+                        await startMissingMoneySearch(firstName, firstName, cleanHandleValue, profilePic);
                         searchInProgress = false;
                         return;
                     }
@@ -2498,8 +2513,8 @@ function hideProgressModal() {
 }
 
 // Start missing money search directly with first and last name
-async function startMissingMoneySearch(firstName, lastName, handle) {
-    console.log(`🚀 startMissingMoneySearch called with: firstName="${firstName}", lastName="${lastName}", handle="${handle}"`);
+async function startMissingMoneySearch(firstName, lastName, handle, profilePic = null) {
+    console.log(`🚀 startMissingMoneySearch called with: firstName="${firstName}", lastName="${lastName}", handle="${handle}", profilePic="${profilePic ? 'provided' : 'not provided'}"`);
     
     // Basic validation - only check for empty or obviously invalid values
     if (!firstName || !lastName || firstName.trim().length === 0 || lastName.trim().length === 0) {
@@ -2523,7 +2538,8 @@ async function startMissingMoneySearch(firstName, lastName, handle) {
         state: '', // Not required by missingmoney.com
         phone: '', // Not required
         name: handle || `${firstName} ${lastName}`.toLowerCase().replace(/\s+/g, ''),
-        amount: 0
+        amount: 0,
+        profilePic: profilePic // Include profile picture if available
     };
     
     console.log(`📝 claimData created:`, {
@@ -2655,8 +2671,8 @@ async function startMissingMoneySearch(firstName, lastName, handle) {
             console.log('✅ Showing results modal with', result.results.length, 'results');
             console.log('📊 First result:', result.results[0]);
             
-            // Add to leaderboard with real amount, entities, and refresh display
-            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), result.totalAmount, false, true, result.results || []);
+            // Add to leaderboard with real amount, entities, profile pic, and refresh display
+            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), result.totalAmount, false, true, result.results || [], claimData.profilePic);
             
             // Show results modal
             showResultsModal(claimData, result);
@@ -2666,7 +2682,7 @@ async function startMissingMoneySearch(firstName, lastName, handle) {
             console.log('💾 Saving claim to leaderboard with $0 amount');
             
             // Add to leaderboard with $0 amount (still a successful claim) and refresh display
-            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 0, false, true, []);
+            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 0, false, true, [], claimData.profilePic);
             
             // Show "no results" modal
             showNoResultsModal(claimData);
