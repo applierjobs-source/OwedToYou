@@ -1527,23 +1527,28 @@ async function loadProfilePicturesInBackground(users) {
             return;
         }
         
-        console.log(`[${index}] Fetching profile picture for ${user.handle}...`);
+        console.log(`[${index}] 🔍 Fetching profile picture for ${user.handle}...`);
         let profilePic = null;
         try {
             profilePic = await getInstagramProfilePicture(user.handle);
-            console.log(`[${index}] Profile picture result for ${user.handle}:`, profilePic ? `Found: ${profilePic}` : 'Not found');
+            console.log(`[${index}] ✅ Profile picture result for ${user.handle}:`, profilePic ? `Found: ${profilePic.substring(0, 80)}...` : '❌ Not found');
         } catch (error) {
-            console.error(`[${index}] Error fetching profile picture for ${user.handle}:`, error);
+            console.error(`[${index}] ❌ Error fetching profile picture for ${user.handle}:`, error);
             console.error(`[${index}] Error message:`, error.message);
             console.error(`[${index}] Error stack:`, error.stack);
             profilePic = null; // Set to null on error
         }
         
         if (profilePic) {
+            console.log(`[${index}] ✅✅✅ PROFILE PIC RECEIVED FOR ${user.handle}: ${profilePic.substring(0, 80)}...`);
+            
             // Update the user object in leaderboardData to preserve the profile pic
             const userIndex = leaderboardData.findIndex(e => cleanHandle(e.handle) === cleanHandle(user.handle));
             if (userIndex >= 0) {
                 leaderboardData[userIndex].profilePic = profilePic;
+                console.log(`[${index}] ✅ Updated leaderboardData[${userIndex}].profilePic for ${user.handle}`);
+            } else {
+                console.log(`[${index}] ⚠️ User not found in leaderboardData for ${user.handle}`);
             }
             
             // Save to localStorage for persistence across page reloads (save with both handle formats)
@@ -1551,47 +1556,59 @@ async function loadProfilePicturesInBackground(users) {
             storedProfilePics[user.handle] = profilePic;
             storedProfilePics[cleanHandle(user.handle)] = profilePic; // Also save with cleaned handle
             saveProfilePicsToStorage(storedProfilePics);
-            // Wait a bit for DOM to be ready
-            await new Promise(resolve => setTimeout(resolve, 100));
+            console.log(`[${index}] ✅ Saved profile pic to localStorage for ${user.handle}`);
             
-            // Find the entry by data-handle attribute (most reliable)
+            // Try multiple times to find and update the DOM element (retry logic)
+            let attempts = 0;
+            const maxAttempts = 10;
+            let entry = null;
             const cleanUserHandle = cleanHandle(user.handle);
-            let entry = document.querySelector(`.leaderboard-entry[data-handle="${cleanUserHandle}"]`);
             
-            if (!entry) {
-                // Fallback: try to find by handle in the entry text
-                const entries = document.querySelectorAll('.leaderboard-entry');
-                console.log(`[${index}] Found ${entries.length} leaderboard entries in DOM, looking for handle: ${user.handle}`);
+            while (attempts < maxAttempts && !entry) {
+                // Wait a bit for DOM to be ready (increasing delay)
+                await new Promise(resolve => setTimeout(resolve, 200 * (attempts + 1)));
                 
-                for (let i = 0; i < entries.length; i++) {
-                    const entryHandle = entries[i].getAttribute('data-handle') || '';
-                    const entryText = entries[i].innerText || '';
-                    const handleInText = entryText.includes(`@${user.handle}`) || 
-                                        entryText.includes(`@${cleanUserHandle}`) ||
-                                        cleanHandle(entryHandle) === cleanUserHandle;
-                    if (handleInText) {
-                        entry = entries[i];
-                        console.log(`[${index}] Found entry at index ${i} for handle ${user.handle} via text match`);
-                        break;
+                // Find the entry by data-handle attribute (most reliable)
+                entry = document.querySelector(`.leaderboard-entry[data-handle="${cleanUserHandle}"]`);
+                
+                if (!entry) {
+                    // Fallback: try to find by handle in the entry text
+                    const entries = document.querySelectorAll('.leaderboard-entry');
+                    console.log(`[${index}] Attempt ${attempts + 1}: Found ${entries.length} leaderboard entries in DOM, looking for handle: ${user.handle}`);
+                    
+                    for (let i = 0; i < entries.length; i++) {
+                        const entryHandle = entries[i].getAttribute('data-handle') || '';
+                        const entryText = entries[i].innerText || '';
+                        const handleInText = entryText.includes(`@${user.handle}`) || 
+                                            entryText.includes(`@${cleanUserHandle}`) ||
+                                            cleanHandle(entryHandle) === cleanUserHandle ||
+                                            entryText.includes(user.name);
+                        if (handleInText) {
+                            entry = entries[i];
+                            console.log(`[${index}] ✅ Found entry at index ${i} for handle ${user.handle} via text match`);
+                            break;
+                        }
+                    }
+                } else {
+                    console.log(`[${index}] ✅ Found entry for handle ${user.handle} via data-handle attribute`);
+                }
+                
+                // Last fallback: use index if still not found
+                if (!entry) {
+                    const entries = document.querySelectorAll('.leaderboard-entry');
+                    if (entries[index]) {
+                        entry = entries[index];
+                        console.log(`[${index}] ✅ Using index fallback for ${user.handle}`);
                     }
                 }
-            } else {
-                console.log(`[${index}] Found entry for handle ${user.handle} via data-handle attribute`);
-            }
-            
-            // Last fallback: use index if still not found
-            if (!entry) {
-                const entries = document.querySelectorAll('.leaderboard-entry');
-                if (entries[index]) {
-                    entry = entries[index];
-                    console.log(`[${index}] Using index fallback for ${user.handle}`);
-                }
+                
+                attempts++;
             }
             
             if (entry) {
                 const profilePictureDiv = entry.querySelector('.profile-picture');
                 if (profilePictureDiv) {
-                    console.log(`[${index}] Updating profile picture for ${user.handle} in DOM`);
+                    console.log(`[${index}] ✅✅✅ UPDATING DOM: Setting profile picture for ${user.handle} in DOM`);
                     const initials = getInitials(user.name);
                     
                     // Preload image before inserting to prevent flickering
@@ -1602,18 +1619,20 @@ async function loadProfilePicturesInBackground(users) {
                     img.style.borderRadius = '50%';
                     img.style.objectFit = 'cover';
                     img.style.display = 'block'; // Ensure image displays on mobile
+                    img.style.opacity = '1'; // Force visibility
                     
                     img.onload = function() {
-                        console.log(`[${index}] Image loaded successfully for ${user.handle}: ${profilePic}`);
+                        console.log(`[${index}] ✅✅✅ IMAGE LOADED SUCCESSFULLY for ${user.handle}: ${profilePic.substring(0, 80)}...`);
                         // Only update DOM after image is fully loaded
                         profilePictureDiv.innerHTML = '';
                         profilePictureDiv.appendChild(img);
                         // Force reflow on mobile to ensure image displays
                         profilePictureDiv.offsetHeight;
+                        console.log(`[${index}] ✅✅✅ DOM UPDATED: Profile picture displayed for ${user.handle}`);
                     };
                     
                     img.onerror = function() {
-                        console.log(`[${index}] Image failed to load for ${user.handle}, showing initials`);
+                        console.log(`[${index}] ❌ Image failed to load for ${user.handle}, showing initials`);
                         profilePictureDiv.innerHTML = initials;
                         profilePictureDiv.style.display = 'flex';
                         profilePictureDiv.style.alignItems = 'center';
@@ -1621,25 +1640,44 @@ async function loadProfilePicturesInBackground(users) {
                     };
                     
                     // Start loading the image
+                    console.log(`[${index}] 🖼️ Starting to load image: ${profilePic.substring(0, 80)}...`);
                     img.src = profilePic;
                     
-                    // Fallback: if image doesn't load within 5 seconds, show initials
+                    // Fallback: if image doesn't load within 10 seconds, show initials
                     setTimeout(() => {
                         if (!img.complete || img.naturalHeight === 0) {
-                            console.log(`[${index}] Image load timeout for ${user.handle}, showing initials`);
+                            console.log(`[${index}] ⏱️ Image load timeout for ${user.handle}, showing initials`);
                             if (profilePictureDiv.querySelector('img') === img) {
                                 img.onerror();
                             }
                         }
-                    }, 5000);
+                    }, 10000);
                 } else {
-                    console.log(`[${index}] Profile picture div not found for ${user.handle}`);
+                    console.error(`[${index}] ❌❌❌ Profile picture div not found for ${user.handle} in entry`);
                 }
             } else {
-                console.log(`[${index}] Entry not found for ${user.handle} (tried index ${index} and handle matching)`);
+                console.error(`[${index}] ❌❌❌ Entry not found for ${user.handle} after ${maxAttempts} attempts`);
+                // Force update by finding all entries and matching by name
+                const allEntries = document.querySelectorAll('.leaderboard-entry');
+                console.log(`[${index}] 🔍 Trying to find entry by name: ${user.name}`);
+                for (let i = 0; i < allEntries.length; i++) {
+                    if (allEntries[i].innerText.includes(user.name)) {
+                        const profilePictureDiv = allEntries[i].querySelector('.profile-picture');
+                        if (profilePictureDiv) {
+                            console.log(`[${index}] ✅ Found entry by name match, updating profile picture`);
+                            const img = new Image();
+                            img.src = profilePic;
+                            img.onload = function() {
+                                profilePictureDiv.innerHTML = '';
+                                profilePictureDiv.appendChild(img);
+                            };
+                            break;
+                        }
+                    }
+                }
             }
         } else {
-            console.log(`[${index}] No profile picture URL returned for ${user.handle}`);
+            console.error(`[${index}] ❌❌❌ No profile picture URL returned for ${user.handle}`);
         }
     });
     
