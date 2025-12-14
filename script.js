@@ -1678,6 +1678,8 @@ async function handleSearch() {
 // CRITICAL: Export handleSearch to window IMMEDIATELY after function definition
 // This replaces the placeholder with the real function as soon as script loads
 // This MUST be synchronous and happen before any other code runs
+console.log('🔍 About to export handleSearch - function exists:', typeof handleSearch);
+console.log('🔍 About to export handleSearch - window exists:', typeof window !== 'undefined');
 (function() {
     'use strict';
     try {
