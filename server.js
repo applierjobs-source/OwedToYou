@@ -379,35 +379,90 @@ async function fetchInstagramProfile(username) {
 // Fetch Instagram full name
 async function fetchInstagramFullName(username) {
     // Use Playwright to render the page and extract name from visible DOM
+    // Use same stealth settings as missingMoneySearch.js to avoid detection
     let browser = null;
     try {
         console.log(`[INSTAGRAM] Using Playwright to extract name for ${username}`);
         
         browser = await chromium.launch({
-            headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
+            headless: true, // Required for Railway (no X server)
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-blink-features=AutomationControlled', // Important: hides automation
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-gpu',
+                '--disable-web-security',
+                '--disable-features=IsolateOrigins,site-per-process'
+            ]
         });
         
+        // Create context with realistic browser fingerprint (same as missingMoneySearch.js)
         const context = await browser.newContext({
-            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            viewport: { width: 1920, height: 1080 }
+            viewport: { width: 1920, height: 1080 },
+            userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            locale: 'en-US',
+            timezoneId: 'America/Chicago',
+            permissions: ['geolocation'],
+            geolocation: { latitude: 30.2672, longitude: -97.7431 }, // Austin, TX
+            colorScheme: 'light',
+            extraHTTPHeaders: {
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+                'Cache-Control': 'max-age=0'
+            }
         });
         
         const page = await context.newPage();
+        
+        // Override webdriver property to hide automation (same as missingMoneySearch.js)
+        await page.addInitScript(() => {
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined
+            });
+        });
+        
         const instagramUrl = `https://www.instagram.com/${username}/`;
         
         console.log(`[INSTAGRAM] Navigating to ${instagramUrl}`);
-        await page.goto(instagramUrl, { waitUntil: 'networkidle', timeout: 15000 });
+        await page.goto(instagramUrl, { waitUntil: 'networkidle', timeout: 20000 });
         
-        // Wait a bit for content to load
-        await page.waitForTimeout(2000);
+        // Wait for content to load
+        await page.waitForTimeout(3000);
         
         // Check if we got redirected to login page
         const currentUrl = page.url();
+        console.log(`[INSTAGRAM] Final URL after navigation: ${currentUrl}`);
+        
         if (currentUrl.includes('/accounts/login/') || currentUrl.includes('login')) {
-            console.log(`[INSTAGRAM] Redirected to login page: ${currentUrl}`);
+            console.log(`[INSTAGRAM] ⚠️ Redirected to login page: ${currentUrl}`);
+            console.log(`[INSTAGRAM] ⚠️ Instagram is blocking Playwright requests`);
             await browser.close();
             return { success: false, error: 'Instagram is requiring login (blocking detected). Try using the browser-based search method.' };
+        }
+        
+        // Check page title to see if we got blocked
+        const pageTitle = await page.title();
+        console.log(`[INSTAGRAM] Page title: ${pageTitle}`);
+        
+        if (pageTitle.includes('Login') || pageTitle.includes('Instagram')) {
+            // Check if there's a login form visible
+            const loginForm = await page.$('input[name="username"], input[type="password"]');
+            if (loginForm) {
+                console.log(`[INSTAGRAM] ⚠️ Login form detected on page`);
+                await browser.close();
+                return { success: false, error: 'Instagram is requiring login (blocking detected). Try using the browser-based search method.' };
+            }
         }
         
         // Try to find the name element - Instagram displays it in a span near the username
@@ -430,17 +485,20 @@ async function fetchInstagramFullName(username) {
                                     !text.toLowerCase().includes('login') &&
                                     !text.toLowerCase().includes('follow') &&
                                     !text.toLowerCase().includes('posts') &&
-                                    !text.toLowerCase().includes('followers'));
+                                    !text.toLowerCase().includes('followers') &&
+                                    !text.toLowerCase().includes('following'));
             });
             
             console.log(`[INSTAGRAM] Found ${nameSpans.length} potential name spans`);
             if (nameSpans.length > 0) {
+                console.log(`[INSTAGRAM] Name spans found:`, nameSpans);
                 // Use the first one (usually the name is the first span with dir="auto")
                 fullName = nameSpans[0];
-                console.log(`[INSTAGRAM] Extracted name from span[dir="auto"]: ${fullName}`);
+                console.log(`[INSTAGRAM] ✅ Extracted name from span[dir="auto"]: ${fullName}`);
             }
         } catch (e) {
             console.log(`[INSTAGRAM] Error finding span[dir="auto"]: ${e.message}`);
+            console.log(`[INSTAGRAM] Error stack: ${e.stack}`);
         }
         
         // Strategy 2: If not found, look for h1/h2 tags (sometimes Instagram uses these)
@@ -466,11 +524,17 @@ async function fetchInstagramFullName(username) {
         // Strategy 3: Look for any text content near the username
         if (!fullName) {
             try {
-                // Find the username element first
-                const usernameElement = await page.$(`text=${username}`);
+                // Find the username element first - try multiple selectors
+                let usernameElement = await page.$(`text=${username}`);
+                if (!usernameElement) {
+                    // Try finding by link href
+                    usernameElement = await page.$(`a[href*="${username}"]`);
+                }
+                
                 if (usernameElement) {
+                    console.log(`[INSTAGRAM] Found username element, searching for nearby name...`);
                     // Get parent container and look for text siblings
-                    const parent = await usernameElement.evaluateHandle(el => el.closest('section, article, div'));
+                    const parent = await usernameElement.evaluateHandle(el => el.closest('section, article, div, header'));
                     if (parent) {
                         const nearbyText = await parent.evaluate(el => {
                             const texts = [];
@@ -487,14 +551,60 @@ async function fetchInstagramFullName(username) {
                             return texts;
                         });
                         
+                        console.log(`[INSTAGRAM] Found ${nearbyText ? nearbyText.length : 0} nearby text matches`);
                         if (nearbyText && nearbyText.length > 0) {
+                            console.log(`[INSTAGRAM] Nearby texts:`, nearbyText);
                             fullName = nearbyText[0];
-                            console.log(`[INSTAGRAM] Extracted name from nearby text: ${fullName}`);
+                            console.log(`[INSTAGRAM] ✅ Extracted name from nearby text: ${fullName}`);
                         }
                     }
+                } else {
+                    console.log(`[INSTAGRAM] Could not find username element in DOM`);
                 }
             } catch (e) {
                 console.log(`[INSTAGRAM] Error finding nearby text: ${e.message}`);
+                console.log(`[INSTAGRAM] Error stack: ${e.stack}`);
+            }
+        }
+        
+        // Strategy 4: Get all visible text and find name-like patterns
+        if (!fullName) {
+            try {
+                console.log(`[INSTAGRAM] Trying to extract all visible text...`);
+                const allText = await page.evaluate(() => {
+                    const texts = [];
+                    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                    let node;
+                    while (node = walker.nextNode()) {
+                        const text = node.textContent.trim();
+                        if (text.length > 3 && text.length < 60) {
+                            texts.push(text);
+                        }
+                    }
+                    return texts;
+                });
+                
+                console.log(`[INSTAGRAM] Found ${allText.length} text nodes on page`);
+                
+                // Filter for name-like text (2-4 words, alphabetic)
+                const nameLikeTexts = allText.filter(text => {
+                    const words = text.split(/\s+/);
+                    return words.length >= 2 && words.length <= 4 &&
+                           words.every(w => w.length >= 2 && w.length <= 20 && /^[A-Za-z]+$/.test(w)) &&
+                           !text.toLowerCase().includes('instagram') &&
+                           !text.toLowerCase().includes('login') &&
+                           !text.toLowerCase().includes('follow') &&
+                           !text.toLowerCase().includes('posts');
+                });
+                
+                console.log(`[INSTAGRAM] Found ${nameLikeTexts.length} name-like texts:`, nameLikeTexts.slice(0, 10));
+                
+                if (nameLikeTexts.length > 0) {
+                    fullName = nameLikeTexts[0];
+                    console.log(`[INSTAGRAM] ✅ Extracted name from all visible text: ${fullName}`);
+                }
+            } catch (e) {
+                console.log(`[INSTAGRAM] Error extracting all text: ${e.message}`);
             }
         }
         
