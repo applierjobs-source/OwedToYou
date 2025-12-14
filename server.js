@@ -208,10 +208,10 @@ async function fetchInstagramProfile(username) {
         });
         
         try {
-            await page.goto(apiUrl, { waitUntil: 'networkidle', timeout: 15000 });
+            const response = await page.goto(apiUrl, { waitUntil: 'networkidle', timeout: 15000 });
             await page.waitForTimeout(1000); // Wait for interception
             
-            // Extract profile picture from intercepted API responses
+            // Extract profile picture from intercepted API responses first
             let profilePicUrl = null;
             if (apiResponses.length > 0) {
                 for (const apiResponse of apiResponses) {
@@ -221,31 +221,28 @@ async function fetchInstagramProfile(username) {
                         if (data && data.data && data.data.user) {
                             profilePicUrl = data.data.user.profile_pic_url_hd || data.data.user.profile_pic_url;
                             if (profilePicUrl) {
-                                console.log(`[PROFILE] ✅ Found profile picture in API response: ${profilePicUrl}`);
+                                console.log(`[PROFILE] ✅ Found profile picture in intercepted API response: ${profilePicUrl}`);
                                 break;
                             }
                         }
                     } catch (e) {
-                        console.log(`[PROFILE] Error parsing API response: ${e.message}`);
+                        console.log(`[PROFILE] Error parsing intercepted API response: ${e.message}`);
                     }
                 }
             }
             
-            // Also try direct response
-            if (!profilePicUrl) {
+            // Also try direct response if interception didn't work
+            if (!profilePicUrl && response && response.ok()) {
                 try {
-                    const response = await page.goto(apiUrl, { waitUntil: 'networkidle', timeout: 15000 });
-                    if (response && response.ok()) {
-                        const json = await response.json().catch(() => null);
-                        if (json && json.data && json.data.user) {
-                            profilePicUrl = json.data.user.profile_pic_url_hd || json.data.user.profile_pic_url;
-                            if (profilePicUrl) {
-                                console.log(`[PROFILE] ✅ Found profile picture in direct API response: ${profilePicUrl}`);
-                            }
+                    const json = await response.json().catch(() => null);
+                    if (json && json.data && json.data.user) {
+                        profilePicUrl = json.data.user.profile_pic_url_hd || json.data.user.profile_pic_url;
+                        if (profilePicUrl) {
+                            console.log(`[PROFILE] ✅ Found profile picture in direct API response: ${profilePicUrl}`);
                         }
                     }
                 } catch (e) {
-                    console.log(`[PROFILE] Direct API call failed: ${e.message}`);
+                    console.log(`[PROFILE] Error parsing direct API response: ${e.message}`);
                 }
             }
             
