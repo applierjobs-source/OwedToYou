@@ -823,7 +823,21 @@ async function fetchInstagramFullName(username) {
                     }
                     
                     // Last resort: Try to find any text that looks like a name (two capitalized words)
-                    // This is more aggressive and might catch names in unexpected places
+                    // This is VERY aggressive and should only be used if all other methods fail
+                    // Add blacklist of common non-name words/phrases
+                    const nameBlacklist = [
+                        'bahasa indonesia', 'english', 'spanish', 'french', 'german', 'italian', 'portuguese',
+                        'chinese', 'japanese', 'korean', 'arabic', 'hindi', 'russian', 'turkish',
+                        'follow me', 'follow back', 'click here', 'read more', 'see more', 'learn more',
+                        'get started', 'sign up', 'log in', 'create account', 'forgot password',
+                        'terms of', 'privacy policy', 'cookie policy', 'about us', 'contact us',
+                        'instagram', 'facebook', 'twitter', 'youtube', 'tiktok', 'snapchat',
+                        'download', 'install', 'update', 'upgrade', 'version', 'latest',
+                        'new post', 'new story', 'new reel', 'new video', 'new photo',
+                        'view profile', 'edit profile', 'settings', 'account', 'help',
+                        'notifications', 'messages', 'activity', 'discover', 'explore'
+                    ];
+                    
                     const nameLikePatterns = [
                         /<[^>]*>([A-Z][a-z]+(?:\.[a-z]+)?\s+[A-Z][a-z]+)<\/[^>]*>/g,
                         /"([A-Z][a-z]+(?:\.[a-z]+)?\s+[A-Z][a-z]+)"/g
@@ -834,14 +848,38 @@ async function fetchInstagramFullName(username) {
                         for (const match of matches) {
                             if (match && match[1]) {
                                 const potentialName = match[1].trim();
-                                // Validate it looks like a real name
+                                const lowerName = potentialName.toLowerCase();
+                                
+                                // Skip if it's in the blacklist
+                                if (nameBlacklist.some(blacklisted => lowerName.includes(blacklisted))) {
+                                    console.log(`[INSTAGRAM] Skipping blacklisted name-like pattern: ${potentialName}`);
+                                    continue;
+                                }
+                                
+                                // More strict validation - must look like a real person's name
                                 if (potentialName && potentialName.length > 3 && 
                                     potentialName.includes(' ') &&
                                     !potentialName.toLowerCase().includes('instagram') &&
                                     !potentialName.toLowerCase().includes('login') &&
+                                    !potentialName.toLowerCase().includes('follow') &&
+                                    !potentialName.toLowerCase().includes('click') &&
+                                    !potentialName.toLowerCase().includes('read') &&
+                                    !potentialName.toLowerCase().includes('see') &&
+                                    !potentialName.toLowerCase().includes('more') &&
+                                    !potentialName.toLowerCase().includes('download') &&
+                                    !potentialName.toLowerCase().includes('install') &&
+                                    !potentialName.toLowerCase().includes('update') &&
+                                    !potentialName.toLowerCase().includes('version') &&
                                     potentialName !== username &&
-                                    !potentialName.startsWith('@')) {
-                                    console.log(`Found potential Instagram name via name-like pattern: ${potentialName}`);
+                                    !potentialName.startsWith('@') &&
+                                    // Must not be all caps (likely not a name)
+                                    potentialName !== potentialName.toUpperCase() &&
+                                    // Must have at least one lowercase letter (names usually have lowercase)
+                                    /[a-z]/.test(potentialName) &&
+                                    // Must not be a common phrase pattern
+                                    !/^(the|a|an|this|that|these|those)\s+/i.test(potentialName)) {
+                                    console.log(`[INSTAGRAM] Found potential Instagram name via name-like pattern: ${potentialName}`);
+                                    console.log(`[INSTAGRAM] ⚠️ Using name-like pattern as last resort - may not be accurate`);
                                     resolve({ success: true, fullName: potentialName });
                                     return;
                                 }

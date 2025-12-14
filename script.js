@@ -2919,8 +2919,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     // The inline onclick is sufficient and prevents duplicate calls
     console.log('✅ Search button found - using inline onclick handler (no duplicate listener needed)');
     
-    if (freshInput) {
-        freshInput.addEventListener('keypress', function(e) {
+    if (searchInput) {
+        searchInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 console.log('⌨️ Enter key pressed in search input');
                 e.preventDefault();
