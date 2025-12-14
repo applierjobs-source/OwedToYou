@@ -1468,9 +1468,13 @@ function displayLeaderboard(users) {
 // Handle search - CRITICAL FUNCTION - MUST WORK
 async function handleSearch() {
     console.log('🔍🔍🔍 handleSearch CALLED - STARTING SEARCH');
-    
+    console.log('🔍🔍🔍 handleSearch function type:', typeof handleSearch);
+    console.log('🔍🔍🔍 window.handleSearch type:', typeof window.handleSearch);
+    console.log('🔍🔍🔍 handleSearch === window.handleSearch:', handleSearch === window.handleSearch);
+    console.log('🔍🔍🔍 handleSearch.toString().substring(0, 100):', handleSearch.toString().substring(0, 100));
     
     const input = document.getElementById('instagramHandle');
+    console.log('🔍 Input element:', input ? 'FOUND' : 'NOT FOUND');
     if (!input) {
         console.error('❌ Instagram handle input not found!');
         alert('Error: Search input not found. Please refresh the page.');
@@ -1479,8 +1483,10 @@ async function handleSearch() {
     
     const handle = input.value.trim();
     console.log(`🔍 Handle value: "${handle}"`);
+    console.log(`🔍 Handle length: ${handle.length}`);
     
     const searchBtn = document.getElementById('searchBtn');
+    console.log('🔍 Search button element:', searchBtn ? 'FOUND' : 'NOT FOUND');
     
     if (!searchBtn) {
         console.error('❌ Search button not found!');
@@ -1489,6 +1495,7 @@ async function handleSearch() {
     }
     
     console.log(`🔍 Search initiated for handle: "${handle}"`);
+    console.log(`🔍 About to check if handle exists in leaderboard...`);
     
     if (!handle) {
         alert('Please enter an Instagram username');
@@ -1506,12 +1513,17 @@ async function handleSearch() {
     }
     
     try {
+        console.log('🔍 Entering try block...');
         const cleanHandleValue = cleanHandle(handle);
+        console.log(`🔍 Cleaned handle value: "${cleanHandleValue}"`);
+        console.log(`🔍 Leaderboard data length: ${leaderboardData ? leaderboardData.length : 'NULL'}`);
         
         // Check if this handle exists in the leaderboard (real entries only)
         const foundEntry = leaderboardData.find(entry => cleanHandle(entry.handle) === cleanHandleValue);
+        console.log(`🔍 Found entry in leaderboard:`, foundEntry ? 'YES' : 'NO');
         
         if (foundEntry) {
+            console.log('🔍 Entry found, displaying leaderboard...');
             // User exists in leaderboard - show all entries with this one highlighted
             const usersToShow = generateLeaderboard(handle);
             displayLeaderboard(usersToShow);
@@ -1521,12 +1533,15 @@ async function handleSearch() {
         } else {
             // User doesn't exist - get Instagram full name and start search automatically
             console.log(`🔍 User ${cleanHandleValue} not in leaderboard, extracting Instagram name...`);
+            console.log(`🔍 About to call getInstagramFullName...`);
             let fullName = null;
             let nameExtractionError = null;
             try {
                 console.log(`📞 Calling getInstagramFullName for: ${cleanHandleValue}`);
+                console.log(`📞 getInstagramFullName function type:`, typeof getInstagramFullName);
                 fullName = await getInstagramFullName(cleanHandleValue);
                 console.log(`📋 getInstagramFullName returned: ${fullName || 'null'}`);
+                console.log(`📋 Return type:`, typeof fullName);
             } catch (nameError) {
                 console.error('❌ Error extracting Instagram name:', nameError);
                 console.error('Error stack:', nameError.stack);
