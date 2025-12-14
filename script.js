@@ -1391,10 +1391,7 @@ function displayLeaderboard(users) {
 }
 
 // Handle search - CRITICAL FUNCTION - MUST WORK
-// Immediately export to window when function is defined
 async function handleSearch() {
-    // Update the window export with the real function
-    window.handleSearch = handleSearch;
     console.log('🔍🔍🔍 handleSearch CALLED - STARTING SEARCH');
     
     const input = document.getElementById('instagramHandle');
@@ -3120,10 +3117,11 @@ function showNameSearchModal() {
 }
 
 // Make functions available globally for onclick handlers
-// Export handleSearch IMMEDIATELY when script loads (before DOMContentLoaded)
-// This ensures it's available for onclick handlers
-if (typeof window !== 'undefined') {
+// Note: handleSearch is already exported at function definition (line 1388)
+// This is just a safety check to ensure it's still available
+if (typeof window !== 'undefined' && typeof handleSearch === 'function') {
     window.handleSearch = handleSearch;
+    console.log('✅ handleSearch confirmed exported to window');
 }
 
 window.handleClaim = handleClaim;
