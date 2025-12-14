@@ -208,31 +208,55 @@ async function fetchInstagramProfile(username) {
         });
         
         try {
-            const response = await page.goto(apiUrl, { waitUntil: 'networkidle', timeout: 15000 });
-            await page.waitForTimeout(1000); // Wait for interception
+            // Wait for response with longer timeout
+            const response = await page.goto(apiUrl, { waitUntil: 'domcontentloaded', timeout: 25000 });
+            console.log(`[PROFILE] Page loaded, status: ${response ? response.status() : 'unknown'}`);
+            
+            // Wait longer for API interception to catch responses
+            await page.waitForTimeout(3000);
             
             // Extract profile picture from intercepted API responses first
             let profilePicUrl = null;
             console.log(`[PROFILE] Checking ${apiResponses.length} intercepted API responses for ${username}...`);
+            
             if (apiResponses.length > 0) {
                 for (const apiResponse of apiResponses) {
                     try {
                         const data = apiResponse.data;
+                        console.log(`[PROFILE] API response URL: ${apiResponse.url.substring(0, 150)}`);
                         console.log(`[PROFILE] API response keys for ${username}:`, Object.keys(data || {}).slice(0, 10));
-                        // Try data.data.user.profile_pic_url_hd first (HD version)
+                        
+                        // Try multiple possible paths for profile picture
                         if (data && data.data && data.data.user) {
                             console.log(`[PROFILE] Found user object for ${username}, checking profile_pic_url...`);
-                            profilePicUrl = data.data.user.profile_pic_url_hd || data.data.user.profile_pic_url;
+                            profilePicUrl = data.data.user.profile_pic_url_hd || 
+                                          data.data.user.profile_pic_url || 
+                                          data.data.user.profile_pic_url_hd || 
+                                          data.data.user.profile_pic_url;
                             if (profilePicUrl) {
                                 console.log(`[PROFILE] ✅ Found profile picture in intercepted API response for ${username}: ${profilePicUrl.substring(0, 100)}...`);
                                 break;
                             } else {
                                 console.log(`[PROFILE] ⚠️ User object found for ${username} but no profile_pic_url`);
-                                console.log(`[PROFILE] User object keys:`, Object.keys(data.data.user || {}).slice(0, 20));
+                                console.log(`[PROFILE] User object keys:`, Object.keys(data.data.user || {}).slice(0, 30));
                             }
-                        } else {
-                            console.log(`[PROFILE] ⚠️ API response structure for ${username} doesn't match expected format`);
-                            console.log(`[PROFILE] Response structure:`, JSON.stringify(data).substring(0, 500));
+                        }
+                        // Try alternative structure: data.user
+                        if (!profilePicUrl && data && data.user) {
+                            console.log(`[PROFILE] Found user object at data.user for ${username}`);
+                            profilePicUrl = data.user.profile_pic_url_hd || data.user.profile_pic_url;
+                            if (profilePicUrl) {
+                                console.log(`[PROFILE] ✅ Found profile picture in alternative structure for ${username}: ${profilePicUrl.substring(0, 100)}...`);
+                                break;
+                            }
+                        }
+                        // Try root level user
+                        if (!profilePicUrl && data && data.profile_pic_url) {
+                            profilePicUrl = data.profile_pic_url_hd || data.profile_pic_url;
+                            if (profilePicUrl) {
+                                console.log(`[PROFILE] ✅ Found profile picture at root level for ${username}: ${profilePicUrl.substring(0, 100)}...`);
+                                break;
+                            }
                         }
                     } catch (e) {
                         console.log(`[PROFILE] Error parsing intercepted API response for ${username}: ${e.message}`);
@@ -240,7 +264,7 @@ async function fetchInstagramProfile(username) {
                     }
                 }
             } else {
-                console.log(`[PROFILE] ⚠️ No intercepted API responses found for ${username}`);
+                console.log(`[PROFILE] ⚠️ No intercepted API responses found for ${username}, trying direct response...`);
             }
             
             // Also try direct response if interception didn't work
@@ -249,19 +273,38 @@ async function fetchInstagramProfile(username) {
                     const json = await response.json().catch(() => null);
                     if (json) {
                         console.log(`[PROFILE] Direct API response keys for ${username}:`, Object.keys(json).slice(0, 10));
+                        // Try data.data.user path
                         if (json.data && json.data.user) {
                             profilePicUrl = json.data.user.profile_pic_url_hd || json.data.user.profile_pic_url;
                             if (profilePicUrl) {
-                                console.log(`[PROFILE] ✅ Found profile picture in direct API response for ${username}: ${profilePicUrl.substring(0, 100)}...`);
-                            } else {
-                                console.log(`[PROFILE] ⚠️ Direct API response has user object but no profile_pic_url for ${username}`);
+                                console.log(`[PROFILE] ✅ Found profile picture in direct API response (data.data.user) for ${username}: ${profilePicUrl.substring(0, 100)}...`);
                             }
-                        } else {
-                            console.log(`[PROFILE] ⚠️ Direct API response doesn't have expected structure for ${username}`);
                         }
+                        // Try data.user path
+                        if (!profilePicUrl && json.data && json.data.user) {
+                            profilePicUrl = json.data.user.profile_pic_url_hd || json.data.user.profile_pic_url;
+                            if (profilePicUrl) {
+                                console.log(`[PROFILE] ✅ Found profile picture in direct API response (data.user) for ${username}: ${profilePicUrl.substring(0, 100)}...`);
+                            }
+                        }
+                        // Try user path
+                        if (!profilePicUrl && json.user) {
+                            profilePicUrl = json.user.profile_pic_url_hd || json.user.profile_pic_url;
+                            if (profilePicUrl) {
+                                console.log(`[PROFILE] ✅ Found profile picture in direct API response (user) for ${username}: ${profilePicUrl.substring(0, 100)}...`);
+                            }
+                        }
+                        if (!profilePicUrl) {
+                            console.log(`[PROFILE] ⚠️ Direct API response doesn't have expected structure for ${username}`);
+                            console.log(`[PROFILE] Full response structure:`, JSON.stringify(json).substring(0, 1000));
+                        }
+                    } else {
+                        const text = await response.text().catch(() => '');
+                        console.log(`[PROFILE] Direct response is not JSON, first 500 chars:`, text.substring(0, 500));
                     }
                 } catch (e) {
                     console.log(`[PROFILE] Error parsing direct API response for ${username}: ${e.message}`);
+                    console.log(`[PROFILE] Error stack:`, e.stack);
                 }
             } else if (!profilePicUrl) {
                 console.log(`[PROFILE] ⚠️ Response not OK for ${username}:`, response ? response.status() : 'No response');
@@ -270,13 +313,22 @@ async function fetchInstagramProfile(username) {
             await browser.close();
             
             if (profilePicUrl) {
+                console.log(`[PROFILE] ✅✅✅ SUCCESS: Returning profile picture URL for ${username}`);
                 return { success: true, url: profilePicUrl };
             } else {
+                console.log(`[PROFILE] ❌❌❌ FAILED: Profile picture not found for ${username}`);
                 return { success: false, error: 'Profile picture not found in API response' };
             }
         } catch (error) {
-            await browser.close();
+            if (browser) {
+                try {
+                    await browser.close();
+                } catch (e) {
+                    // Ignore close errors
+                }
+            }
             console.error(`[PROFILE] Playwright error for ${username}:`, error.message);
+            console.error(`[PROFILE] Error stack:`, error.stack);
             return { success: false, error: `Playwright error: ${error.message}` };
         }
     } catch (error) {

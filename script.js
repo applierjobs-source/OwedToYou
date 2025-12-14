@@ -773,13 +773,17 @@ async function extractNameFromHTML(html, cleanUsername) {
 // First try local backend server, then fallback to browser methods
 async function getInstagramProfilePicture(username) {
     const cleanUsername = cleanHandle(username);
+    console.log(`[PROFILE PIC] Fetching profile picture for: ${cleanUsername}`);
     
     // Try local backend server first (if available)
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        // Increased timeout to 30 seconds for Playwright operations
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
         
         const apiBase = window.location.origin;
+        console.log(`[PROFILE PIC] Calling backend API: ${apiBase}/api/profile-pic?username=${encodeURIComponent(cleanUsername)}`);
+        
         const response = await fetch(`${apiBase}/api/profile-pic?username=${encodeURIComponent(cleanUsername)}`, {
             method: 'GET',
             signal: controller.signal
@@ -787,16 +791,25 @@ async function getInstagramProfilePicture(username) {
         
         clearTimeout(timeoutId);
         
+        console.log(`[PROFILE PIC] Backend API response status: ${response.status}`);
+        
         if (response.ok) {
             const data = await response.json();
+            console.log(`[PROFILE PIC] Backend API response data:`, data);
             if (data.success && data.url) {
-                console.log(`Found profile picture via backend: ${data.url}`);
+                console.log(`[PROFILE PIC] ✅ Found profile picture via backend: ${data.url.substring(0, 100)}...`);
                 return data.url;
+            } else {
+                console.log(`[PROFILE PIC] ❌ Backend returned success=false or no URL:`, data);
             }
+        } else {
+            const errorText = await response.text().catch(() => '');
+            console.error(`[PROFILE PIC] ❌ Backend API error (${response.status}):`, errorText);
         }
     } catch (e) {
-        // Backend not available, continue with browser methods
-        console.log('Backend server not available, using browser methods');
+        // Backend not available or error, continue with browser methods
+        console.error(`[PROFILE PIC] ❌ Backend server error:`, e.message);
+        console.error(`[PROFILE PIC] Error stack:`, e.stack);
     }
     
     // Create a promise with timeout
