@@ -2839,9 +2839,12 @@ document.addEventListener('DOMContentLoaded', async function() {
                 if (funcStr.includes('PLACEHOLDER')) {
                     console.error('❌❌❌ Placeholder still active in DOMContentLoaded handler!');
                     // Try to force export
-                    if (typeof handleSearch === 'function' && !handleSearch.toString().includes('PLACEHOLDER')) {
-                        window.handleSearch = handleSearch;
-                        console.log('🔄 Force exported in DOMContentLoaded handler');
+                    if (typeof _realHandleSearch === 'function' && !_realHandleSearch.toString().includes('PLACEHOLDER')) {
+                        window.handleSearch = _realHandleSearch;
+                        console.log('🔄 Force exported from _realHandleSearch in DOMContentLoaded handler');
+                    } else if (typeof handleSearchImpl === 'function') {
+                        window.handleSearch = handleSearchImpl;
+                        console.log('🔄 Force exported from handleSearchImpl in DOMContentLoaded handler');
                     }
                 }
                 console.log('✅ Calling window.handleSearch');
