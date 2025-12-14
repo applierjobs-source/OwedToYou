@@ -94,18 +94,15 @@ async function fetchInstagramProfile(username) {
         console.log(`[PROFILE] Using Apify to extract profile picture for ${username}`);
         
         // Prepare Apify Actor input
-        // For profile picture, we need to use directUrls with addParentData to get profile info
+        // Use Instagram Profile Scraper specifically designed for profile data
         const input = {
-            directUrls: [`https://www.instagram.com/${username}/`],
-            resultsType: "posts", // Get posts, but parent data will contain profile info
-            resultsLimit: 1, // Only need 1 post to get profile data
-            addParentData: true, // This includes profile information in parent data
+            profileUrls: [`https://www.instagram.com/${username}/`],
         };
         
-        console.log(`[PROFILE] Calling Apify actor with input:`, JSON.stringify(input));
+        console.log(`[PROFILE] Calling Apify Instagram Profile Scraper with input:`, JSON.stringify(input));
         
-        // Run the Actor synchronously and get dataset items
-        const run = await apifyClient.actor("apify~instagram-scraper").call(input);
+        // Run the Profile Scraper Actor synchronously and get dataset items
+        const run = await apifyClient.actor("apify~instagram-profile-scraper").call(input);
         const { items } = await apifyClient.dataset(run.defaultDatasetId).listItems();
         
         console.log(`[PROFILE] Apify returned ${items ? items.length : 0} items`);
@@ -122,27 +119,11 @@ async function fetchInstagramProfile(username) {
             }
             
             // Extract profile picture URL from various possible locations
-            // With addParentData: true, profile info is in parentData or ownerBio
+            // Instagram Profile Scraper returns profile picture directly
             let profilePicUrl = null;
             
-            // Try different paths for profile picture
-            if (item.parentData && item.parentData.profilePicUrl) {
-                profilePicUrl = item.parentData.profilePicUrl;
-            } else if (item.parentData && item.parentData.profile_pic_url) {
-                profilePicUrl = item.parentData.profile_pic_url;
-            } else if (item.parentData && item.parentData.profilePicUrlHd) {
-                profilePicUrl = item.parentData.profilePicUrlHd;
-            } else if (item.parentData && item.parentData.profile_pic_url_hd) {
-                profilePicUrl = item.parentData.profile_pic_url_hd;
-            } else if (item.ownerBio && item.ownerBio.profilePicUrl) {
-                profilePicUrl = item.ownerBio.profilePicUrl;
-            } else if (item.ownerBio && item.ownerBio.profile_pic_url) {
-                profilePicUrl = item.ownerBio.profile_pic_url;
-            } else if (item.ownerProfilePicUrl) {
-                profilePicUrl = item.ownerProfilePicUrl;
-            } else if (item.ownerProfilePicUrlHd) {
-                profilePicUrl = item.ownerProfilePicUrlHd;
-            } else if (item.profilePicUrl) {
+            // Try different paths for profile picture (profile scraper structure)
+            if (item.profilePicUrl) {
                 profilePicUrl = item.profilePicUrl;
             } else if (item.profile_pic_url) {
                 profilePicUrl = item.profile_pic_url;
@@ -150,6 +131,14 @@ async function fetchInstagramProfile(username) {
                 profilePicUrl = item.profilePicUrlHd;
             } else if (item.profile_pic_url_hd) {
                 profilePicUrl = item.profile_pic_url_hd;
+            } else if (item.profileImageUrl) {
+                profilePicUrl = item.profileImageUrl;
+            } else if (item.profile_image_url) {
+                profilePicUrl = item.profile_image_url;
+            } else if (item.imageUrl) {
+                profilePicUrl = item.imageUrl;
+            } else if (item.image_url) {
+                profilePicUrl = item.image_url;
             } else if (item.profile && item.profile.profilePicUrl) {
                 profilePicUrl = item.profile.profilePicUrl;
             } else if (item.profile && item.profile.profile_pic_url) {
@@ -743,18 +732,15 @@ async function fetchInstagramFullName(username) {
         console.log(`[INSTAGRAM] Using Apify to extract name for ${username}`);
         
         // Prepare Apify Actor input
-        // For profile data, we need to use directUrls without resultsType, or use posts with addParentData
+        // Use Instagram Profile Scraper specifically designed for profile data
         const input = {
-            directUrls: [`https://www.instagram.com/${username}/`],
-            resultsType: "posts", // Get posts, but parent data will contain profile info
-            resultsLimit: 1, // Only need 1 post to get profile data
-            addParentData: true, // This includes profile information in parent data
+            profileUrls: [`https://www.instagram.com/${username}/`],
         };
         
-        console.log(`[INSTAGRAM] Calling Apify actor with input:`, JSON.stringify(input));
+        console.log(`[INSTAGRAM] Calling Apify Instagram Profile Scraper with input:`, JSON.stringify(input));
         
-        // Run the Actor synchronously and get dataset items
-        const run = await apifyClient.actor("apify~instagram-scraper").call(input);
+        // Run the Profile Scraper Actor synchronously and get dataset items
+        const run = await apifyClient.actor("apify~instagram-profile-scraper").call(input);
         const { items } = await apifyClient.dataset(run.defaultDatasetId).listItems();
         
         console.log(`[INSTAGRAM] Apify returned ${items ? items.length : 0} items`);
@@ -771,26 +757,22 @@ async function fetchInstagramFullName(username) {
             }
             
             // Extract full_name from various possible locations
-            // With addParentData: true, profile info is in parentData or ownerBio
+            // Instagram Profile Scraper returns profile data directly
             let fullName = null;
             
-            // Try different paths for full_name
-            if (item.parentData && item.parentData.fullName) {
-                fullName = item.parentData.fullName.trim();
-            } else if (item.parentData && item.parentData.full_name) {
-                fullName = item.parentData.full_name.trim();
-            } else if (item.ownerBio && item.ownerBio.fullName) {
-                fullName = item.ownerBio.fullName.trim();
-            } else if (item.ownerBio && item.ownerBio.full_name) {
-                fullName = item.ownerBio.full_name.trim();
-            } else if (item.ownerFullName) {
-                fullName = item.ownerFullName.trim();
-            } else if (item.fullName) {
+            // Try different paths for full_name (profile scraper structure)
+            if (item.fullName) {
                 fullName = item.fullName.trim();
             } else if (item.full_name) {
                 fullName = item.full_name.trim();
             } else if (item.name) {
                 fullName = item.name.trim();
+            } else if (item.biography && item.biography.includes(' ')) {
+                // Sometimes full name is in biography
+                const bioLines = item.biography.split('\n');
+                if (bioLines.length > 0 && bioLines[0].includes(' ')) {
+                    fullName = bioLines[0].trim();
+                }
             } else if (item.profile && item.profile.fullName) {
                 fullName = item.profile.fullName.trim();
             } else if (item.profile && item.profile.full_name) {
