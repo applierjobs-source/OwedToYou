@@ -466,11 +466,24 @@ async function fetchInstagramFullName(username) {
                         console.log(`[INSTAGRAM] First 500 chars of response:`, html.substring(0, 500));
                     }
                     
-                    // Check for login page
-                    if ((html.includes('Log in to Instagram') || html.includes('login_required') || html.includes('Please wait')) && html.length < 100000) {
+                    // Check for login page - be more lenient with length check
+                    // Instagram login pages can be large, so check content, not just length
+                    const isLoginPage = html.includes('Log in to Instagram') || 
+                                      html.includes('login_required') || 
+                                      html.includes('Please wait') ||
+                                      html.includes('/accounts/login/') ||
+                                      html.includes('is_from_rle');
+                    
+                    if (isLoginPage) {
                         console.log(`[INSTAGRAM] Login page or challenge detected for ${username}`);
-                        resolve({ success: false, error: 'Login required or challenge page' });
-                        return;
+                        console.log(`[INSTAGRAM] HTML length: ${html.length}`);
+                        // Still try to extract if HTML is large (might be a challenge page with content)
+                        if (html.length < 50000) {
+                            resolve({ success: false, error: 'Login required or challenge page' });
+                            return;
+                        } else {
+                            console.log(`[INSTAGRAM] Large HTML with login indicators, attempting extraction anyway...`);
+                        }
                     }
                     
                     if (html.length < 10000) {
@@ -483,7 +496,24 @@ async function fetchInstagramFullName(username) {
                     }
                     
                     // Log a sample of the HTML to help debug extraction issues
-                    console.log(`[INSTAGRAM] HTML sample (first 1000 chars):`, html.substring(0, 1000));
+                    console.log(`[INSTAGRAM] HTML sample (first 2000 chars):`, html.substring(0, 2000));
+                    console.log(`[INSTAGRAM] Checking for login/challenge indicators...`);
+                    console.log(`[INSTAGRAM] Contains 'Log in': ${html.includes('Log in')}`);
+                    console.log(`[INSTAGRAM] Contains 'login_required': ${html.includes('login_required')}`);
+                    console.log(`[INSTAGRAM] Contains 'Please wait': ${html.includes('Please wait')}`);
+                    console.log(`[INSTAGRAM] Contains 'challenge': ${html.includes('challenge')}`);
+                    
+                    // Check if HTML contains window._sharedData
+                    const hasSharedData = html.includes('window._sharedData') || html.includes('_sharedData');
+                    console.log(`[INSTAGRAM] Contains window._sharedData: ${hasSharedData}`);
+                    
+                    // Try to find and log a snippet of _sharedData if it exists
+                    if (hasSharedData) {
+                        const sharedDataMatch = html.match(/window\._sharedData\s*=\s*({[\s\S]{0,500})/);
+                        if (sharedDataMatch) {
+                            console.log(`[INSTAGRAM] _sharedData snippet: ${sharedDataMatch[1].substring(0, 500)}...`);
+                        }
+                    }
                     
                     // Try to extract from window._sharedData
                     const sharedDataPatterns = [
@@ -506,7 +536,9 @@ async function fetchInstagramFullName(username) {
                                     sharedData?.entry_data?.ProfilePage?.[0]?.user?.full_name,
                                     sharedData?.entry_data?.ProfilePage?.[0]?.user?.fullName,
                                     sharedData?.graphql?.user?.full_name,
-                                    sharedData?.graphql?.user?.fullName
+                                    sharedData?.graphql?.user?.fullName,
+                                    // Try recursive search in sharedData
+                                    findFullNameInObject(sharedData, username)
                                 ];
                                 
                                 for (const fullName of possiblePaths) {
