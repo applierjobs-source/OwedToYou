@@ -1778,6 +1778,7 @@ async function handleSearchImpl() {
                     searchBtn.disabled = false;
                     searchBtn.textContent = 'Search';
                     searchInProgress = false;
+                    hideProgressModal(); // Hide progress modal on error
                     alert('Instagram request timed out. This can happen if Instagram is slow or blocking requests. Please try again in a moment, or search by name directly using the link below.');
                     return;
                 }
@@ -1854,12 +1855,14 @@ async function handleSearchImpl() {
                     
                     // Show error if it was a timeout
                     if (nameExtractionError && nameExtractionError.message && nameExtractionError.message.includes('timeout')) {
+                        hideProgressModal(); // Hide progress modal on error
                         alert('Instagram request timed out. This can happen if Instagram is slow or blocking requests. Please try again in a moment, or search by name directly using the link below.');
                         return;
                     }
                     
                     // For other errors, show a helpful message with more details
                     const errorDetails = nameExtractionError ? ` Error: ${nameExtractionError.message}` : '';
+                    hideProgressModal(); // Hide progress modal on error
                     alert(`Unable to extract name from Instagram profile.${errorDetails}\n\nThis can happen if:\n- The profile is private\n- The profile doesn't exist\n- Instagram is blocking requests\n\nPlease try searching by name directly using the "Search by Full Name instead" link below.`);
                     return;
                 }
@@ -1896,6 +1899,7 @@ async function handleSearchImpl() {
                 searchBtn.disabled = false;
                 searchBtn.textContent = 'Search';
                 searchInProgress = false;
+                hideProgressModal(); // Hide progress modal on failure
                 // Don't show alert - user can try manual search if needed
                 return;
             }
