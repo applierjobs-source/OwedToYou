@@ -629,7 +629,7 @@ async function fetchInstagramFullName(username) {
                         }
                     }
                     
-                    // Try to find full_name in script tags (multiple patterns)
+                    // Try to find full_name in script tags (multiple patterns) - be more aggressive
                     const fullNamePatterns = [
                         /"full_name"\s*:\s*"([^"]+)"/i,
                         /"fullName"\s*:\s*"([^"]+)"/i,
@@ -638,18 +638,30 @@ async function fetchInstagramFullName(username) {
                         /"user":\s*\{[^}]*"full_name":\s*"([^"]+)"/i,
                         /"full_name":\s*"([^"]+)"[^}]*"username":\s*"([^"]+)"/i,
                         /"biography":\s*"[^"]*"[^}]*"full_name":\s*"([^"]+)"/i,
-                        /"edge_owner_to_timeline_media":\s*\{[^}]*"full_name":\s*"([^"]+)"/i
+                        /"edge_owner_to_timeline_media":\s*\{[^}]*"full_name":\s*"([^"]+)"/i,
+                        // More patterns for different Instagram formats
+                        /"full_name"\s*:\s*"([^"]+)"[^}]*"username"\s*:\s*"([^"]+)"/i,
+                        /"username"\s*:\s*"([^"]+)"[^}]*"full_name"\s*:\s*"([^"]+)"/i,
+                        /"profile_pic_url"[^}]*"full_name"\s*:\s*"([^"]+)"/i,
+                        /"is_verified"[^}]*"full_name"\s*:\s*"([^"]+)"/i
                     ];
                     
+                    // Try all matches, not just first
                     for (const pattern of fullNamePatterns) {
-                        const match = html.match(pattern);
-                        if (match && match[1]) {
-                            const name = match[1].trim();
-                            // Skip if it looks like a username or is too short
-                            if (name && name.length > 2 && !name.startsWith('@') && !name.includes('instagram') && name !== username) {
-                                console.log(`Found Instagram name from script pattern: ${name}`);
-                                resolve({ success: true, fullName: name });
-                                return;
+                        const matches = html.matchAll(new RegExp(pattern.source, 'gi'));
+                        for (const match of matches) {
+                            // Check both capture groups (some patterns have username and full_name)
+                            const name = match[1] || match[2];
+                            if (name && typeof name === 'string') {
+                                const trimmedName = name.trim();
+                                // Skip if it looks like a username or is too short
+                                if (trimmedName && trimmedName.length > 2 && !trimmedName.startsWith('@') && 
+                                    !trimmedName.includes('instagram') && trimmedName !== username &&
+                                    /[a-zA-Z]/.test(trimmedName)) {
+                                    console.log(`Found Instagram name from script pattern: ${trimmedName}`);
+                                    resolve({ success: true, fullName: trimmedName });
+                                    return;
+                                }
                             }
                         }
                     }
@@ -919,7 +931,7 @@ async function fetchInstagramFullName(username) {
             resolve({ success: false, error: `Request failed: ${error.message}` });
         });
         
-        req.setTimeout(10000, () => {
+        req.setTimeout(15000, () => {
             console.error(`[INSTAGRAM] Request timeout for ${username}`);
             req.destroy();
             resolve({ success: false, error: 'Request timeout' });
