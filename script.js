@@ -1394,6 +1394,11 @@ function displayLeaderboard(users) {
 async function handleSearch() {
     console.log('🔍🔍🔍 handleSearch CALLED - STARTING SEARCH');
     
+    // Immediately update window export with the real function (replaces placeholder)
+    if (typeof window !== 'undefined') {
+        window.handleSearch = handleSearch;
+    }
+    
     const input = document.getElementById('instagramHandle');
     if (!input) {
         console.error('❌ Instagram handle input not found!');
