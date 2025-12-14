@@ -1514,8 +1514,16 @@ async function loadProfilePicturesInBackground(users) {
         }
         
         console.log(`[${index}] Fetching profile picture for ${user.handle}...`);
-        const profilePic = await getInstagramProfilePicture(user.handle);
-        console.log(`[${index}] Profile picture result for ${user.handle}:`, profilePic ? `Found: ${profilePic}` : 'Not found');
+        let profilePic = null;
+        try {
+            profilePic = await getInstagramProfilePicture(user.handle);
+            console.log(`[${index}] Profile picture result for ${user.handle}:`, profilePic ? `Found: ${profilePic}` : 'Not found');
+        } catch (error) {
+            console.error(`[${index}] Error fetching profile picture for ${user.handle}:`, error);
+            console.error(`[${index}] Error message:`, error.message);
+            console.error(`[${index}] Error stack:`, error.stack);
+            profilePic = null; // Set to null on error
+        }
         
         if (profilePic) {
             // Update the user object in leaderboardData to preserve the profile pic
@@ -1729,7 +1737,9 @@ async function handleSearchImpl() {
     
     if (!searchBtn) {
         console.error('❌ Search button not found!');
+        hideProgressModal(); // Hide modal if button not found
         alert('Error: Search button not found. Please refresh the page.');
+        searchInProgress = false;
         return;
     }
     

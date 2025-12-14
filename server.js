@@ -213,37 +213,58 @@ async function fetchInstagramProfile(username) {
             
             // Extract profile picture from intercepted API responses first
             let profilePicUrl = null;
+            console.log(`[PROFILE] Checking ${apiResponses.length} intercepted API responses for ${username}...`);
             if (apiResponses.length > 0) {
                 for (const apiResponse of apiResponses) {
                     try {
                         const data = apiResponse.data;
+                        console.log(`[PROFILE] API response keys for ${username}:`, Object.keys(data || {}).slice(0, 10));
                         // Try data.data.user.profile_pic_url_hd first (HD version)
                         if (data && data.data && data.data.user) {
+                            console.log(`[PROFILE] Found user object for ${username}, checking profile_pic_url...`);
                             profilePicUrl = data.data.user.profile_pic_url_hd || data.data.user.profile_pic_url;
                             if (profilePicUrl) {
-                                console.log(`[PROFILE] ✅ Found profile picture in intercepted API response: ${profilePicUrl}`);
+                                console.log(`[PROFILE] ✅ Found profile picture in intercepted API response for ${username}: ${profilePicUrl.substring(0, 100)}...`);
                                 break;
+                            } else {
+                                console.log(`[PROFILE] ⚠️ User object found for ${username} but no profile_pic_url`);
+                                console.log(`[PROFILE] User object keys:`, Object.keys(data.data.user || {}).slice(0, 20));
                             }
+                        } else {
+                            console.log(`[PROFILE] ⚠️ API response structure for ${username} doesn't match expected format`);
+                            console.log(`[PROFILE] Response structure:`, JSON.stringify(data).substring(0, 500));
                         }
                     } catch (e) {
-                        console.log(`[PROFILE] Error parsing intercepted API response: ${e.message}`);
+                        console.log(`[PROFILE] Error parsing intercepted API response for ${username}: ${e.message}`);
+                        console.log(`[PROFILE] Error stack:`, e.stack);
                     }
                 }
+            } else {
+                console.log(`[PROFILE] ⚠️ No intercepted API responses found for ${username}`);
             }
             
             // Also try direct response if interception didn't work
             if (!profilePicUrl && response && response.ok()) {
                 try {
                     const json = await response.json().catch(() => null);
-                    if (json && json.data && json.data.user) {
-                        profilePicUrl = json.data.user.profile_pic_url_hd || json.data.user.profile_pic_url;
-                        if (profilePicUrl) {
-                            console.log(`[PROFILE] ✅ Found profile picture in direct API response: ${profilePicUrl}`);
+                    if (json) {
+                        console.log(`[PROFILE] Direct API response keys for ${username}:`, Object.keys(json).slice(0, 10));
+                        if (json.data && json.data.user) {
+                            profilePicUrl = json.data.user.profile_pic_url_hd || json.data.user.profile_pic_url;
+                            if (profilePicUrl) {
+                                console.log(`[PROFILE] ✅ Found profile picture in direct API response for ${username}: ${profilePicUrl.substring(0, 100)}...`);
+                            } else {
+                                console.log(`[PROFILE] ⚠️ Direct API response has user object but no profile_pic_url for ${username}`);
+                            }
+                        } else {
+                            console.log(`[PROFILE] ⚠️ Direct API response doesn't have expected structure for ${username}`);
                         }
                     }
                 } catch (e) {
-                    console.log(`[PROFILE] Error parsing direct API response: ${e.message}`);
+                    console.log(`[PROFILE] Error parsing direct API response for ${username}: ${e.message}`);
                 }
+            } else if (!profilePicUrl) {
+                console.log(`[PROFILE] ⚠️ Response not OK for ${username}:`, response ? response.status() : 'No response');
             }
             
             await browser.close();
