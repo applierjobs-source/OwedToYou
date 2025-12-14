@@ -1622,119 +1622,119 @@ async function handleSearchImpl() {
         // Always proceed with new search - don't redirect to existing entries
         // User doesn't exist or exists - get Instagram full name and start search automatically
         console.log(`🔍 Starting new search for ${cleanHandleValue}...`);
-            console.log(`🔍 About to call getInstagramFullName...`);
-            let fullName = null;
-            let nameExtractionError = null;
-            try {
-                console.log(`📞 Calling getInstagramFullName for: ${cleanHandleValue}`);
-                console.log(`📞 getInstagramFullName function type:`, typeof getInstagramFullName);
-                fullName = await getInstagramFullName(cleanHandleValue);
-                console.log(`📋 getInstagramFullName returned: ${fullName || 'null'}`);
-                console.log(`📋 Return type:`, typeof fullName);
-            } catch (nameError) {
-                console.error('❌ Error extracting Instagram name:', nameError);
-                console.error('Error stack:', nameError.stack);
-                nameExtractionError = nameError;
-                // If it's a timeout, show user feedback
-                if (nameError.message && nameError.message.includes('timeout')) {
-                    // Re-enable button
-                    searchBtn.disabled = false;
-                    searchBtn.textContent = 'Search';
+        console.log(`🔍 About to call getInstagramFullName...`);
+        let fullName = null;
+        let nameExtractionError = null;
+        try {
+            console.log(`📞 Calling getInstagramFullName for: ${cleanHandleValue}`);
+            console.log(`📞 getInstagramFullName function type:`, typeof getInstagramFullName);
+            fullName = await getInstagramFullName(cleanHandleValue);
+            console.log(`📋 getInstagramFullName returned: ${fullName || 'null'}`);
+            console.log(`📋 Return type:`, typeof fullName);
+        } catch (nameError) {
+            console.error('❌ Error extracting Instagram name:', nameError);
+            console.error('Error stack:', nameError.stack);
+            nameExtractionError = nameError;
+            // If it's a timeout, show user feedback
+            if (nameError.message && nameError.message.includes('timeout')) {
+                // Re-enable button
+                searchBtn.disabled = false;
+                searchBtn.textContent = 'Search';
+                alert('Instagram request timed out. This can happen if Instagram is slow or blocking requests. Please try again in a moment, or search by name directly using the link below.');
+                return;
+            }
+        }
+        
+        // Split full name into first and last name
+        let firstName = '';
+        let lastName = '';
+        if (fullName) {
+            const nameParts = fullName.trim().split(/\s+/);
+            firstName = nameParts[0] || '';
+            lastName = nameParts.slice(1).join(' ') || '';
+        }
+        
+        // Log what we found
+        console.log('📋 Instagram name extraction result:', { 
+            fullName, 
+            firstName, 
+            lastName,
+            extracted: !!fullName,
+            hasBothNames: !!(firstName && lastName)
+        });
+        
+        // If we got a valid name, start the search automatically
+        if (firstName && lastName) {
+            console.log(`✅ Starting search with extracted Instagram name: "${firstName} ${lastName}"`);
+            // Re-enable button immediately
+            searchBtn.disabled = false;
+            searchBtn.textContent = 'Search';
+            
+            // Start the search automatically
+            await startMissingMoneySearch(firstName, lastName, cleanHandleValue);
+        } else if (firstName && !lastName && fullName) {
+            // Handle single-word names (e.g., "Naval", "Madonna")
+            // Use the first name as both first and last name for the search
+            console.log(`⚠️ Single-word name detected: "${firstName}". Using as both first and last name.`);
+            searchBtn.disabled = false;
+            searchBtn.textContent = 'Search';
+            
+            // Use firstName as both first and last name
+            await startMissingMoneySearch(firstName, firstName, cleanHandleValue);
+        } else {
+            console.log('⚠️ Could not extract name from Instagram');
+            console.log('⚠️ Attempted extraction but got:', { fullName, firstName, lastName });
+            
+            // If extraction completely failed, show helpful error
+            if (!fullName) {
+                console.error('❌ Instagram name extraction failed completely');
+                searchBtn.disabled = false;
+                searchBtn.textContent = 'Search';
+                
+                // Show error if it was a timeout
+                if (nameExtractionError && nameExtractionError.message && nameExtractionError.message.includes('timeout')) {
                     alert('Instagram request timed out. This can happen if Instagram is slow or blocking requests. Please try again in a moment, or search by name directly using the link below.');
                     return;
                 }
-            }
-            
-            // Split full name into first and last name
-            let firstName = '';
-            let lastName = '';
-            if (fullName) {
-                const nameParts = fullName.trim().split(/\s+/);
-                firstName = nameParts[0] || '';
-                lastName = nameParts.slice(1).join(' ') || '';
-            }
-            
-            // Log what we found
-            console.log('📋 Instagram name extraction result:', { 
-                fullName, 
-                firstName, 
-                lastName,
-                extracted: !!fullName,
-                hasBothNames: !!(firstName && lastName)
-            });
-            
-            // If we got a valid name, start the search automatically
-            if (firstName && lastName) {
-                console.log(`✅ Starting search with extracted Instagram name: "${firstName} ${lastName}"`);
-                // Re-enable button immediately
-                searchBtn.disabled = false;
-                searchBtn.textContent = 'Search';
                 
-                // Start the search automatically
-                await startMissingMoneySearch(firstName, lastName, cleanHandleValue);
-            } else if (firstName && !lastName && fullName) {
-                // Handle single-word names (e.g., "Naval", "Madonna")
-                // Use the first name as both first and last name for the search
-                console.log(`⚠️ Single-word name detected: "${firstName}". Using as both first and last name.`);
-                searchBtn.disabled = false;
-                searchBtn.textContent = 'Search';
-                
-                // Use firstName as both first and last name
-                await startMissingMoneySearch(firstName, firstName, cleanHandleValue);
-            } else {
-                console.log('⚠️ Could not extract name from Instagram');
-                console.log('⚠️ Attempted extraction but got:', { fullName, firstName, lastName });
-                
-                // If extraction completely failed, show helpful error
-                if (!fullName) {
-                    console.error('❌ Instagram name extraction failed completely');
-                    searchBtn.disabled = false;
-                    searchBtn.textContent = 'Search';
-                    
-                    // Show error if it was a timeout
-                    if (nameExtractionError && nameExtractionError.message && nameExtractionError.message.includes('timeout')) {
-                        alert('Instagram request timed out. This can happen if Instagram is slow or blocking requests. Please try again in a moment, or search by name directly using the link below.');
-                        return;
-                    }
-                    
-                    // For other errors, show a helpful message with more details
-                    const errorDetails = nameExtractionError ? ` Error: ${nameExtractionError.message}` : '';
-                    alert(`Unable to extract name from Instagram profile.${errorDetails}\n\nThis can happen if:\n- The profile is private\n- The profile doesn't exist\n- Instagram is blocking requests\n\nPlease try searching by name directly using the "Search by Full Name instead" link below.`);
-                    return;
-                }
-                
-                // If we have a fullName but couldn't split it properly, try to use it anyway
-                // This handles cases where extraction worked but splitting failed
-                if (fullName && (!firstName || !lastName)) {
-                    console.log('⚠️ Got fullName but couldn\'t split properly, trying to use fullName directly');
-                    // Try to split the fullName one more time
-                    const nameParts = fullName.trim().split(/\s+/);
-                    if (nameParts.length >= 2) {
-                        firstName = nameParts[0];
-                        lastName = nameParts.slice(1).join(' ');
-                        console.log(`✅ Using split name: "${firstName} ${lastName}"`);
-                        searchBtn.disabled = false;
-                        searchBtn.textContent = 'Search';
-                        await startMissingMoneySearch(firstName, lastName, cleanHandleValue);
-                        return;
-                    } else if (nameParts.length === 1) {
-                        // Single word name - use as both first and last
-                        firstName = nameParts[0];
-                        console.log(`✅ Using single-word name as both first and last: "${firstName}"`);
-                        searchBtn.disabled = false;
-                        searchBtn.textContent = 'Search';
-                        await startMissingMoneySearch(firstName, firstName, cleanHandleValue);
-                        return;
-                    }
-                }
-                
-                // If we still don't have a name, silently fail
-                console.log('⚠️ Instagram name extraction failed - not using unreliable fallback methods');
-                searchBtn.disabled = false;
-                searchBtn.textContent = 'Search';
-                // Don't show alert - user can try manual search if needed
+                // For other errors, show a helpful message with more details
+                const errorDetails = nameExtractionError ? ` Error: ${nameExtractionError.message}` : '';
+                alert(`Unable to extract name from Instagram profile.${errorDetails}\n\nThis can happen if:\n- The profile is private\n- The profile doesn't exist\n- Instagram is blocking requests\n\nPlease try searching by name directly using the "Search by Full Name instead" link below.`);
                 return;
             }
+            
+            // If we have a fullName but couldn't split it properly, try to use it anyway
+            // This handles cases where extraction worked but splitting failed
+            if (fullName && (!firstName || !lastName)) {
+                console.log('⚠️ Got fullName but couldn\'t split properly, trying to use fullName directly');
+                // Try to split the fullName one more time
+                const nameParts = fullName.trim().split(/\s+/);
+                if (nameParts.length >= 2) {
+                    firstName = nameParts[0];
+                    lastName = nameParts.slice(1).join(' ');
+                    console.log(`✅ Using split name: "${firstName} ${lastName}"`);
+                    searchBtn.disabled = false;
+                    searchBtn.textContent = 'Search';
+                    await startMissingMoneySearch(firstName, lastName, cleanHandleValue);
+                    return;
+                } else if (nameParts.length === 1) {
+                    // Single word name - use as both first and last
+                    firstName = nameParts[0];
+                    console.log(`✅ Using single-word name as both first and last: "${firstName}"`);
+                    searchBtn.disabled = false;
+                    searchBtn.textContent = 'Search';
+                    await startMissingMoneySearch(firstName, firstName, cleanHandleValue);
+                    return;
+                }
+            }
+            
+            // If we still don't have a name, silently fail
+            console.log('⚠️ Instagram name extraction failed - not using unreliable fallback methods');
+            searchBtn.disabled = false;
+            searchBtn.textContent = 'Search';
+            // Don't show alert - user can try manual search if needed
+            return;
+        }
         }
     } catch (error) {
         console.error('❌ Error in handleSearch:', error);
