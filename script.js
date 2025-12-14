@@ -3622,7 +3622,8 @@ async function handleBuyNow(firstName, lastName, amount) {
         button.textContent = 'Processing...';
         
         // Create checkout session via backend
-        const response = await fetch('/api/create-checkout-session', {
+        const apiBase = window.location.origin;
+        const response = await fetch(`${apiBase}/api/create-checkout-session`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
