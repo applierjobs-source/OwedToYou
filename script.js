@@ -2102,11 +2102,10 @@ if (typeof window.handleSearch === 'function') {
 // This avoids identifier resolution conflicts - handleSearchImpl can never resolve to window.handleSearch
 try {
     if (typeof window !== 'undefined' && typeof handleSearchImpl === 'function') {
-        // Verify it's the real function (contains 'STARTING SEARCH')
+        // Verify it's the real function (contains 'searchInProgress' which is unique to the real function)
         const funcStr = handleSearchImpl.toString();
-        if (!funcStr.includes('STARTING SEARCH')) {
-            console.error('❌❌❌ CRITICAL: handleSearchImpl is not the real function!');
-            console.error('❌ Function string:', funcStr.substring(0, 200));
+        if (!funcStr.includes('searchInProgress')) {
+            console.error('❌ CRITICAL: handleSearchImpl is not the real function!');
             throw new Error('handleSearchImpl is not the real function');
         }
         
@@ -2129,7 +2128,7 @@ try {
         // Immediate verification
         const newFuncStr = window.handleSearch.toString();
         const newIsPlaceholder = newFuncStr.includes('PLACEHOLDER');
-        const hasStartingSearch = newFuncStr.includes('STARTING SEARCH');
+        const hasSearchInProgress = newFuncStr.includes('searchInProgress');
         console.log('✅✅✅ New function is placeholder:', newIsPlaceholder);
         console.log('✅✅✅ New function has STARTING SEARCH:', hasStartingSearch);
         
@@ -2147,7 +2146,7 @@ try {
                 });
                 const verifyStr = window.handleSearch.toString();
                 console.log('✅✅✅ After defineProperty, is placeholder:', verifyStr.includes('PLACEHOLDER'));
-                console.log('✅✅✅ After defineProperty, has STARTING SEARCH:', verifyStr.includes('STARTING SEARCH'));
+                console.log('✅✅✅ After defineProperty, has searchInProgress:', verifyStr.includes('searchInProgress'));
             } catch (e) {
                 console.error('❌ defineProperty failed:', e);
             }
@@ -2178,7 +2177,7 @@ try {
     try {
         if (typeof handleSearchImpl === 'function') {
             const funcStr = handleSearchImpl.toString();
-            if (funcStr.includes('STARTING SEARCH')) {
+            if (funcStr.includes('searchInProgress')) {
                 window.handleSearch = handleSearchImpl;
                 console.log('🔄 Last resort assignment attempted with handleSearchImpl');
             } else {
@@ -3784,7 +3783,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     function forceExportIfNeeded() {
         if (typeof handleSearchImpl === 'function') {
             const funcStr = handleSearchImpl.toString();
-            if (funcStr.includes('STARTING SEARCH')) {
+            if (funcStr.includes('searchInProgress')) {
                 const currentStr = window.handleSearch ? window.handleSearch.toString() : '';
                 if (currentStr.includes('PLACEHOLDER')) {
                     console.log('🔄🔄🔄 BACKUP: Replacing placeholder with real function');

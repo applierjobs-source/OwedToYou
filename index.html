@@ -456,11 +456,11 @@
                            if (typeof handleSearchImpl === 'function') {
                                const realFuncStr = handleSearchImpl.toString();
                                const realIsPlaceholder = realFuncStr.includes('PLACEHOLDER');
-                               const hasStartingSearch = realFuncStr.includes('STARTING SEARCH');
+                               const hasSearchInProgress = realFuncStr.includes('searchInProgress');
                                console.log('🔍 handleSearchImpl is placeholder:', realIsPlaceholder);
-                               console.log('🔍 handleSearchImpl has STARTING SEARCH:', hasStartingSearch);
+                               console.log('🔍 handleSearchImpl has searchInProgress:', hasSearchInProgress);
                                
-                               if (!realIsPlaceholder && hasStartingSearch) {
+                               if (!realIsPlaceholder && hasSearchInProgress) {
                                    console.log('🔄🔄🔄 FORCE EXPORTING from handleSearchImpl NOW...');
                                    try {
                                        Object.defineProperty(window, 'handleSearch', {
