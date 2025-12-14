@@ -1829,10 +1829,6 @@ async function handleSearchImpl() {
         return;
     }
     
-    console.log('🔍🔍🔍 handleSearch CALLED - STARTING SEARCH');
-    console.log('🔍🔍🔍 handleSearchImpl function type:', typeof handleSearchImpl);
-    console.log('🔍🔍🔍 window.handleSearch type:', typeof window.handleSearch);
-    
     searchInProgress = true;
     
     // Show progress modal IMMEDIATELY - before any other operations
@@ -1865,8 +1861,6 @@ async function handleSearchImpl() {
     }
     
     console.log(`🔍 Search initiated for handle: "${handle}"`);
-    console.log(`🔍 About to check if handle exists in leaderboard...`);
-    
     if (!handle) {
         hideProgressModal(); // Hide modal if validation fails
         alert('Please enter an Instagram username');
@@ -1888,23 +1882,18 @@ async function handleSearchImpl() {
         console.log('🔍 Entering try block...');
         const cleanHandleValue = cleanHandle(handle);
         console.log(`🔍 Cleaned handle value: "${cleanHandleValue}"`);
-        console.log(`🔍 Leaderboard data length: ${leaderboardData ? leaderboardData.length : 'NULL'}`);
-        
         // Always proceed with new search - don't redirect to existing entries
         // User doesn't exist or exists - get Instagram full name and start search automatically
-        console.log(`🔍 Starting new search for ${cleanHandleValue}...`);
-        console.log(`🔍 About to call getInstagramFullName...`);
         let fullName = null;
         let nameExtractionError = null;
         let profilePic = null;
         
         // Extract name first
         try {
-            console.log(`📞 Calling getInstagramFullName for: ${cleanHandleValue}`);
-            console.log(`📞 getInstagramFullName function type:`, typeof getInstagramFullName);
             fullName = await getInstagramFullName(cleanHandleValue);
-            console.log(`📋 getInstagramFullName returned: ${fullName || 'null'}`);
-            console.log(`📋 Return type:`, typeof fullName);
+            if (fullName) {
+                console.log(`✅ Extracted name: ${fullName}`);
+            }
         } catch (nameError) {
             console.error('❌ Error extracting Instagram name:', nameError);
             console.error('Error stack:', nameError.stack);
@@ -2101,14 +2090,12 @@ console.log('✅✅✅✅✅ handleSearchImpl FUNCTION DEFINITION COMPLETE');
 // This replaces the placeholder with the real function as soon as script loads
 // CRITICAL FIX: Using handleSearchImpl name prevents identifier resolution conflicts
 // handleSearchImpl can NEVER resolve to window.handleSearch (placeholder)
-console.log('🔍🔍🔍 EXPORT BLOCK STARTING');
-console.log('✅✅✅✅✅ REACHED EXPORT BLOCK - FUNCTION SHOULD BE DEFINED');
-console.log('🔍 About to export handleSearchImpl - function exists:', typeof handleSearchImpl);
-console.log('🔍 About to export handleSearchImpl - window exists:', typeof window !== 'undefined');
-console.log('🔍 Current window.handleSearch type:', typeof window.handleSearch);
+// Export handleSearchImpl to window.handleSearch
 if (typeof window.handleSearch === 'function') {
     const currentStr = window.handleSearch.toString();
-    console.log('🔍 Current window.handleSearch is placeholder:', currentStr.includes('PLACEHOLDER'));
+    if (currentStr.includes('PLACEHOLDER')) {
+        console.log('⚠️ Replacing placeholder handleSearch');
+    }
 }
 
 // CRITICAL FIX: Export the function using its actual name (handleSearchImpl)
@@ -3206,8 +3193,6 @@ function shareToWhatsApp(name, amount, url) {
 
 // Event listeners
 document.addEventListener('DOMContentLoaded', async function() {
-    console.log('📋 DOMContentLoaded - Setting up event listeners');
-    
     const searchBtn = document.getElementById('searchBtn');
     const searchInput = document.getElementById('instagramHandle');
     
@@ -3755,28 +3740,19 @@ function showNameSearchModal() {
 
 // Make functions available globally for onclick handlers
 // CRITICAL: Export handleSearch to window immediately when script loads
-// This ensures it's available for inline onclick handlers even if DOMContentLoaded hasn't fired
-console.log('🔍🔍🔍 FINAL SAFETY CHECK STARTING');
-if (typeof window !== 'undefined') {
-    if (typeof handleSearchImpl === 'function') {
-        const funcStr = handleSearchImpl.toString();
-        if (funcStr.includes('STARTING SEARCH')) {
-            console.log('🔍 Final check: handleSearchImpl is the real function, replacing window.handleSearch...');
-        const beforeStr = window.handleSearch ? window.handleSearch.toString() : 'undefined';
-        const beforeIsPlaceholder = beforeStr.includes('PLACEHOLDER');
-        console.log('🔍 Before replacement - is placeholder:', beforeIsPlaceholder);
-        
-        window.handleSearch = handleSearchImpl;
-        _realHandleSearch = handleSearchImpl;
-        
-        const afterStr = window.handleSearch.toString();
-        const afterIsPlaceholder = afterStr.includes('PLACEHOLDER');
-        console.log('✅✅✅ Final check: window.handleSearch replaced');
-        console.log('✅✅✅ After replacement - is placeholder:', afterIsPlaceholder);
-        
-        if (afterIsPlaceholder) {
-            console.error('❌❌❌ CRITICAL ERROR: Placeholder STILL active in final check!');
-            console.error('❌ This means something is overwriting our export!');
+// Final safety check - ensure handleSearch is exported
+if (typeof window !== 'undefined' && typeof handleSearchImpl === 'function') {
+    const beforeStr = window.handleSearch ? window.handleSearch.toString() : 'undefined';
+    const beforeIsPlaceholder = beforeStr.includes('PLACEHOLDER');
+    
+    window.handleSearch = handleSearchImpl;
+    _realHandleSearch = handleSearchImpl;
+    
+    const afterStr = window.handleSearch.toString();
+    const afterIsPlaceholder = afterStr.includes('PLACEHOLDER');
+    
+    if (afterIsPlaceholder) {
+        console.error('❌ CRITICAL: Placeholder still active after replacement');
             // Try one more time with force
             console.log('🔄🔄🔄 FORCING replacement one more time...');
             Object.defineProperty(window, 'handleSearch', {

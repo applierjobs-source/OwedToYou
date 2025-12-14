@@ -540,7 +540,6 @@ async function fetchInstagramProfile_OLD_PLAYWRIGHT(username) {
                         }
                         if (!profilePicUrl) {
                             console.log(`[PROFILE] ⚠️ Direct API response doesn't have expected structure for ${username}`);
-                            console.log(`[PROFILE] Full response structure:`, JSON.stringify(json).substring(0, 1000));
                         }
                     } else {
                         const text = await response.text().catch(() => '');
@@ -896,18 +895,12 @@ async function fetchInstagramFullName(username) {
             usernames: [username], // Just the username, not the full URL
         };
         
-        console.log(`[INSTAGRAM] Calling Apify Instagram Profile Scraper with input:`, JSON.stringify(input));
-        
         // Run the Profile Scraper Actor synchronously and get dataset items
         const run = await apifyClient.actor("apify~instagram-profile-scraper").call(input);
         const { items } = await apifyClient.dataset(run.defaultDatasetId).listItems();
         
-        console.log(`[INSTAGRAM] Apify returned ${items ? items.length : 0} items`);
-        
         if (items && items.length > 0) {
             const item = items[0];
-            console.log(`[INSTAGRAM] Item data keys:`, Object.keys(item));
-            console.log(`[INSTAGRAM] Item data (full):`, JSON.stringify(item, null, 2));
             
             // Check for errors first
             if (item.error) {
@@ -1066,9 +1059,6 @@ async function fetchInstagramFullName_OLD_PLAYWRIGHT(username) {
                             if (json.data && json.data.user && json.data.user.full_name) {
                                 const extractedName = json.data.user.full_name;
                                 console.log(`[INSTAGRAM] ✅ Found name in API response: ${extractedName}`);
-                            } else {
-                                // Log structure for debugging
-                                console.log(`[INSTAGRAM] API response structure:`, JSON.stringify(json).substring(0, 500));
                             }
                         } catch (e) {
                             console.log(`[INSTAGRAM] Error checking API response: ${e.message}`);
