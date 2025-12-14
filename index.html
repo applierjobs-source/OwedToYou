@@ -26,7 +26,7 @@
                     placeholder="@username" 
                     class="search-input"
                 >
-                <button id="searchBtn" class="search-button" onclick="if(typeof handleSearch==='function'){handleSearch();}else{console.error('handleSearch not available');alert('Search function not loaded. Please refresh the page.');}return false;">Search</button>
+                <button id="searchBtn" class="search-button" onclick="if(typeof window.handleSearch==='function'){const fs=window.handleSearch.toString();if(fs.includes('PLACEHOLDER')&&typeof handleSearch==='function'&&!handleSearch.toString().includes('PLACEHOLDER')){window.handleSearch=handleSearch;}window.handleSearch();}else{console.error('handleSearch not available');alert('Search function not loaded. Please refresh the page.');}return false;">Search</button>
             </div>
             <p class="search-description">
                 OwedToYou.ai automatically finds the user's name and location via Instagram to identify money legally owed to that person. Alternatively, <a href="#" onclick="showNameSearchModal(); return false;" style="color: white; text-decoration: underline; cursor: pointer;">click here to search by Full Name instead</a>.

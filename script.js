@@ -2847,7 +2847,21 @@ document.addEventListener('DOMContentLoaded', async function() {
                 console.log('⌨️ Enter key pressed in search input');
                 e.preventDefault();
                 e.stopPropagation();
-                if (typeof handleSearch === 'function') {
+                // Use window.handleSearch to ensure we get the exported version
+                if (typeof window.handleSearch === 'function') {
+                    const funcStr = window.handleSearch.toString();
+                    if (funcStr.includes('PLACEHOLDER')) {
+                        console.error('❌❌❌ Placeholder still active in keypress handler!');
+                        // Try to force export
+                        if (typeof handleSearch === 'function' && !handleSearch.toString().includes('PLACEHOLDER')) {
+                            window.handleSearch = handleSearch;
+                            console.log('🔄 Force exported in keypress handler');
+                        }
+                    }
+                    console.log('✅ Calling window.handleSearch');
+                    window.handleSearch();
+                } else if (typeof handleSearch === 'function') {
+                    console.log('✅ Falling back to local handleSearch');
                     handleSearch();
                 } else {
                     console.error('❌ handleSearch not available in keypress handler!');
