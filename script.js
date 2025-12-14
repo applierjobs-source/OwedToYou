@@ -283,10 +283,27 @@ async function getInstagramFullName(username) {
                     continue;
                 }
                 
-                // Check for login/error pages
-                if (html.includes('Log in to Instagram') || html.includes('login_required') || html.includes('/accounts/login/') || html.length < 1000) {
-                    console.log(`⚠️ [${proxyName}] Got login page or insufficient content (${html.length} chars), trying next...`);
+                // Check for login/error pages - be more lenient with large HTML
+                // Instagram login pages are usually small, so if HTML is large, try extraction anyway
+                const isLoginPage = html.includes('Log in to Instagram') || 
+                                   html.includes('login_required') || 
+                                   html.includes('/accounts/login/');
+                
+                if (html.length < 1000) {
+                    console.log(`⚠️ [${proxyName}] Insufficient content (${html.length} chars), trying next...`);
                     continue;
+                }
+                
+                // Only skip if it's clearly a login page AND HTML is small
+                if (isLoginPage && html.length < 50000) {
+                    console.log(`⚠️ [${proxyName}] Got login page (${html.length} chars), trying next...`);
+                    continue;
+                }
+                
+                // If HTML is large, try extraction even if login indicators are present
+                // (Instagram sometimes includes login indicators in challenge pages but still has profile data)
+                if (isLoginPage && html.length >= 50000) {
+                    console.log(`⚠️ [${proxyName}] Large HTML with login indicators (${html.length} chars), attempting extraction anyway...`);
                 }
                 
                 console.log(`🔍 [${proxyName}] Attempting to extract name from HTML...`);

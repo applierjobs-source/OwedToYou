@@ -909,12 +909,108 @@ async function fetchInstagramFullName(username) {
                         console.log(`[INSTAGRAM] HTML sample (first 2000 chars): ${sample}`);
                     }
                     
-                    // Check if we got a login/challenge page
-                    if (html.includes('Log in to Instagram') || html.includes('login_required') || 
-                        html.includes('challenge') || html.includes('Please wait')) {
-                        console.log(`[INSTAGRAM] Detected login/challenge page in HTML`);
+                    // Try one more pattern - look for React component props/data
+                    // Instagram uses React and embeds data in component props
+                    try {
+                        // Look for React component data structures
+                        const reactDataPatterns = [
+                            /"__d":\s*"([^"]+)"/g,  // React component data
+                            /"props":\s*\{[^}]{0,10000}"full_name":\s*"([^"]+)"/i,
+                            /"props":\s*\{[^}]{0,10000}"name":\s*"([^"]+)"/i,
+                            /"children":\s*\[[^\]]{0,5000}"full_name":\s*"([^"]+)"/i,
+                            // Look for any occurrence of the username followed by a name pattern
+                            new RegExp(`"${username}"[^}]{0,2000}"full_name":\\s*"([^"]+)"`, 'i'),
+                            new RegExp(`"${username}"[^}]{0,2000}"name":\\s*"([^"]+)"`, 'i'),
+                        ];
+                        
+                        for (const pattern of reactDataPatterns) {
+                            const matches = [...html.matchAll(pattern)];
+                            for (const match of matches) {
+                                const name = match[1] || match[2];
+                                if (name && typeof name === 'string') {
+                                    const trimmedName = name.trim();
+                                    if (trimmedName && trimmedName.length > 2 && !trimmedName.startsWith('@') && 
+                                        trimmedName !== username && !trimmedName.toLowerCase().includes('instagram') &&
+                                        /[a-zA-Z]/.test(trimmedName)) {
+                                        console.log(`Found Instagram name via React data pattern: ${trimmedName}`);
+                                        resolve({ success: true, fullName: trimmedName });
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.log(`[INSTAGRAM] Error in React data extraction: ${e.message}`);
+                    }
+                    
+                    // Try to find name near username in HTML (Instagram often places them close together)
+                    try {
+                        const usernameIndex = html.indexOf(username);
+                        if (usernameIndex !== -1) {
+                            // Look in a 5000 char window around the username
+                            const start = Math.max(0, usernameIndex - 2500);
+                            const end = Math.min(html.length, usernameIndex + 2500);
+                            const window = html.substring(start, end);
+                            
+                            // Look for full_name near username
+                            const nearPatterns = [
+                                /"full_name":\s*"([^"]+)"/i,
+                                /"fullName":\s*"([^"]+)"/i,
+                                /"name":\s*"([^"]+)"/i,
+                                /full_name["\s]*:["\s]*"([^"]+)"/i
+                            ];
+                            
+                            for (const pattern of nearPatterns) {
+                                const match = window.match(pattern);
+                                if (match && match[1]) {
+                                    const name = match[1].trim();
+                                    if (name && name.length > 2 && !name.startsWith('@') && 
+                                        name !== username && !name.toLowerCase().includes('instagram') &&
+                                        /[a-zA-Z]/.test(name)) {
+                                        console.log(`Found Instagram name near username: ${name}`);
+                                        resolve({ success: true, fullName: name });
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.log(`[INSTAGRAM] Error in near-username extraction: ${e.message}`);
+                    }
+                    
+                    // Check if we got a login/challenge page - but only reject if HTML is small
+                    // Large HTML might still have profile data even with login indicators
+                    const hasLoginIndicators = html.includes('Log in to Instagram') || 
+                                              html.includes('login_required') || 
+                                              html.includes('challenge') || 
+                                              html.includes('Please wait');
+                    
+                    if (hasLoginIndicators && html.length < 50000) {
+                        console.log(`[INSTAGRAM] Detected login/challenge page in HTML (${html.length} chars)`);
                         resolve({ success: false, error: 'Instagram is requiring login or showing challenge page' });
                         return;
+                    }
+                    
+                    // If HTML is large but we couldn't extract, log more details
+                    if (html.length > 100000) {
+                        console.log(`[INSTAGRAM] Large HTML (${html.length} chars) but extraction failed - Instagram may have changed structure`);
+                        // Try to find any text that looks like a name anywhere in the HTML
+                        const allNameMatches = html.match(/"([A-Z][a-z]+\s+[A-Z][a-z]+)"/g);
+                        if (allNameMatches && allNameMatches.length > 0) {
+                            console.log(`[INSTAGRAM] Found ${allNameMatches.length} potential name matches in HTML`);
+                            // Log first few for debugging
+                            for (let i = 0; i < Math.min(5, allNameMatches.length); i++) {
+                                const match = allNameMatches[i].match(/"([^"]+)"/);
+                                if (match && match[1]) {
+                                    const potentialName = match[1].trim();
+                                    if (potentialName.includes(' ') && potentialName.length > 3 && 
+                                        !potentialName.toLowerCase().includes('instagram') &&
+                                        potentialName !== username) {
+                                        console.log(`[INSTAGRAM] Potential name found: ${potentialName}`);
+                                    }
+                                }
+                            }
+                        }
                     }
                     
                     resolve({ success: false, error: 'Full name not found in HTML' });
