@@ -3430,8 +3430,10 @@ function showNameSearchModal() {
 // This ensures it's available for inline onclick handlers even if DOMContentLoaded hasn't fired
 console.log('🔍🔍🔍 FINAL SAFETY CHECK STARTING');
 if (typeof window !== 'undefined') {
-    if (typeof handleSearch === 'function') {
-        console.log('🔍 Final check: handleSearch is a function, replacing window.handleSearch...');
+    if (typeof handleSearchImpl === 'function') {
+        const funcStr = handleSearchImpl.toString();
+        if (funcStr.includes('STARTING SEARCH')) {
+            console.log('🔍 Final check: handleSearchImpl is the real function, replacing window.handleSearch...');
         const beforeStr = window.handleSearch ? window.handleSearch.toString() : 'undefined';
         const beforeIsPlaceholder = beforeStr.includes('PLACEHOLDER');
         console.log('🔍 Before replacement - is placeholder:', beforeIsPlaceholder);
