@@ -3435,14 +3435,23 @@ if (typeof window !== 'undefined') {
 // CRITICAL BACKUP: Also export on DOMContentLoaded in case script loaded before DOM
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     function forceExportIfNeeded() {
-        if (typeof handleSearch === 'function') {
+        if (typeof handleSearchImpl === 'function') {
+            const funcStr = handleSearchImpl.toString();
+            if (funcStr.includes('STARTING SEARCH')) {
+                const currentStr = window.handleSearch ? window.handleSearch.toString() : '';
+                if (currentStr.includes('PLACEHOLDER')) {
+                    console.log('🔄🔄🔄 BACKUP: Replacing placeholder with real function');
+                    window.handleSearch = handleSearchImpl;
+                    _realHandleSearch = handleSearchImpl;
+                    const verifyStr = window.handleSearch.toString();
+                    console.log('✅✅✅ Backup export completed, is placeholder:', verifyStr.includes('PLACEHOLDER'));
+                }
+            }
+        } else if (typeof _realHandleSearch === 'function') {
             const currentStr = window.handleSearch ? window.handleSearch.toString() : '';
             if (currentStr.includes('PLACEHOLDER')) {
-                console.log('🔄🔄🔄 BACKUP: Replacing placeholder with real function');
-                window.handleSearch = handleSearch;
-                _realHandleSearch = handleSearch;
-                const verifyStr = window.handleSearch.toString();
-                console.log('✅✅✅ Backup export completed, is placeholder:', verifyStr.includes('PLACEHOLDER'));
+                console.log('🔄🔄🔄 BACKUP: Using _realHandleSearch');
+                window.handleSearch = _realHandleSearch;
             }
         }
     }
