@@ -1735,7 +1735,6 @@ async function handleSearchImpl() {
             // Don't show alert - user can try manual search if needed
             return;
         }
-        }
     } catch (error) {
         console.error('❌ Error in handleSearch:', error);
         console.error('Error stack:', error.stack);
