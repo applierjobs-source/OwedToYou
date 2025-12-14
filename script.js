@@ -467,9 +467,19 @@ async function extractNameFromHTML(html, cleanUsername) {
             // Strategy 1: Find all text content between HTML tags near username
             // Look for patterns like: >Name< or >Name Text< that appear before/after username
             // Extract text from all HTML elements and check if any look like names
-            const textContentPattern = />([^<]+)</g;
+            // Use a more permissive pattern that matches any text between tags
+            const textContentPattern = />([^<>]+)</g;
             const allTextMatches = [...profileArea.matchAll(textContentPattern)];
             console.log(`Found ${allTextMatches.length} text content matches in profile area`);
+            
+            // Log first 20 matches for debugging
+            if (allTextMatches.length > 0) {
+                console.log(`First 20 text matches:`);
+                for (let i = 0; i < Math.min(20, allTextMatches.length); i++) {
+                    const text = allTextMatches[i][1].trim().substring(0, 50);
+                    console.log(`  ${i + 1}: "${text}"`);
+                }
+            }
             
             // Collect potential names (2-4 words, alphabetic only)
             const potentialNames = [];
