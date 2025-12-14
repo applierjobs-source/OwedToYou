@@ -8,19 +8,39 @@ console.log('✅ Current time:', new Date().toISOString());
 // CRITICAL: Export handleSearch immediately (before function definition)
 // This ensures it's available for inline onclick handlers
 // The real function will be defined later and will replace this at line ~1635
+// Store a reference to check if real function exists
+let _realHandleSearch = null;
+
 (function() {
     'use strict';
     window.handleSearch = function() {
         console.error('⚠️⚠️⚠️ PLACEHOLDER handleSearch called - this should NOT happen!');
         console.error('⚠️ Real function should have replaced this at line ~1635');
         console.error('⚠️ This means the script failed to load completely');
-        console.error('⚠️ Current window.handleSearch:', typeof window.handleSearch);
-        console.error('⚠️ Local handleSearch:', typeof handleSearch);
-        // Try to call the real function if it exists (shouldn't be needed)
-        if (typeof handleSearch === 'function' && handleSearch !== window.handleSearch) {
-            console.log('✅ Found real handleSearch, calling it');
-            return handleSearch.apply(this, arguments);
+        
+        // CRITICAL FIX: Check if real function exists using the stored reference
+        // The real function will set _realHandleSearch when it's defined
+        if (_realHandleSearch && typeof _realHandleSearch === 'function') {
+            console.log('✅ Found real handleSearch via _realHandleSearch, calling it');
+            return _realHandleSearch.apply(this, arguments);
         }
+        
+        // Also try to find it in the closure scope (if function is defined but not exported)
+        // This is a last resort fallback
+        try {
+            // Access the function declaration directly (it's hoisted)
+            const funcName = 'handleSearch';
+            if (typeof eval('typeof ' + funcName + ' === "function" ? ' + funcName + ' : null') === 'function') {
+                const realFunc = eval(funcName);
+                if (realFunc && realFunc.toString().includes('STARTING SEARCH')) {
+                    console.log('✅ Found real handleSearch via eval, calling it');
+                    return realFunc.apply(this, arguments);
+                }
+            }
+        } catch (e) {
+            // Ignore eval errors
+        }
+        
         alert('Search function is still loading. Please wait a moment and try again.');
     };
     console.log('✅ Placeholder handleSearch exported');
@@ -1638,6 +1658,9 @@ async function handleSearch() {
 (function() {
     'use strict';
     if (typeof window !== 'undefined') {
+        // Store reference for placeholder fallback
+        _realHandleSearch = handleSearch;
+        
         // Force immediate replacement of placeholder
         window.handleSearch = handleSearch;
         console.log('✅✅✅ Real handleSearch function exported to window (replaced placeholder)');
