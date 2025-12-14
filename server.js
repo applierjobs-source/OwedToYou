@@ -81,8 +81,201 @@ const corsHeaders = {
     'Content-Type': 'application/json'
 };
 
-// Fetch Instagram profile picture
+// Fetch Instagram profile picture using Playwright API interception (same as name extraction)
 async function fetchInstagramProfile(username) {
+    // Use Playwright to intercept API responses (same method as name extraction)
+    let browser = null;
+    try {
+        console.log(`[PROFILE] Using Playwright to extract profile picture for ${username}`);
+        
+        browser = await chromium.launch({
+            headless: true,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-blink-features=AutomationControlled',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-gpu',
+                '--disable-web-security',
+                '--disable-features=IsolateOrigins,site-per-process',
+                '--disable-background-networking',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-breakpad',
+                '--disable-client-side-phishing-detection',
+                '--disable-component-update',
+                '--disable-default-apps',
+                '--disable-domain-reliability',
+                '--disable-features=AudioServiceOutOfProcess',
+                '--disable-hang-monitor',
+                '--disable-ipc-flooding-protection',
+                '--disable-notifications',
+                '--disable-offer-store-unmasked-wallet-cards',
+                '--disable-popup-blocking',
+                '--disable-print-preview',
+                '--disable-prompt-on-repost',
+                '--disable-renderer-backgrounding',
+                '--disable-speech-api',
+                '--disable-sync',
+                '--hide-scrollbars',
+                '--ignore-gpu-blacklist',
+                '--metrics-recording-only',
+                '--mute-audio',
+                '--no-default-browser-check',
+                '--no-pings',
+                '--password-store=basic',
+                '--use-mock-keychain',
+                '--window-size=1920,1080'
+            ]
+        });
+        
+        const context = await browser.newContext({
+            viewport: { width: 1920, height: 1080 },
+            userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            locale: 'en-US',
+            timezoneId: 'America/Chicago',
+            permissions: ['geolocation'],
+            geolocation: { latitude: 30.2672, longitude: -97.7431 },
+            colorScheme: 'light',
+            extraHTTPHeaders: {
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+                'Cache-Control': 'max-age=0',
+                'Referer': 'https://www.google.com/',
+                'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+                'sec-ch-ua-mobile': '?0',
+                'sec-ch-ua-platform': '"macOS"'
+            }
+        });
+        
+        const page = await context.newPage();
+        
+        // Intercept network requests to catch Instagram API calls
+        const apiResponses = [];
+        page.on('response', async (response) => {
+            const url = response.url();
+            if (url.includes('graphql') || url.includes('api/v1') || url.includes('web_profile_info')) {
+                try {
+                    const json = await response.json().catch(() => null);
+                    if (json) {
+                        apiResponses.push({ url, data: json });
+                        console.log(`[PROFILE] Caught API response from: ${url.substring(0, 100)}`);
+                    }
+                } catch (e) {
+                    // Not JSON, ignore
+                }
+            }
+        });
+        
+        // Add stealth scripts
+        await context.addInitScript(() => {
+            Object.defineProperty(navigator, 'webdriver', { get: () => false });
+            window.chrome = { runtime: {}, loadTimes: function() {}, csi: function() {}, app: {} };
+            Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+            Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+            Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel' });
+            Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
+            Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
+            if (navigator.getBattery) {
+                navigator.getBattery = () => Promise.resolve({
+                    charging: true, chargingTime: 0, dischargingTime: Infinity, level: 1
+                });
+            }
+        });
+        
+        // Call the API endpoint
+        const apiUrl = `https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`;
+        console.log(`[PROFILE] Calling API endpoint: ${apiUrl}`);
+        
+        await page.setExtraHTTPHeaders({
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-IG-App-ID': '936619743392459',
+            'X-IG-WWW-Claim': '0',
+            'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"macOS"'
+        });
+        
+        try {
+            await page.goto(apiUrl, { waitUntil: 'networkidle', timeout: 15000 });
+            await page.waitForTimeout(1000); // Wait for interception
+            
+            // Extract profile picture from intercepted API responses
+            let profilePicUrl = null;
+            if (apiResponses.length > 0) {
+                for (const apiResponse of apiResponses) {
+                    try {
+                        const data = apiResponse.data;
+                        // Try data.data.user.profile_pic_url_hd first (HD version)
+                        if (data && data.data && data.data.user) {
+                            profilePicUrl = data.data.user.profile_pic_url_hd || data.data.user.profile_pic_url;
+                            if (profilePicUrl) {
+                                console.log(`[PROFILE] ✅ Found profile picture in API response: ${profilePicUrl}`);
+                                break;
+                            }
+                        }
+                    } catch (e) {
+                        console.log(`[PROFILE] Error parsing API response: ${e.message}`);
+                    }
+                }
+            }
+            
+            // Also try direct response
+            if (!profilePicUrl) {
+                try {
+                    const response = await page.goto(apiUrl, { waitUntil: 'networkidle', timeout: 15000 });
+                    if (response && response.ok()) {
+                        const json = await response.json().catch(() => null);
+                        if (json && json.data && json.data.user) {
+                            profilePicUrl = json.data.user.profile_pic_url_hd || json.data.user.profile_pic_url;
+                            if (profilePicUrl) {
+                                console.log(`[PROFILE] ✅ Found profile picture in direct API response: ${profilePicUrl}`);
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.log(`[PROFILE] Direct API call failed: ${e.message}`);
+                }
+            }
+            
+            await browser.close();
+            
+            if (profilePicUrl) {
+                return { success: true, url: profilePicUrl };
+            } else {
+                return { success: false, error: 'Profile picture not found in API response' };
+            }
+        } catch (error) {
+            await browser.close();
+            console.error(`[PROFILE] Playwright error for ${username}:`, error.message);
+            return { success: false, error: `Playwright error: ${error.message}` };
+        }
+    } catch (error) {
+        if (browser) {
+            try {
+                await browser.close();
+            } catch (e) {
+                // Ignore close errors
+            }
+        }
+        console.error(`[PROFILE] Error fetching profile picture for ${username}:`, error.message);
+        return { success: false, error: error.message };
+    }
+}
+
+// OLD HTTP-based extraction (keeping as fallback, but Playwright is now primary)
+async function fetchInstagramProfile_OLD(username) {
     return new Promise((resolve, reject) => {
         const instagramUrl = `https://www.instagram.com/${username}/`;
         
