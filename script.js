@@ -80,94 +80,86 @@ async function getInstagramFullName(username) {
         }
     }
     
-    // Fallback to browser methods
-    try {
-        const apiUrl = `https://www.instagram.com/${cleanUsername}/`;
-        const proxyUrl = 'https://api.allorigins.win/raw?url=';
-        
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 second timeout
-        
-        console.log(`📡 Fetching Instagram profile: ${apiUrl}`);
-        let response;
+    // Fallback to browser methods - try multiple proxies
+    const proxies = [
+        'https://api.allorigins.win/raw?url=',
+        'https://corsproxy.io/?',
+        'https://api.codetabs.com/v1/proxy?quest='
+    ];
+    
+    for (const proxyUrl of proxies) {
         try {
-            response = await fetch(`${proxyUrl}${encodeURIComponent(apiUrl)}`, {
-                method: 'GET',
-                signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-        } catch (fetchError) {
-            clearTimeout(timeoutId);
-            if (fetchError.name === 'AbortError') {
-                throw new Error('Instagram request timed out. Please try again.');
-            }
-            throw fetchError;
-        }
-        
-        if (response.ok) {
-            const html = await response.text();
-            console.log(`✅ Received HTML response, length: ${html.length} characters`);
+            const apiUrl = `https://www.instagram.com/${cleanUsername}/`;
             
-            // Check if we got a valid response (not empty or error page)
-            if (html.length === 0) {
-                console.log(`⚠️ Empty response from proxy, trying alternative proxy...`);
-                // Try alternative proxy
-                try {
-                    const altProxyUrl = 'https://cors-anywhere.herokuapp.com/';
-                    const altController = new AbortController();
-                    const altTimeoutId = setTimeout(() => altController.abort(), 12000);
-                    let altResponse;
-                    try {
-                        altResponse = await fetch(`${altProxyUrl}${encodeURIComponent(apiUrl)}`, {
-                            method: 'GET',
-                            signal: altController.signal
-                        });
-                        clearTimeout(altTimeoutId);
-                    } catch (altFetchError) {
-                        clearTimeout(altTimeoutId);
-                        if (altFetchError.name === 'AbortError') {
-                            throw new Error('Instagram request timed out. Please try again.');
-                        }
-                        throw altFetchError;
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+            
+            console.log(`📡 Fetching Instagram profile via proxy: ${proxyUrl.substring(0, 30)}...`);
+            let response;
+            try {
+                const fetchUrl = proxyUrl.includes('codetabs') 
+                    ? `${proxyUrl}${apiUrl}`
+                    : `${proxyUrl}${encodeURIComponent(apiUrl)}`;
+                    
+                response = await fetch(fetchUrl, {
+                    method: 'GET',
+                    signal: controller.signal,
+                    headers: {
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                        'Accept-Language': 'en-US,en;q=0.9',
+                        'Referer': 'https://www.instagram.com/'
                     }
-                    if (altResponse.ok) {
-                        const altHtml = await altResponse.text();
-                        if (altHtml.length > 0) {
-                            console.log(`✅ Got response from alternative proxy, length: ${altHtml.length}`);
-                            const altFullName = await extractNameFromHTML(altHtml, cleanUsername);
-                            if (altFullName) {
-                                // Cache the result
-                                saveInstagramNameToStorage(cleanUsername, altFullName);
-                                return altFullName;
-                            }
-                        }
-                    }
-                } catch (altError) {
-                    console.log('Alternative proxy also failed:', altError.message);
-                    // Re-throw timeout errors
-                    if (altError.message && altError.message.includes('timeout')) {
-                        throw altError;
-                    }
+                });
+                clearTimeout(timeoutId);
+            } catch (fetchError) {
+                clearTimeout(timeoutId);
+                if (fetchError.name === 'AbortError') {
+                    console.log(`⏰ Proxy ${proxyUrl.substring(0, 30)} timed out, trying next...`);
+                    continue; // Try next proxy
                 }
-                return null;
+                console.log(`❌ Proxy ${proxyUrl.substring(0, 30)} failed: ${fetchError.message}, trying next...`);
+                continue; // Try next proxy
             }
-            
-            // Check for login/error pages
-            if (html.includes('Log in to Instagram') || html.includes('login_required') || html.length < 1000) {
-                console.log(`⚠️ Got login page or insufficient content, length: ${html.length}`);
-                return null;
+        
+            if (response.ok) {
+                const html = await response.text();
+                console.log(`✅ Received HTML response from proxy, length: ${html.length} characters`);
+                
+                // Check if we got a valid response (not empty or error page)
+                if (html.length === 0) {
+                    console.log(`⚠️ Empty response from proxy, trying next...`);
+                    continue; // Try next proxy
+                }
+                
+                // Check for login/error pages
+                if (html.includes('Log in to Instagram') || html.includes('login_required') || html.includes('/accounts/login/') || html.length < 1000) {
+                    console.log(`⚠️ Got login page or insufficient content from this proxy, length: ${html.length}, trying next...`);
+                    continue; // Try next proxy
+                }
+                
+                const fullName = await extractNameFromHTML(html, cleanUsername);
+                if (fullName) {
+                    console.log(`✅ Successfully extracted name using proxy: ${fullName}`);
+                    // Cache the result
+                    saveInstagramNameToStorage(cleanUsername, fullName);
+                    return fullName;
+                } else {
+                    console.log(`⚠️ Could not extract name from this proxy's HTML, trying next...`);
+                    continue; // Try next proxy
+                }
+            } else {
+                console.log(`❌ Proxy returned status ${response.status}, trying next...`);
+                continue; // Try next proxy
             }
-            
-            const fullName = await extractNameFromHTML(html, cleanUsername);
-            if (fullName) {
-                // Cache the result
-                saveInstagramNameToStorage(cleanUsername, fullName);
-                return fullName;
-            }
-            return null;
-        } else {
-            console.log(`❌ Instagram fetch failed with status: ${response.status}`);
+        } catch (proxyError) {
+            console.log(`❌ Proxy error: ${proxyError.message}, trying next...`);
+            continue; // Try next proxy
         }
+    }
+    
+    // All proxies failed
+    console.log(`❌ All proxy methods failed for ${cleanUsername}`);
+    return null;
     } catch (e) {
         console.log(`❌ Error fetching Instagram name for ${cleanUsername}:`, e.message);
         // Re-throw timeout errors so caller can handle them
@@ -422,6 +414,32 @@ async function extractNameFromHTML(html, cleanUsername) {
             }
         }
         return null;
+    }
+    
+    // Last resort: Try to find any text that looks like a name (two capitalized words)
+    // This is more aggressive and might catch names in unexpected places
+    const nameLikePatterns = [
+        /<[^>]*>([A-Z][a-z]+(?:\.[a-z]+)?\s+[A-Z][a-z]+)<\/[^>]*>/g,
+        /"([A-Z][a-z]+(?:\.[a-z]+)?\s+[A-Z][a-z]+)"/g
+    ];
+    
+    for (const pattern of nameLikePatterns) {
+        const matches = [...html.matchAll(pattern)];
+        for (const match of matches) {
+            if (match && match[1]) {
+                const potentialName = match[1].trim();
+                // Validate it looks like a real name
+                if (potentialName && potentialName.length > 3 && 
+                    potentialName.includes(' ') &&
+                    !potentialName.toLowerCase().includes('instagram') &&
+                    !potentialName.toLowerCase().includes('login') &&
+                    potentialName !== cleanUsername &&
+                    !potentialName.startsWith('@')) {
+                    console.log(`Found potential Instagram name via name-like pattern: ${potentialName}`);
+                    return potentialName;
+                }
+            }
+        }
     }
     
     // Try to find in all script tags for any JSON data containing full_name
