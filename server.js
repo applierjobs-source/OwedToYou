@@ -128,26 +128,26 @@ async function fetchInstagramProfile(username) {
             
             // Extract profile picture URL from various possible locations
             // Instagram Profile Scraper returns profile picture directly
-            // Apify returns profile_pic_url (with underscores) - check this FIRST
+            // Apify returns profilePicUrl and profilePicUrlHD (camelCase) for main profile
             let profilePicUrl = null;
             
             // Try different paths for profile picture (profile scraper structure)
-            // Apify returns profile_pic_url (underscores) - check this first!
-            if (item.profile_pic_url) {
-                profilePicUrl = item.profile_pic_url;
-                console.log(`[PROFILE] ✅ Found profile_pic_url (underscore): ${profilePicUrl.substring(0, 50)}...`);
-            } else if (item.profilePicUrlHD) {
+            // Apify returns profilePicUrlHD and profilePicUrl (camelCase) - check these FIRST
+            if (item.profilePicUrlHD) {
                 profilePicUrl = item.profilePicUrlHD; // Prefer HD version
-                console.log(`[PROFILE] ✅ Found profilePicUrlHD (camelCase HD): ${profilePicUrl.substring(0, 50)}...`);
+                console.log(`[PROFILE] ✅✅✅ Found profilePicUrlHD (camelCase HD): ${profilePicUrl.substring(0, 50)}...`);
             } else if (item.profilePicUrl) {
                 profilePicUrl = item.profilePicUrl;
-                console.log(`[PROFILE] ✅ Found profilePicUrl (camelCase): ${profilePicUrl.substring(0, 50)}...`);
-            } else if (item.profile_pic_url_hd) {
-                profilePicUrl = item.profile_pic_url_hd;
-                console.log(`[PROFILE] ✅ Found profile_pic_url_hd (underscore HD): ${profilePicUrl.substring(0, 50)}...`);
+                console.log(`[PROFILE] ✅✅✅ Found profilePicUrl (camelCase): ${profilePicUrl.substring(0, 50)}...`);
+            } else if (item.profile_pic_url) {
+                profilePicUrl = item.profile_pic_url;
+                console.log(`[PROFILE] ✅ Found profile_pic_url (underscore): ${profilePicUrl.substring(0, 50)}...`);
             } else if (item.profilePicUrlHd) {
                 profilePicUrl = item.profilePicUrlHd; // Lowercase variant
                 console.log(`[PROFILE] ✅ Found profilePicUrlHd (camelCase lowercase d): ${profilePicUrl.substring(0, 50)}...`);
+            } else if (item.profile_pic_url_hd) {
+                profilePicUrl = item.profile_pic_url_hd;
+                console.log(`[PROFILE] ✅ Found profile_pic_url_hd (underscore HD): ${profilePicUrl.substring(0, 50)}...`);
             } else if (item.profileImageUrl) {
                 profilePicUrl = item.profileImageUrl;
             } else if (item.profile_image_url) {
@@ -156,18 +156,18 @@ async function fetchInstagramProfile(username) {
                 profilePicUrl = item.imageUrl;
             } else if (item.image_url) {
                 profilePicUrl = item.image_url;
-            } else if (item.profile && item.profile.profile_pic_url) {
-                profilePicUrl = item.profile.profile_pic_url;
             } else if (item.profile && item.profile.profilePicUrlHD) {
                 profilePicUrl = item.profile.profilePicUrlHD;
             } else if (item.profile && item.profile.profilePicUrl) {
                 profilePicUrl = item.profile.profilePicUrl;
-            } else if (item.user && item.user.profile_pic_url) {
-                profilePicUrl = item.user.profile_pic_url;
+            } else if (item.profile && item.profile.profile_pic_url) {
+                profilePicUrl = item.profile.profile_pic_url;
             } else if (item.user && item.user.profilePicUrlHD) {
                 profilePicUrl = item.user.profilePicUrlHD;
             } else if (item.user && item.user.profilePicUrl) {
                 profilePicUrl = item.user.profilePicUrl;
+            } else if (item.user && item.user.profile_pic_url) {
+                profilePicUrl = item.user.profile_pic_url;
             }
             
             if (profilePicUrl && profilePicUrl.length > 0) {
