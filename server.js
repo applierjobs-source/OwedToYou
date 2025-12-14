@@ -93,56 +93,18 @@ async function fetchInstagramProfile(username) {
     try {
         console.log(`[PROFILE] Using Apify to extract profile picture for ${username}`);
         
-        // Try multiple Apify actors - start with lisenser's IG Profile Scraper
-        let run = null;
-        let items = null;
+        // Prepare Apify Actor input
+        // Use Instagram Profile Scraper specifically designed for profile data
+        // It requires 'usernames' field (just the username, not full URL)
+        const input = {
+            usernames: [username], // Just the username, not the full URL
+        };
         
-        // Try lisenser~ig-profile-scraper first (alternative actor)
-        try {
-            const input = {
-                usernames: [username],
-            };
-            
-            console.log(`[PROFILE] Trying lisenser~ig-profile-scraper with input:`, JSON.stringify(input));
-            run = await apifyClient.actor("lisenser~ig-profile-scraper").call(input);
-            items = (await apifyClient.dataset(run.defaultDatasetId).listItems()).items;
-            
-            if (items && items.length > 0 && !items[0].error) {
-                console.log(`[PROFILE] ✅ Successfully got data from lisenser~ig-profile-scraper`);
-            } else {
-                throw new Error('No valid data from lisenser actor');
-            }
-        } catch (error) {
-            console.log(`[PROFILE] lisenser actor failed: ${error.message}, trying alpha-scraper...`);
-            
-            // Fallback to alpha-scraper~instagram-profile-scraper
-            try {
-                const input = {
-                    profileUrls: [`https://www.instagram.com/${username}/`],
-                };
-                
-                console.log(`[PROFILE] Trying alpha-scraper~instagram-profile-scraper with input:`, JSON.stringify(input));
-                run = await apifyClient.actor("alpha-scraper~instagram-profile-scraper").call(input);
-                items = (await apifyClient.dataset(run.defaultDatasetId).listItems()).items;
-                
-                if (items && items.length > 0 && !items[0].error) {
-                    console.log(`[PROFILE] ✅ Successfully got data from alpha-scraper`);
-                } else {
-                    throw new Error('No valid data from alpha-scraper actor');
-                }
-            } catch (error2) {
-                console.log(`[PROFILE] alpha-scraper actor failed: ${error2.message}, trying apify~instagram-profile-scraper...`);
-                
-                // Final fallback to original apify~instagram-profile-scraper
-                const input = {
-                    usernames: [username],
-                };
-                
-                console.log(`[PROFILE] Trying apify~instagram-profile-scraper with input:`, JSON.stringify(input));
-                run = await apifyClient.actor("apify~instagram-profile-scraper").call(input);
-                items = (await apifyClient.dataset(run.defaultDatasetId).listItems()).items;
-            }
-        }
+        console.log(`[PROFILE] Calling Apify Instagram Profile Scraper with input:`, JSON.stringify(input));
+        
+        // Run the Profile Scraper Actor synchronously and get dataset items
+        const run = await apifyClient.actor("apify~instagram-profile-scraper").call(input);
+        const { items } = await apifyClient.dataset(run.defaultDatasetId).listItems();
         
         console.log(`[PROFILE] Apify returned ${items ? items.length : 0} items`);
         
@@ -777,56 +739,18 @@ async function fetchInstagramFullName(username) {
     try {
         console.log(`[INSTAGRAM] Using Apify to extract name for ${username}`);
         
-        // Try multiple Apify actors - start with lisenser's IG Profile Scraper
-        let run = null;
-        let items = null;
+        // Prepare Apify Actor input
+        // Use Instagram Profile Scraper specifically designed for profile data
+        // It requires 'usernames' field (just the username, not full URL)
+        const input = {
+            usernames: [username], // Just the username, not the full URL
+        };
         
-        // Try lisenser~ig-profile-scraper first (alternative actor)
-        try {
-            const input = {
-                usernames: [username],
-            };
-            
-            console.log(`[INSTAGRAM] Trying lisenser~ig-profile-scraper with input:`, JSON.stringify(input));
-            run = await apifyClient.actor("lisenser~ig-profile-scraper").call(input);
-            items = (await apifyClient.dataset(run.defaultDatasetId).listItems()).items;
-            
-            if (items && items.length > 0 && !items[0].error) {
-                console.log(`[INSTAGRAM] ✅ Successfully got data from lisenser~ig-profile-scraper`);
-            } else {
-                throw new Error('No valid data from lisenser actor');
-            }
-        } catch (error) {
-            console.log(`[INSTAGRAM] lisenser actor failed: ${error.message}, trying alpha-scraper...`);
-            
-            // Fallback to alpha-scraper~instagram-profile-scraper
-            try {
-                const input = {
-                    profileUrls: [`https://www.instagram.com/${username}/`],
-                };
-                
-                console.log(`[INSTAGRAM] Trying alpha-scraper~instagram-profile-scraper with input:`, JSON.stringify(input));
-                run = await apifyClient.actor("alpha-scraper~instagram-profile-scraper").call(input);
-                items = (await apifyClient.dataset(run.defaultDatasetId).listItems()).items;
-                
-                if (items && items.length > 0 && !items[0].error) {
-                    console.log(`[INSTAGRAM] ✅ Successfully got data from alpha-scraper`);
-                } else {
-                    throw new Error('No valid data from alpha-scraper actor');
-                }
-            } catch (error2) {
-                console.log(`[INSTAGRAM] alpha-scraper actor failed: ${error2.message}, trying apify~instagram-profile-scraper...`);
-                
-                // Final fallback to original apify~instagram-profile-scraper
-                const input = {
-                    usernames: [username],
-                };
-                
-                console.log(`[INSTAGRAM] Trying apify~instagram-profile-scraper with input:`, JSON.stringify(input));
-                run = await apifyClient.actor("apify~instagram-profile-scraper").call(input);
-                items = (await apifyClient.dataset(run.defaultDatasetId).listItems()).items;
-            }
-        }
+        console.log(`[INSTAGRAM] Calling Apify Instagram Profile Scraper with input:`, JSON.stringify(input));
+        
+        // Run the Profile Scraper Actor synchronously and get dataset items
+        const run = await apifyClient.actor("apify~instagram-profile-scraper").call(input);
+        const { items } = await apifyClient.dataset(run.defaultDatasetId).listItems();
         
         console.log(`[INSTAGRAM] Apify returned ${items ? items.length : 0} items`);
         
