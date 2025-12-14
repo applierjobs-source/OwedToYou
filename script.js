@@ -1719,9 +1719,11 @@ function createEntryHTML(user, rank) {
     
     // Create profile picture HTML with fallback
     let profilePicHtml = '';
-    if (user.profilePic) {
-        profilePicHtml = `<img src="${user.profilePic}" alt="${escapedName}" onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='${initials}'; this.parentElement.style.display='flex'; this.parentElement.style.alignItems='center'; this.parentElement.style.justifyContent='center';">`;
+    if (user.profilePic && user.profilePic.length > 0) {
+        console.log(`🖼️ createEntryHTML: Creating img tag for ${user.handle} with profilePic: ${user.profilePic.substring(0, 50)}...`);
+        profilePicHtml = `<img src="${user.profilePic}" alt="${escapedName}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;" onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='${initials}'; this.parentElement.style.display='flex'; this.parentElement.style.alignItems='center'; this.parentElement.style.justifyContent='center';">`;
     } else {
+        console.log(`⚠️ createEntryHTML: No profilePic for ${user.handle}, using initials: ${initials}`);
         profilePicHtml = initials;
     }
     
@@ -1754,6 +1756,7 @@ function displayLeaderboard(users) {
     const listContainer = document.getElementById('leaderboardList');
     
     console.log(`📊 displayLeaderboard called with ${users.length} users`);
+    console.log(`📊 First user profilePic check:`, users[0] ? { handle: users[0].handle, hasPic: !!users[0].profilePic, pic: users[0].profilePic ? users[0].profilePic.substring(0, 50) + '...' : 'none' } : 'no users');
     
     // Ensure profile pictures from localStorage are loaded before displaying
     const usersWithPics = users.map(user => {
@@ -1763,14 +1766,18 @@ function displayLeaderboard(users) {
             // Check both exact handle and cleaned handle
             const storedPic = storedProfilePics[user.handle] || storedProfilePics[cleanUserHandle];
             if (storedPic) {
-                console.log(`✅ Found profile pic in localStorage for ${user.handle}`);
+                console.log(`✅ Found profile pic in localStorage for ${user.handle}: ${storedPic.substring(0, 50)}...`);
                 return { ...user, profilePic: storedPic };
+            } else {
+                console.log(`⚠️ No profile pic in localStorage for ${user.handle}`);
             }
+        } else {
+            console.log(`✅ User ${user.handle} already has profilePic: ${user.profilePic.substring(0, 50)}...`);
         }
         return user;
     });
     
-    console.log(`📊 Users with profile pics:`, usersWithPics.filter(u => u.profilePic).map(u => `${u.handle} (${u.profilePic ? 'has pic' : 'no pic'})`));
+    console.log(`📊 Users with profile pics:`, usersWithPics.map(u => `${u.handle}: ${u.profilePic ? 'HAS PIC' : 'NO PIC'}`));
     
     // Generate HTML for all entries immediately with profile pics if available
     listContainer.innerHTML = usersWithPics.map((user, index) => 
