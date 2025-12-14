@@ -3752,23 +3752,20 @@ if (typeof window !== 'undefined' && typeof handleSearchImpl === 'function') {
     
     if (afterIsPlaceholder) {
         console.error('❌ CRITICAL: Placeholder still active after replacement');
-            // Try one more time with force
-            console.log('🔄🔄🔄 FORCING replacement one more time...');
-            Object.defineProperty(window, 'handleSearch', {
-                value: handleSearchImpl,
-                writable: true,
-                enumerable: true,
-                configurable: true
-            });
-            const finalStr = window.handleSearch.toString();
-            console.log('✅✅✅ After force - is placeholder:', finalStr.includes('PLACEHOLDER'));
-        } else {
-            console.log('✅✅✅✅✅ FINAL CHECK SUCCESS: Real function is exported');
-        }
-        } else {
-            console.error('❌❌❌ Final check: handleSearchImpl is not the real function!');
-        }
-    } else if (typeof _realHandleSearch === 'function') {
+        // Try one more time with force
+        console.log('🔄🔄🔄 FORCING replacement one more time...');
+        Object.defineProperty(window, 'handleSearch', {
+            value: handleSearchImpl,
+            writable: true,
+            enumerable: true,
+            configurable: true
+        });
+        const finalStr = window.handleSearch.toString();
+        console.log('✅✅✅ After force - is placeholder:', finalStr.includes('PLACEHOLDER'));
+    } else {
+        console.log('✅✅✅✅✅ FINAL CHECK SUCCESS: Real function is exported');
+    }
+} else if (typeof _realHandleSearch === 'function') {
         console.log('🔍 Final check: Using _realHandleSearch...');
         window.handleSearch = _realHandleSearch;
     } else {
