@@ -711,8 +711,9 @@ async function fetchInstagramFullName(username) {
                             }
                         }
                     }
-                } catch (e) {
-                    console.log(`[INSTAGRAM] Error extracting from HTML: ${e.message}`);
+                    } catch (e) {
+                        console.log(`[INSTAGRAM] Error extracting from HTML: ${e.message}`);
+                    }
                 }
                 
                 // Strategy 0.5: Extract from JSON-LD structured data
