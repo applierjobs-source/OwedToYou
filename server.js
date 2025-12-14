@@ -1896,14 +1896,17 @@ const server = http.createServer((req, res) => {
     // Handle profile picture fetch
     if (parsedUrl.pathname === '/api/profile-pic' && parsedUrl.query.username) {
         const username = parsedUrl.query.username.replace('@', '').trim();
-        console.log(`[PROFILE] Received profile picture request for: ${username}`);
+        console.log(`[PROFILE] ✅✅✅ Received profile picture request for: ${username}`);
+        console.log(`[PROFILE] Query params:`, parsedUrl.query);
         
         fetchInstagramProfile(username)
             .then(result => {
+                console.log(`[PROFILE] ✅✅✅ Returning profile picture result for ${username}:`, result.success ? `URL: ${result.url ? result.url.substring(0, 100) + '...' : 'no URL'}` : `Error: ${result.error}`);
                 res.writeHead(200, corsHeaders);
                 res.end(JSON.stringify(result));
             })
             .catch(error => {
+                console.error(`[PROFILE] ❌❌❌ Error fetching profile picture for ${username}:`, error.message);
                 res.writeHead(500, corsHeaders);
                 res.end(JSON.stringify({ success: false, error: error.message }));
             });

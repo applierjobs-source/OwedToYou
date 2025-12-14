@@ -795,16 +795,19 @@ async function getInstagramProfilePicture(username) {
         
         if (response.ok) {
             const data = await response.json();
-            console.log(`[PROFILE PIC] Backend API response data:`, data);
+            console.log(`[PROFILE PIC] ✅✅✅ Backend API response data for ${cleanUsername}:`, data);
+            console.log(`[PROFILE PIC] Response success:`, data.success);
+            console.log(`[PROFILE PIC] Response URL:`, data.url ? data.url.substring(0, 100) + '...' : 'NO URL');
             if (data.success && data.url) {
-                console.log(`[PROFILE PIC] ✅ Found profile picture via backend: ${data.url.substring(0, 100)}...`);
+                console.log(`[PROFILE PIC] ✅✅✅✅✅ Found profile picture via backend: ${data.url.substring(0, 100)}...`);
                 return data.url;
             } else {
-                console.log(`[PROFILE PIC] ❌ Backend returned success=false or no URL:`, data);
+                console.log(`[PROFILE PIC] ❌❌❌ Backend returned success=false or no URL for ${cleanUsername}:`, data);
+                console.log(`[PROFILE PIC] Error message:`, data.error || 'No error message');
             }
         } else {
             const errorText = await response.text().catch(() => '');
-            console.error(`[PROFILE PIC] ❌ Backend API error (${response.status}):`, errorText);
+            console.error(`[PROFILE PIC] ❌❌❌ Backend API error (${response.status}) for ${cleanUsername}:`, errorText);
         }
     } catch (e) {
         // Backend not available or error, continue with browser methods
