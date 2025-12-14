@@ -1922,21 +1922,22 @@ async function handleSearchImpl() {
         }
         
         // ALWAYS fetch profile picture, regardless of whether name extraction succeeded or failed
+        console.log(`[PROFILE PIC FLOW] Starting profile picture fetch for handle: ${cleanHandleValue}`);
+        console.log(`[PROFILE PIC FLOW] Name extraction result: ${fullName ? `SUCCESS: ${fullName}` : 'FAILED'}`);
+        
         // Check localStorage first as a fallback
         const storedProfilePics = loadProfilePicsFromStorage();
         profilePic = storedProfilePics[cleanHandleValue] || storedProfilePics[handle] || null;
         
         if (profilePic) {
-            console.log(`🖼️ Found cached profile picture for ${cleanHandleValue}`);
+            console.log(`[PROFILE PIC FLOW] ✅ Found cached profile picture for ${cleanHandleValue}: ${profilePic.substring(0, 60)}...`);
         } else {
-            console.log(`🖼️🖼️🖼️ Fetching profile picture for ${cleanHandleValue}...`);
+            console.log(`[PROFILE PIC FLOW] 🔄 No cache found, fetching profile picture for ${cleanHandleValue}...`);
             try {
                 profilePic = await getInstagramProfilePicture(cleanHandleValue);
-                console.log(`🖼️🖼️🖼️ Profile picture result for ${cleanHandleValue}: ${profilePic ? `FOUND: ${profilePic.substring(0, 80)}...` : 'NOT FOUND'}`);
+                console.log(`[PROFILE PIC FLOW] ✅ Fetch completed for ${cleanHandleValue}: ${profilePic ? `SUCCESS - URL: ${profilePic.substring(0, 60)}...` : 'FAILED - No URL returned'}`);
             } catch (picError) {
-                console.error(`🖼️ Error fetching profile picture:`, picError);
-                console.error(`🖼️ Error message:`, picError.message);
-                console.error(`🖼️ Error stack:`, picError.stack);
+                console.error(`[PROFILE PIC FLOW] ❌ Error fetching profile picture for ${cleanHandleValue}:`, picError.message);
                 profilePic = null;
             }
         }
@@ -1947,8 +1948,12 @@ async function handleSearchImpl() {
             storedProfilePicsToSave[cleanHandleValue] = profilePic;
             storedProfilePicsToSave[handle] = profilePic;
             saveProfilePicsToStorage(storedProfilePicsToSave);
-            console.log(`🖼️🖼️🖼️ Saved profilePic to localStorage for ${cleanHandleValue}`);
+            console.log(`[PROFILE PIC FLOW] 💾 Saved profilePic to localStorage for ${cleanHandleValue}`);
+        } else {
+            console.log(`[PROFILE PIC FLOW] ⚠️ No profile picture available for ${cleanHandleValue}`);
         }
+        
+        console.log(`[PROFILE PIC FLOW] Final profilePic value: ${profilePic ? `SET (${profilePic.substring(0, 40)}...)` : 'NULL'}`);
         
         // Split full name into first and last name
         let firstName = '';
@@ -1991,7 +1996,7 @@ async function handleSearchImpl() {
             // If we got a valid name, start the search automatically
             if (firstName && lastName) {
                 console.log(`✅ Starting search with extracted Instagram name: "${firstName} ${lastName}"`);
-                console.log(`🖼️ Profile picture available: ${profilePic ? 'Yes' : 'No'}`);
+                console.log(`[PROFILE PIC FLOW] About to call startMissingMoneySearch with profilePic: ${profilePic ? `YES (${profilePic.substring(0, 40)}...)` : 'NO'}`);
                 // Re-enable button immediately
                 searchBtn.disabled = false;
                 searchBtn.textContent = 'Search';
@@ -2579,7 +2584,8 @@ function hideProgressModal() {
 
 // Start missing money search directly with first and last name
 async function startMissingMoneySearch(firstName, lastName, handle, profilePic = null) {
-    console.log(`🚀 startMissingMoneySearch called with: firstName="${firstName}", lastName="${lastName}", handle="${handle}", profilePic="${profilePic ? 'provided' : 'not provided'}"`);
+    console.log(`🚀 startMissingMoneySearch called with: firstName="${firstName}", lastName="${lastName}", handle="${handle}"`);
+    console.log(`[PROFILE PIC FLOW] startMissingMoneySearch received profilePic: ${profilePic ? `YES (${profilePic.substring(0, 40)}...)` : 'NO (null/undefined)'}`);
     
     // Basic validation - only check for empty or obviously invalid values
     if (!firstName || !lastName || firstName.trim().length === 0 || lastName.trim().length === 0) {
@@ -2611,7 +2617,8 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
         firstName: claimData.firstName,
         lastName: claimData.lastName,
         fullName: `${claimData.firstName} ${claimData.lastName}`,
-        name: claimData.name
+        name: claimData.name,
+        profilePic: claimData.profilePic ? `SET (${claimData.profilePic.substring(0, 40)}...)` : 'NOT SET'
     });
     
     // Check localStorage cache first
