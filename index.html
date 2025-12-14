@@ -400,33 +400,71 @@
             'use strict';
             console.log('🔍🔍🔍 POST-LOAD CHECK: Verifying handleSearch after script.js load...');
             console.log('🔍 window.handleSearch type:', typeof window.handleSearch);
+            console.log('🔍 handleSearch (local) type:', typeof handleSearch);
+            console.log('🔍 _realHandleSearch type:', typeof _realHandleSearch);
             
             // Check immediately and also after a delay
             function forceExport() {
+                console.log('🔄🔄🔄 FORCE EXPORT ATTEMPT');
                 if (typeof window.handleSearch === 'function') {
                     const funcStr = window.handleSearch.toString();
-                    if (funcStr.includes('PLACEHOLDER')) {
+                    const isPlaceholder = funcStr.includes('PLACEHOLDER');
+                    console.log('🔍 Current window.handleSearch is placeholder:', isPlaceholder);
+                    
+                    if (isPlaceholder) {
                         console.error('❌❌❌ CRITICAL: Placeholder still active!');
                         console.error('❌ Attempting FORCE EXPORT...');
                         
                         // Try to force export the real function
                         if (typeof handleSearch === 'function') {
                             const realFuncStr = handleSearch.toString();
-                            if (!realFuncStr.includes('PLACEHOLDER')) {
+                            const realIsPlaceholder = realFuncStr.includes('PLACEHOLDER');
+                            console.log('🔍 Local handleSearch is placeholder:', realIsPlaceholder);
+                            
+                            if (!realIsPlaceholder) {
                                 console.log('🔄🔄🔄 FORCE EXPORTING real function NOW...');
-                                window.handleSearch = handleSearch;
+                                try {
+                                    // Try Object.defineProperty first
+                                    Object.defineProperty(window, 'handleSearch', {
+                                        value: handleSearch,
+                                        writable: true,
+                                        enumerable: true,
+                                        configurable: true
+                                    });
+                                    console.log('✅✅✅ FORCE EXPORT via defineProperty COMPLETED');
+                                } catch (e) {
+                                    // Fallback to direct assignment
+                                    window.handleSearch = handleSearch;
+                                    console.log('✅✅✅ FORCE EXPORT via direct assignment COMPLETED');
+                                }
+                                
+                                // Update _realHandleSearch too
                                 if (typeof _realHandleSearch !== 'undefined') {
                                     _realHandleSearch = handleSearch;
                                 }
-                                console.log('✅✅✅ FORCE EXPORT COMPLETED');
+                                
                                 console.log('✅✅✅ window.handleSearch is now:', typeof window.handleSearch);
                                 const verifyStr = window.handleSearch.toString();
-                                console.log('✅✅✅ Verification - contains PLACEHOLDER:', verifyStr.includes('PLACEHOLDER'));
+                                const stillPlaceholder = verifyStr.includes('PLACEHOLDER');
+                                console.log('✅✅✅ Verification - contains PLACEHOLDER:', stillPlaceholder);
+                                
+                                if (stillPlaceholder) {
+                                    console.error('❌❌❌ FORCE EXPORT FAILED - still placeholder!');
+                                    console.error('❌ This means something is overwriting it!');
+                                } else {
+                                    console.log('✅✅✅✅✅ FORCE EXPORT SUCCESSFUL!');
+                                }
                             } else {
                                 console.error('❌ handleSearch function is also placeholder!');
                             }
                         } else {
                             console.error('❌ handleSearch function not found!');
+                            // Try _realHandleSearch
+                            if (typeof _realHandleSearch === 'function') {
+                                console.log('🔄 Trying _realHandleSearch...');
+                                window.handleSearch = _realHandleSearch;
+                                console.log('✅✅✅ Set from _realHandleSearch');
+                            }
                         }
                     } else {
                         console.log('✅✅✅ handleSearch verified: Real function is loaded');
@@ -440,9 +478,11 @@
             forceExport();
             
             // Also try after delay in case script is still loading
+            setTimeout(forceExport, 10);
             setTimeout(forceExport, 50);
             setTimeout(forceExport, 200);
             setTimeout(forceExport, 500);
+            setTimeout(forceExport, 1000);
         })();
     </script>
 </body>

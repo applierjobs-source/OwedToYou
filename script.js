@@ -11,52 +11,76 @@ console.log('✅ Current time:', new Date().toISOString());
 // Store a reference to check if real function exists
 let _realHandleSearch = null;
 
-(function() {
-    'use strict';
-    window.handleSearch = function() {
-        console.error('⚠️⚠️⚠️ PLACEHOLDER handleSearch called - this should NOT happen!');
-        console.error('⚠️ Real function should have replaced this at line ~1635');
-        console.error('⚠️ This means the script failed to load completely');
+// CRITICAL: Placeholder function - will be replaced by real function
+// Using direct assignment, not IIFE, to avoid closure issues
+window.handleSearch = function() {
+    console.error('⚠️⚠️⚠️ PLACEHOLDER handleSearch called - this should NOT happen!');
+    console.error('⚠️ Real function should have replaced this');
+    console.error('⚠️ Current window.handleSearch:', window.handleSearch === this ? 'SELF' : 'OTHER');
+    
+    // CRITICAL FIX: Check if real function exists using the stored reference
+    // The real function will set _realHandleSearch when it's defined
+    if (_realHandleSearch && typeof _realHandleSearch === 'function') {
+        console.log('✅ Found real handleSearch via _realHandleSearch');
+        console.log('🔄 Replacing window.handleSearch with real function NOW');
         
-        // CRITICAL FIX: Check if real function exists using the stored reference
-        // The real function will set _realHandleSearch when it's defined
-        if (_realHandleSearch && typeof _realHandleSearch === 'function') {
-            console.log('✅ Found real handleSearch via _realHandleSearch, calling it directly');
-            console.log('🔄 Attempting to replace window.handleSearch with real function NOW');
-            // CRITICAL: Replace window.handleSearch BEFORE calling to prevent recursion
-            window.handleSearch = _realHandleSearch;
-            console.log('✅✅✅ window.handleSearch replaced, now calling real function');
-            // IMPORTANT: Call the function directly, NOT via window.handleSearch
-            // This prevents infinite recursion
-            try {
-                return _realHandleSearch.apply(this, arguments);
-            } catch (e) {
-                console.error('❌ Error calling real function:', e);
-                alert('An error occurred while searching. Please refresh the page and try again.');
-                return;
-            }
-        }
-        
-        // Also try to find it in the closure scope (if function is defined but not exported)
-        // This is a last resort fallback
+        // CRITICAL: Replace window.handleSearch BEFORE calling to prevent recursion
+        // Use Object.defineProperty to force it even if writable is false
         try {
-            // Access the function declaration directly (it's hoisted)
-            const funcName = 'handleSearch';
-            if (typeof eval('typeof ' + funcName + ' === "function" ? ' + funcName + ' : null') === 'function') {
-                const realFunc = eval(funcName);
-                if (realFunc && realFunc.toString().includes('STARTING SEARCH')) {
-                    console.log('✅ Found real handleSearch via eval, calling it');
-                    return realFunc.apply(this, arguments);
-                }
-            }
+            Object.defineProperty(window, 'handleSearch', {
+                value: _realHandleSearch,
+                writable: true,
+                enumerable: true,
+                configurable: true
+            });
+            console.log('✅✅✅ window.handleSearch replaced via defineProperty');
         } catch (e) {
-            // Ignore eval errors
+            // Fallback to direct assignment
+            window.handleSearch = _realHandleSearch;
+            console.log('✅✅✅ window.handleSearch replaced via direct assignment');
         }
         
-        alert('Search function is still loading. Please wait a moment and try again.');
-    };
-    console.log('✅ Placeholder handleSearch exported');
-})();
+        // Verify replacement worked
+        const verifyStr = window.handleSearch.toString();
+        if (verifyStr.includes('PLACEHOLDER')) {
+            console.error('❌❌❌ Replacement FAILED - still placeholder!');
+            alert('Search function error. Please refresh the page.');
+            return;
+        }
+        
+        console.log('✅✅✅ Replacement verified, calling real function');
+        // IMPORTANT: Call the function directly, NOT via window.handleSearch
+        // This prevents infinite recursion
+        try {
+            return _realHandleSearch.apply(this, arguments);
+        } catch (e) {
+            console.error('❌ Error calling real function:', e);
+            alert('An error occurred while searching. Please refresh the page and try again.');
+            return;
+        }
+    }
+    
+    // Also try to find it in the closure scope (if function is defined but not exported)
+    // This is a last resort fallback
+    try {
+        // Access the function declaration directly (it's hoisted)
+        const funcName = 'handleSearch';
+        if (typeof eval('typeof ' + funcName + ' === "function" ? ' + funcName + ' : null') === 'function') {
+            const realFunc = eval(funcName);
+            if (realFunc && realFunc.toString().includes('STARTING SEARCH')) {
+                console.log('✅ Found real handleSearch via eval');
+                // Replace and call
+                window.handleSearch = realFunc;
+                return realFunc.apply(this, arguments);
+            }
+        }
+    } catch (e) {
+        // Ignore eval errors
+    }
+    
+    alert('Search function is still loading. Please wait a moment and try again.');
+};
+console.log('✅ Placeholder handleSearch exported');
 
 // Get initials from name
 function getInitials(name) {
