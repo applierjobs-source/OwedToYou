@@ -2,8 +2,10 @@
 let leaderboardData = [];
 
 // Immediate test to verify script is loading
+console.log('✅✅✅✅✅ script.js STARTING TO LOAD');
 console.log('✅ script.js loaded successfully');
 console.log('✅ Current time:', new Date().toISOString());
+console.log('✅✅✅✅✅ About to set placeholder...');
 
 // CRITICAL: Export handleSearch immediately (before function definition)
 // This ensures it's available for inline onclick handlers
