@@ -1483,9 +1483,10 @@ async function loadProfilePicturesInBackground(users) {
     
     // Load profile pictures for all users in parallel
     const profilePicPromises = users.map(async (user, index) => {
+        console.log(`[${index}] Processing profile picture for ${user.handle} (has profilePic: ${!!user.profilePic})`);
         // Skip if profile picture already exists
         if (user.profilePic) {
-            console.log(`[${index}] Profile picture already exists for ${user.handle}, skipping fetch`);
+            console.log(`[${index}] Profile picture already exists for ${user.handle} (${user.profilePic.substring(0, 50)}...), skipping fetch`);
             // Still update the DOM in case it was cleared
             const cleanUserHandle = cleanHandle(user.handle);
             const entry = document.querySelector(`.leaderboard-entry[data-handle="${cleanUserHandle}"]`);
