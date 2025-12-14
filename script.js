@@ -3766,13 +3766,10 @@ if (typeof window !== 'undefined' && typeof handleSearchImpl === 'function') {
         console.log('✅✅✅✅✅ FINAL CHECK SUCCESS: Real function is exported');
     }
 } else if (typeof _realHandleSearch === 'function') {
-        console.log('🔍 Final check: Using _realHandleSearch...');
-        window.handleSearch = _realHandleSearch;
-    } else {
-        console.error('❌❌❌ CRITICAL: handleSearchImpl function not defined when trying to export!');
-    }
+    console.log('🔍 Final check: Using _realHandleSearch...');
+    window.handleSearch = _realHandleSearch;
 } else {
-    console.error('❌❌❌ CRITICAL: window is undefined in final check!');
+    console.error('❌❌❌ CRITICAL: handleSearchImpl function not defined when trying to export!');
 }
 
 // CRITICAL BACKUP: Also export on DOMContentLoaded in case script loaded before DOM
