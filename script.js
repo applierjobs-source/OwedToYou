@@ -1754,6 +1754,11 @@ async function handleSearchImpl() {
         // Always proceed with new search - don't redirect to existing entries
         // User doesn't exist or exists - get Instagram full name and start search automatically
         console.log(`🔍 Starting new search for ${cleanHandleValue}...`);
+        
+        // Show progress modal immediately
+        showProgressModal();
+        updateProgressStep(1, 'Extracting name from Instagram...');
+        
         console.log(`🔍 About to call getInstagramFullName...`);
         let fullName = null;
         let nameExtractionError = null;
@@ -1795,6 +1800,26 @@ async function handleSearchImpl() {
             extracted: !!fullName,
             hasBothNames: !!(firstName && lastName)
         });
+        
+        // Update progress to show extracted name
+        if (firstName && lastName) {
+            updateProgressStep(1, `Extracted name: ${firstName} ${lastName}`);
+            // Mark step 1 as completed and move to step 2
+            setTimeout(() => {
+                updateProgressStep(2, 'Opening Missing Money website...');
+            }, 500);
+        } else if (firstName) {
+            updateProgressStep(1, `Extracted name: ${firstName}`);
+            setTimeout(() => {
+                updateProgressStep(2, 'Opening Missing Money website...');
+            }, 500);
+        } else {
+            // If extraction failed, still move to next step
+            updateProgressStep(1, 'Name extraction completed');
+            setTimeout(() => {
+                updateProgressStep(2, 'Opening Missing Money website...');
+            }, 500);
+        }
         
             // If we got a valid name, start the search automatically
             if (firstName && lastName) {
@@ -2342,14 +2367,14 @@ function showProgressModal() {
     const progressModal = document.getElementById('progressModal');
     progressModal.classList.remove('hidden');
     
-    // Reset all steps
-    for (let i = 1; i <= 5; i++) {
+    // Reset all steps (now 6 steps total)
+    for (let i = 1; i <= 6; i++) {
         const step = document.getElementById(`step${i}`);
         step.classList.remove('active', 'completed');
     }
     
-    // Start with step 1
-    updateProgressStep(1, 'Opening Missing Money website...');
+    // Start with step 1 (Instagram name extraction)
+    updateProgressStep(1, 'Extracting name from Instagram...');
 }
 
 // Update progress step
@@ -2438,22 +2463,29 @@ async function startMissingMoneySearch(firstName, lastName, handle) {
         return;
     }
     
-    // Show progress modal
-    showProgressModal();
+    // Progress modal should already be shown from handleSearchImpl
+    // But ensure it's visible and update to step 2 (since step 1 was Instagram extraction)
+    if (!document.getElementById('progressModal').classList.contains('hidden')) {
+        // Already shown, just update to step 2
+        updateProgressStep(2, 'Opening Missing Money website...');
+    } else {
+        // Not shown yet, show it
+        showProgressModal();
+        updateProgressStep(2, 'Opening Missing Money website...');
+    }
     
     // Track start time to ensure minimum display time
     const startTime = Date.now();
     const MIN_DISPLAY_TIME = 5000; // Minimum 5 seconds
     
-    // Progress update timers
+    // Progress update timers (steps 2-6, since step 1 was Instagram extraction)
     const progressTimers = [];
     
-    // Start progress updates immediately
-    updateProgressStep(1, 'Opening Missing Money website...');
-    progressTimers.push(setTimeout(() => updateProgressStep(2, 'Filling out your information...'), 2000));
-    progressTimers.push(setTimeout(() => updateProgressStep(3, 'Solving security verification... This may take 10-30 seconds...'), 5000));
-    progressTimers.push(setTimeout(() => updateProgressStep(4, 'Searching database...'), 15000));
-    progressTimers.push(setTimeout(() => updateProgressStep(5, 'Compiling results...'), 30000));
+    // Continue progress updates (step 2 onwards)
+    progressTimers.push(setTimeout(() => updateProgressStep(3, 'Filling out your information...'), 2000));
+    progressTimers.push(setTimeout(() => updateProgressStep(4, 'Solving security verification... This may take 10-30 seconds...'), 5000));
+    progressTimers.push(setTimeout(() => updateProgressStep(5, 'Searching database...'), 15000));
+    progressTimers.push(setTimeout(() => updateProgressStep(6, 'Compiling results...'), 30000));
     
     try {
         // Search Missing Money with 2captcha API key
