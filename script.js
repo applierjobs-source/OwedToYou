@@ -153,6 +153,10 @@ async function getInstagramFullName(username) {
             }
         } catch (proxyError) {
             console.log(`❌ Proxy error: ${proxyError.message}, trying next...`);
+            // Don't continue on timeout - let it bubble up
+            if (proxyError.message && proxyError.message.includes('timeout')) {
+                throw proxyError;
+            }
             continue; // Try next proxy
         }
     }
@@ -160,21 +164,6 @@ async function getInstagramFullName(username) {
     // All proxies failed
     console.log(`❌ All proxy methods failed for ${cleanUsername}`);
     return null;
-    } catch (e) {
-        console.log(`❌ Error fetching Instagram name for ${cleanUsername}:`, e.message);
-        // Re-throw timeout errors so caller can handle them
-        if (e.message && e.message.includes('timeout')) {
-            throw e;
-        }
-    }
-    
-    // If we get here, all methods failed
-    return null;
-    
-    // Fallback: return null if not found
-    console.log(`⚠️ Could not extract name from Instagram for ${cleanUsername}`);
-    return null;
-}
 
 // Helper function to extract name from HTML
 async function extractNameFromHTML(html, cleanUsername) {
