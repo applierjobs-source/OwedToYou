@@ -91,7 +91,8 @@ const corsHeaders = {
 async function fetchInstagramProfile(username) {
     // Use Apify Instagram scraper to get profile picture
     try {
-        console.log(`[PROFILE] Using Apify to extract profile picture for ${username}`);
+        // Reduced logging to avoid Railway rate limits - only log critical info
+        console.log(`[PROFILE] Fetching profile for ${username}`);
         
         // Prepare Apify Actor input
         // Use Instagram Profile Scraper specifically designed for profile data
@@ -100,22 +101,17 @@ async function fetchInstagramProfile(username) {
             usernames: [username], // Just the username, not the full URL
         };
         
-        console.log(`[PROFILE] Calling Apify Instagram Profile Scraper with input:`, JSON.stringify(input));
-        
         // Run the Profile Scraper Actor synchronously and get dataset items
         const run = await apifyClient.actor("apify~instagram-profile-scraper").call(input);
         const { items } = await apifyClient.dataset(run.defaultDatasetId).listItems();
         
-        console.log(`[PROFILE] Apify returned ${items ? items.length : 0} items`);
-        
         if (items && items.length > 0) {
             const item = items[0];
-            console.log(`[PROFILE] Item data keys:`, Object.keys(item));
-            console.log(`[PROFILE] Item data (full):`, JSON.stringify(item, null, 2));
+            // Only log critical info to avoid rate limits
             
             // Check for errors first
             if (item.error) {
-                console.log(`[PROFILE] ⚠️ Apify returned error: ${item.error} - ${item.errorDescription || ''}`);
+                console.log(`[PROFILE] Apify error: ${item.error}`);
                 // Instagram is blocking automated access - return helpful error
                 if (item.error === 'not_found') {
                     return { 
@@ -135,19 +131,14 @@ async function fetchInstagramProfile(username) {
             // Apify returns profilePicUrlHD and profilePicUrl (camelCase) - check these FIRST
             if (item.profilePicUrlHD) {
                 profilePicUrl = item.profilePicUrlHD; // Prefer HD version
-                console.log(`[PROFILE] ✅✅✅ Found profilePicUrlHD (camelCase HD): ${profilePicUrl.substring(0, 50)}...`);
             } else if (item.profilePicUrl) {
                 profilePicUrl = item.profilePicUrl;
-                console.log(`[PROFILE] ✅✅✅ Found profilePicUrl (camelCase): ${profilePicUrl.substring(0, 50)}...`);
             } else if (item.profile_pic_url) {
                 profilePicUrl = item.profile_pic_url;
-                console.log(`[PROFILE] ✅ Found profile_pic_url (underscore): ${profilePicUrl.substring(0, 50)}...`);
             } else if (item.profilePicUrlHd) {
                 profilePicUrl = item.profilePicUrlHd; // Lowercase variant
-                console.log(`[PROFILE] ✅ Found profilePicUrlHd (camelCase lowercase d): ${profilePicUrl.substring(0, 50)}...`);
             } else if (item.profile_pic_url_hd) {
                 profilePicUrl = item.profile_pic_url_hd;
-                console.log(`[PROFILE] ✅ Found profile_pic_url_hd (underscore HD): ${profilePicUrl.substring(0, 50)}...`);
             } else if (item.profileImageUrl) {
                 profilePicUrl = item.profileImageUrl;
             } else if (item.profile_image_url) {
@@ -171,50 +162,37 @@ async function fetchInstagramProfile(username) {
             }
             
             if (profilePicUrl && profilePicUrl.length > 0) {
-                console.log(`[PROFILE] ✅✅✅ Successfully extracted profile picture: ${profilePicUrl.substring(0, 100)}...`);
+                console.log(`[PROFILE] SUCCESS: ${username} -> ${profilePicUrl.substring(0, 60)}...`);
                 return { success: true, url: profilePicUrl };
-            } else {
-                console.log(`[PROFILE] ⚠️ No profile picture URL found in Apify response, trying Google search fallback...`);
             }
-        } else {
-            console.log(`[PROFILE] ⚠️ Apify returned no items, trying Google search fallback...`);
         }
         
         // Fallback: Use Playwright to Google search for Instagram profile
-        console.log(`[PROFILE] 🔍 Trying Google search fallback for ${username}...`);
         try {
             const googleResult = await fetchInstagramProfileGoogleFallback(username);
             if (googleResult.success && googleResult.url) {
-                console.log(`[PROFILE] ✅✅✅ Google search fallback succeeded: ${googleResult.url.substring(0, 100)}...`);
+                console.log(`[PROFILE] Google fallback SUCCESS: ${username}`);
                 return googleResult;
             }
         } catch (googleError) {
-            console.error(`[PROFILE] Google search fallback failed:`, googleError.message);
+            // Silently continue - fallback failed
         }
         
         // If both methods failed
-        if (items && items.length > 0) {
-            return { success: false, error: 'Profile picture not found in profile data. The profile may be private or not exist.' };
-        } else {
-            return { success: false, error: 'Profile not found. The profile may be private or not exist.' };
-        }
+        return { success: false, error: 'Profile picture not found' };
     } catch (error) {
-        console.error(`[PROFILE] Apify error for ${username}:`, error.message);
-        console.error(`[PROFILE] Error stack:`, error.stack);
-        
         // Try Google search fallback even on Apify error
-        console.log(`[PROFILE] 🔍 Trying Google search fallback after Apify error...`);
         try {
             const googleResult = await fetchInstagramProfileGoogleFallback(username);
             if (googleResult.success && googleResult.url) {
-                console.log(`[PROFILE] ✅✅✅ Google search fallback succeeded after Apify error: ${googleResult.url.substring(0, 100)}...`);
+                console.log(`[PROFILE] Google fallback SUCCESS after error: ${username}`);
                 return googleResult;
             }
         } catch (googleError) {
-            console.error(`[PROFILE] Google search fallback also failed:`, googleError.message);
+            // Silently continue
         }
         
-        return { success: false, error: `Failed to fetch profile: ${error.message}` };
+        return { success: false, error: `Failed: ${error.message}` };
     }
 }
 
@@ -2061,17 +2039,16 @@ const server = http.createServer((req, res) => {
     // Handle profile picture fetch
     if (parsedUrl.pathname === '/api/profile-pic' && parsedUrl.query.username) {
         const username = parsedUrl.query.username.replace('@', '').trim();
-        console.log(`[PROFILE] ✅✅✅ Received profile picture request for: ${username}`);
-        console.log(`[PROFILE] Query params:`, parsedUrl.query);
+        console.log(`[PROFILE] Request: ${username}`);
         
         fetchInstagramProfile(username)
             .then(result => {
-                console.log(`[PROFILE] ✅✅✅ Returning profile picture result for ${username}:`, result.success ? `URL: ${result.url ? result.url.substring(0, 100) + '...' : 'no URL'}` : `Error: ${result.error}`);
+                console.log(`[PROFILE] Response: ${username} -> ${result.success ? 'SUCCESS' : 'FAILED'}`);
                 res.writeHead(200, corsHeaders);
                 res.end(JSON.stringify(result));
             })
             .catch(error => {
-                console.error(`[PROFILE] ❌❌❌ Error fetching profile picture for ${username}:`, error.message);
+                console.error(`[PROFILE] Error: ${username} - ${error.message}`);
                 res.writeHead(500, corsHeaders);
                 res.end(JSON.stringify({ success: false, error: error.message }));
             });
