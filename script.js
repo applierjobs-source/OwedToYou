@@ -116,18 +116,46 @@ async function getInstagramFullName(username) {
     // Try backend server first (if available)
     try {
         const apiBase = window.location.origin;
+        console.log(`🌐 Attempting backend API call to: ${apiBase}/api/instagram-name?username=${encodeURIComponent(cleanUsername)}`);
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 second timeout to match server
+        const timeoutId = setTimeout(() => {
+            console.log('⏰ Backend API timeout after 15s, aborting...');
+            controller.abort();
+        }, 15000); // 15 second timeout
         
-        const response = await fetch(`${apiBase}/api/instagram-name?username=${encodeURIComponent(cleanUsername)}`, {
-            method: 'GET',
-            signal: controller.signal
-        });
+        let response;
+        try {
+            response = await fetch(`${apiBase}/api/instagram-name?username=${encodeURIComponent(cleanUsername)}`, {
+                method: 'GET',
+                signal: controller.signal,
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+            clearTimeout(timeoutId);
+        } catch (fetchError) {
+            clearTimeout(timeoutId);
+            if (fetchError.name === 'AbortError') {
+                console.log('❌ Backend API request timed out after 15s');
+                throw new Error('Instagram request timed out. Please try again.');
+            }
+            console.log(`❌ Backend API fetch error: ${fetchError.message}`);
+            throw fetchError;
+        }
         
-        clearTimeout(timeoutId);
+        console.log(`📥 Backend API response status: ${response.status} ${response.statusText}`);
         
         if (response.ok) {
-            const data = await response.json();
+            let data;
+            try {
+                data = await response.json();
+            } catch (jsonError) {
+                console.error('❌ Failed to parse backend API JSON response:', jsonError);
+                const text = await response.text();
+                console.error('Response text:', text.substring(0, 200));
+                throw new Error('Invalid response from server');
+            }
+            
             if (data.success && data.fullName) {
                 const fullName = data.fullName.trim();
                 console.log(`✅ Found Instagram name via backend: ${fullName}`);
@@ -141,9 +169,14 @@ async function getInstagramFullName(username) {
                 if (errorMsg.includes('timeout') || errorMsg.includes('Request timeout')) {
                     throw new Error('Instagram request timed out. Please try again.');
                 }
+                // Don't throw here - let it fall through to proxy methods
+                console.log('⚠️ Backend API failed, will try client-side proxies as fallback');
             }
         } else {
+            const errorText = await response.text().catch(() => '');
             console.log(`⚠️ Backend request failed with status: ${response.status}`);
+            console.log(`⚠️ Error response: ${errorText.substring(0, 200)}`);
+            // Don't throw - fall through to proxy methods
         }
     } catch (e) {
         // Check if it's a timeout error
@@ -151,11 +184,12 @@ async function getInstagramFullName(username) {
             console.log('❌ Backend request timed out');
             throw new Error('Instagram request timed out. Please try again.');
         }
-        console.log('Backend server not available for name extraction, using browser methods:', e.message);
+        console.log('⚠️ Backend server not available for name extraction, using browser methods:', e.message);
         // Re-throw if it's a timeout error so caller can handle it
         if (e.message.includes('timeout')) {
             throw e;
         }
+        // For other errors, continue to proxy fallback
     }
     
     // Fallback to browser methods - try multiple proxies
@@ -3426,8 +3460,14 @@ if (typeof window !== 'undefined') {
         } else {
             console.log('✅✅✅✅✅ FINAL CHECK SUCCESS: Real function is exported');
         }
+        } else {
+            console.error('❌❌❌ Final check: handleSearchImpl is not the real function!');
+        }
+    } else if (typeof _realHandleSearch === 'function') {
+        console.log('🔍 Final check: Using _realHandleSearch...');
+        window.handleSearch = _realHandleSearch;
     } else {
-        console.error('❌❌❌ CRITICAL: handleSearch function not defined when trying to export!');
+        console.error('❌❌❌ CRITICAL: handleSearchImpl function not defined when trying to export!');
     }
 } else {
     console.error('❌❌❌ CRITICAL: window is undefined in final check!');
