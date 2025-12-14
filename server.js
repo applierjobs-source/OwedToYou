@@ -425,10 +425,33 @@ async function fetchInstagramFullName(username) {
         
         const page = await context.newPage();
         
-        // Override webdriver property to hide automation (same as missingMoneySearch.js)
-        await page.addInitScript(() => {
+        // Override webdriver property and other automation indicators (same as missingMoneySearch.js)
+        await context.addInitScript(() => {
             Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined
+                get: () => false,
+            });
+            
+            // Override chrome property
+            window.chrome = {
+                runtime: {},
+            };
+            
+            // Override permissions
+            const originalQuery = window.navigator.permissions.query;
+            window.navigator.permissions.query = (parameters) => (
+                parameters.name === 'notifications' ?
+                    Promise.resolve({ state: Notification.permission }) :
+                    originalQuery(parameters)
+            );
+            
+            // Override plugins
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [1, 2, 3, 4, 5],
+            });
+            
+            // Override languages
+            Object.defineProperty(navigator, 'languages', {
+                get: () => ['en-US', 'en'],
             });
         });
         
