@@ -1680,26 +1680,39 @@ async function handleSearch() {
 // This MUST be synchronous and happen before any other code runs
 (function() {
     'use strict';
-    if (typeof window !== 'undefined') {
-        // Store reference for placeholder fallback
-        _realHandleSearch = handleSearch;
-        
-        // Force immediate replacement of placeholder
-        window.handleSearch = handleSearch;
-        console.log('✅✅✅ Real handleSearch function exported to window (replaced placeholder)');
-        console.log('✅✅✅ handleSearch type:', typeof window.handleSearch);
-        console.log('✅✅✅ handleSearch === window.handleSearch:', handleSearch === window.handleSearch);
-        
-        // Verify it worked
-        if (typeof window.handleSearch !== 'function') {
-            console.error('❌❌❌ CRITICAL: Export failed! window.handleSearch is not a function!');
-        } else if (window.handleSearch.toString().includes('PLACEHOLDER')) {
-            console.error('❌❌❌ CRITICAL: Placeholder still active! Export did not work!');
+    try {
+        if (typeof window !== 'undefined') {
+            // Store reference for placeholder fallback FIRST
+            _realHandleSearch = handleSearch;
+            console.log('✅ Stored _realHandleSearch reference');
+            
+            // Force immediate replacement of placeholder
+            const oldHandleSearch = window.handleSearch;
+            window.handleSearch = handleSearch;
+            console.log('✅✅✅ Real handleSearch function exported to window (replaced placeholder)');
+            console.log('✅✅✅ handleSearch type:', typeof window.handleSearch);
+            console.log('✅✅✅ handleSearch === window.handleSearch:', handleSearch === window.handleSearch);
+            console.log('✅✅✅ Old function was placeholder:', oldHandleSearch ? oldHandleSearch.toString().includes('PLACEHOLDER') : 'N/A');
+            
+            // Verify it worked
+            if (typeof window.handleSearch !== 'function') {
+                console.error('❌❌❌ CRITICAL: Export failed! window.handleSearch is not a function!');
+            } else {
+                const funcStr = window.handleSearch.toString();
+                if (funcStr.includes('PLACEHOLDER')) {
+                    console.error('❌❌❌ CRITICAL: Placeholder still active! Export did not work!');
+                    console.error('❌ Function string starts with:', funcStr.substring(0, 200));
+                } else {
+                    console.log('✅✅✅ Export verified: Real function is now in window.handleSearch');
+                    console.log('✅✅✅ Function string starts with:', funcStr.substring(0, 100));
+                }
+            }
         } else {
-            console.log('✅✅✅ Export verified: Real function is now in window.handleSearch');
+            console.error('❌❌❌ CRITICAL: window is undefined!');
         }
-    } else {
-        console.error('❌❌❌ CRITICAL: window is undefined!');
+    } catch (e) {
+        console.error('❌❌❌ CRITICAL ERROR in export block:', e);
+        console.error('Error stack:', e.stack);
     }
 })();
 
