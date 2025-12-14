@@ -3402,7 +3402,8 @@ if (typeof window !== 'undefined') {
         const beforeIsPlaceholder = beforeStr.includes('PLACEHOLDER');
         console.log('🔍 Before replacement - is placeholder:', beforeIsPlaceholder);
         
-        window.handleSearch = handleSearch;
+        window.handleSearch = handleSearchImpl;
+        _realHandleSearch = handleSearchImpl;
         
         const afterStr = window.handleSearch.toString();
         const afterIsPlaceholder = afterStr.includes('PLACEHOLDER');
@@ -3415,7 +3416,7 @@ if (typeof window !== 'undefined') {
             // Try one more time with force
             console.log('🔄🔄🔄 FORCING replacement one more time...');
             Object.defineProperty(window, 'handleSearch', {
-                value: handleSearch,
+                value: handleSearchImpl,
                 writable: true,
                 enumerable: true,
                 configurable: true
