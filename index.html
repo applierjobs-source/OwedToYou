@@ -415,13 +415,23 @@
             console.log('🔍 handleSearch (local) type:', typeof handleSearch);
             console.log('🔍 _realHandleSearch type:', typeof _realHandleSearch);
             
+            // Check if export block ran - look for its logs
+            console.log('🔍 Checking if export block executed...');
+            console.log('🔍 If you see "🔍🔍🔍 EXPORT BLOCK STARTING" above, export block ran');
+            console.log('🔍 If you see "✅✅✅✅✅ EXPORT SUCCESSFUL" above, export succeeded');
+            
             // Check immediately and also after a delay
             function forceExport() {
                 console.log('🔄🔄🔄 FORCE EXPORT ATTEMPT');
+                console.log('🔍 Checking _realHandleSearch:', typeof _realHandleSearch);
+                console.log('🔍 Checking handleSearch (local):', typeof handleSearch);
+                console.log('🔍 Checking window.handleSearch:', typeof window.handleSearch);
+                
                 if (typeof window.handleSearch === 'function') {
                     const funcStr = window.handleSearch.toString();
                     const isPlaceholder = funcStr.includes('PLACEHOLDER');
                     console.log('🔍 Current window.handleSearch is placeholder:', isPlaceholder);
+                    console.log('🔍 window.handleSearch first 200 chars:', funcStr.substring(0, 200));
                     
                     if (isPlaceholder) {
                         console.error('❌❌❌ CRITICAL: Placeholder still active!');
