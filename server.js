@@ -465,6 +465,15 @@ async function fetchInstagramFullName(username) {
                     if (json) {
                         apiResponses.push({ url, data: json });
                         console.log(`[INSTAGRAM] Caught API response from: ${url.substring(0, 100)}`);
+                        // Try to extract name immediately if we can
+                        try {
+                            if (json.data && json.data.user && json.data.user.full_name) {
+                                const extractedName = json.data.user.full_name;
+                                console.log(`[INSTAGRAM] ✅ Found name in API response: ${extractedName}`);
+                            }
+                        } catch (e) {
+                            // Continue to try later
+                        }
                     }
                 } catch (e) {
                     // Not JSON, ignore
@@ -548,26 +557,44 @@ async function fetchInstagramFullName(username) {
                 // For API endpoints, try direct fetch
                 if (strategy.isApi) {
                     try {
+                        console.log(`[INSTAGRAM] Attempting direct API call to: ${strategy.url}`);
                         const response = await page.goto(strategy.url, {
                             waitUntil: 'networkidle',
                             timeout: 15000
                         });
                         
-                        if (response && response.ok()) {
-                            const json = await response.json().catch(() => null);
-                            if (json && json.data && json.data.user) {
-                                const fullNameFromApi = json.data.user.full_name;
-                                if (fullNameFromApi) {
-                                    fullName = fullNameFromApi;
-                                    console.log(`[INSTAGRAM] ✅ Extracted name from API endpoint: ${fullName}`);
+                        // Wait a bit for response interception to catch it
+                        await page.waitForTimeout(1000);
+                        
+                        // Check if we got it via interception first
+                        if (apiResponses.length > 0 && !fullName) {
+                            console.log(`[INSTAGRAM] Found ${apiResponses.length} intercepted responses, checking...`);
+                            // The extraction logic above will handle it
+                        }
+                        
+                        // Also try to get response directly
+                        if (!fullName && response && response.ok()) {
+                            try {
+                                const json = await response.json().catch(() => null);
+                                console.log(`[INSTAGRAM] Direct API response received, parsing...`);
+                                if (json && json.data && json.data.user && json.data.user.full_name) {
+                                    fullName = json.data.user.full_name;
+                                    console.log(`[INSTAGRAM] ✅ Extracted name from direct API response: ${fullName}`);
                                     break;
                                 }
+                            } catch (e) {
+                                console.log(`[INSTAGRAM] Error parsing direct API response: ${e.message}`);
                             }
+                        }
+                        
+                        // If we got the name from interception, break
+                        if (fullName) {
+                            break;
                         }
                     } catch (e) {
                         console.log(`[INSTAGRAM] API endpoint failed: ${e.message}`);
                     }
-                    continue; // Skip to next strategy
+                    // Don't continue - check intercepted responses even if direct call failed
                 }
                 
                 // For regular pages, try to prevent redirects by intercepting them
@@ -645,21 +672,47 @@ async function fetchInstagramFullName(username) {
                     console.log(`[INSTAGRAM] Checking ${apiResponses.length} intercepted API responses...`);
                     for (const apiResponse of apiResponses) {
                         try {
-                            // Try to find full_name in the API response
-                            const responseStr = JSON.stringify(apiResponse.data);
-                            const fullNameMatch = responseStr.match(/"full_name"\s*:\s*"([^"]+)"/i);
-                            if (fullNameMatch && fullNameMatch[1]) {
-                                const potentialName = fullNameMatch[1].trim();
-                                const words = potentialName.split(/\s+/);
-                                if (words.length >= 2 && words.length <= 4 && 
-                                    words.every(w => w.length >= 2 && w.length <= 20 && /^[A-Za-z]+$/.test(w))) {
+                            const data = apiResponse.data;
+                            console.log(`[INSTAGRAM] Parsing API response structure...`);
+                            
+                            // Try direct path: data.user.full_name
+                            if (data && data.data && data.data.user && data.data.user.full_name) {
+                                const potentialName = data.data.user.full_name.trim();
+                                if (potentialName && potentialName.length > 0) {
                                     fullName = potentialName;
-                                    console.log(`[INSTAGRAM] ✅ Extracted name from intercepted API response: ${fullName}`);
+                                    console.log(`[INSTAGRAM] ✅ Extracted name from API response (data.data.user.full_name): ${fullName}`);
                                     break;
+                                }
+                            }
+                            
+                            // Try alternative path: data.user.full_name (without nested data)
+                            if (!fullName && data && data.user && data.user.full_name) {
+                                const potentialName = data.user.full_name.trim();
+                                if (potentialName && potentialName.length > 0) {
+                                    fullName = potentialName;
+                                    console.log(`[INSTAGRAM] ✅ Extracted name from API response (data.user.full_name): ${fullName}`);
+                                    break;
+                                }
+                            }
+                            
+                            // Fallback: search in stringified JSON
+                            if (!fullName) {
+                                const responseStr = JSON.stringify(data);
+                                const fullNameMatch = responseStr.match(/"full_name"\s*:\s*"([^"]+)"/i);
+                                if (fullNameMatch && fullNameMatch[1]) {
+                                    const potentialName = fullNameMatch[1].trim();
+                                    const words = potentialName.split(/\s+/);
+                                    if (words.length >= 1 && words.length <= 4 && 
+                                        words.every(w => w.length >= 1 && w.length <= 30 && /^[A-Za-z\s]+$/.test(w))) {
+                                        fullName = potentialName;
+                                        console.log(`[INSTAGRAM] ✅ Extracted name from API response (regex): ${fullName}`);
+                                        break;
+                                    }
                                 }
                             }
                         } catch (e) {
                             console.log(`[INSTAGRAM] Error parsing API response: ${e.message}`);
+                            console.log(`[INSTAGRAM] Error stack: ${e.stack}`);
                         }
                     }
                 }
