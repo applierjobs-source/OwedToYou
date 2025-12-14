@@ -393,6 +393,26 @@
         });
     </script>
     <script src="script.js"></script>
+    <script>
+        // CRITICAL: Verify handleSearch is loaded after script.js
+        (function() {
+            'use strict';
+            console.log('🔍 Verifying handleSearch after script.js load...');
+            console.log('🔍 window.handleSearch type:', typeof window.handleSearch);
+            
+            if (typeof window.handleSearch === 'function') {
+                const funcStr = window.handleSearch.toString();
+                if (funcStr.includes('PLACEHOLDER')) {
+                    console.error('❌❌❌ CRITICAL: Placeholder still active after script load!');
+                    console.error('❌ Script.js did not complete execution properly!');
+                } else {
+                    console.log('✅✅✅ handleSearch verified: Real function is loaded');
+                }
+            } else {
+                console.error('❌❌❌ CRITICAL: handleSearch not found after script load!');
+            }
+        })();
+    </script>
 </body>
 </html>
 

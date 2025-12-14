@@ -7,18 +7,24 @@ console.log('✅ Current time:', new Date().toISOString());
 
 // CRITICAL: Export handleSearch immediately (before function definition)
 // This ensures it's available for inline onclick handlers
-// The real function will be defined later and will replace this at line ~1627
-window.handleSearch = function() {
-    console.error('⚠️⚠️⚠️ PLACEHOLDER handleSearch called - this should NOT happen!');
-    console.error('⚠️ Real function should have replaced this at line ~1627');
-    console.error('⚠️ This means the script failed to load completely');
-    // Try to call the real function if it exists (shouldn't be needed)
-    if (typeof handleSearch === 'function' && handleSearch !== window.handleSearch) {
-        console.log('✅ Found real handleSearch, calling it');
-        return handleSearch.apply(this, arguments);
-    }
-    alert('Search function is still loading. Please wait a moment and try again.');
-};
+// The real function will be defined later and will replace this at line ~1635
+(function() {
+    'use strict';
+    window.handleSearch = function() {
+        console.error('⚠️⚠️⚠️ PLACEHOLDER handleSearch called - this should NOT happen!');
+        console.error('⚠️ Real function should have replaced this at line ~1635');
+        console.error('⚠️ This means the script failed to load completely');
+        console.error('⚠️ Current window.handleSearch:', typeof window.handleSearch);
+        console.error('⚠️ Local handleSearch:', typeof handleSearch);
+        // Try to call the real function if it exists (shouldn't be needed)
+        if (typeof handleSearch === 'function' && handleSearch !== window.handleSearch) {
+            console.log('✅ Found real handleSearch, calling it');
+            return handleSearch.apply(this, arguments);
+        }
+        alert('Search function is still loading. Please wait a moment and try again.');
+    };
+    console.log('✅ Placeholder handleSearch exported');
+})();
 
 // Get initials from name
 function getInitials(name) {
@@ -1629,11 +1635,27 @@ async function handleSearch() {
 // CRITICAL: Export handleSearch to window IMMEDIATELY after function definition
 // This replaces the placeholder with the real function as soon as script loads
 // This MUST be synchronous and happen before any other code runs
-if (typeof window !== 'undefined') {
-    window.handleSearch = handleSearch;
-    console.log('✅✅✅ Real handleSearch function exported to window (replaced placeholder)');
-    console.log('✅✅✅ handleSearch type:', typeof window.handleSearch);
-}
+(function() {
+    'use strict';
+    if (typeof window !== 'undefined') {
+        // Force immediate replacement of placeholder
+        window.handleSearch = handleSearch;
+        console.log('✅✅✅ Real handleSearch function exported to window (replaced placeholder)');
+        console.log('✅✅✅ handleSearch type:', typeof window.handleSearch);
+        console.log('✅✅✅ handleSearch === window.handleSearch:', handleSearch === window.handleSearch);
+        
+        // Verify it worked
+        if (typeof window.handleSearch !== 'function') {
+            console.error('❌❌❌ CRITICAL: Export failed! window.handleSearch is not a function!');
+        } else if (window.handleSearch.toString().includes('PLACEHOLDER')) {
+            console.error('❌❌❌ CRITICAL: Placeholder still active! Export did not work!');
+        } else {
+            console.log('✅✅✅ Export verified: Real function is now in window.handleSearch');
+        }
+    } else {
+        console.error('❌❌❌ CRITICAL: window is undefined!');
+    }
+})();
 
 // Show phone number collection modal
 function showPhoneModal(handle, name) {
