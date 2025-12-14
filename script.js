@@ -3689,6 +3689,7 @@ window.closeTermsModal = closeTermsModal;
 // Initialize Stripe - use environment variable or fallback to public key
 // Note: Public key should be set via environment variable or injected at build time
 const stripePublishableKey = window.STRIPE_PUBLISHABLE_KEY || 'pk_live_51Se2egIQyA54diWonr9yTd5aQImAqY4Mmp1tQPg3VJXMvfHLM8TxQGqlbNhDlG8MLSwEfqKdsIqS5HwZkbQppCXi00vBXKs9Qh';
+console.log('✅ Stripe initialized with public key:', stripePublishableKey.substring(0, 20) + '...');
 let stripe = null;
 try {
     stripe = Stripe(stripePublishableKey);
