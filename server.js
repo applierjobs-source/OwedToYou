@@ -431,10 +431,9 @@ async function fetchInstagramFullName(username) {
                         method: 'GET',
                         headers: options.headers
                     };
-                    const redirectReq = https.get(redirectOptions, (redirectRes) => {
-                        // Process redirect response inline (same logic as below)
-                        processResponse(redirectRes);
-                    });
+                    // For redirects, just continue with the original response
+                    // (The redirect URL is usually just adding/removing trailing slash)
+                    console.log(`[INSTAGRAM] Continuing with redirect URL: ${location}`);
                     redirectReq.on('error', (err) => {
                         console.error(`[INSTAGRAM] Redirect request error:`, err.message);
                         resolve({ success: false, error: `Redirect failed: ${err.message}` });
