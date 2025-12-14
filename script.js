@@ -315,9 +315,15 @@ async function getInstagramFullName(username) {
                     return fullName;
                 } else {
                     console.log(`⚠️ [${proxyName}] Could not extract name from HTML, trying next proxy...`);
+                    // Log more details for debugging
+                    console.log(`📄 [${proxyName}] HTML length: ${html.length}`);
+                    console.log(`📄 [${proxyName}] Contains 'window._sharedData': ${html.includes('window._sharedData')}`);
+                    console.log(`📄 [${proxyName}] Contains 'full_name': ${html.includes('full_name')}`);
+                    console.log(`📄 [${proxyName}] Contains 'og:title': ${html.includes('og:title')}`);
+                    console.log(`📄 [${proxyName}] Contains username '${cleanUsername}': ${html.includes(cleanUsername)}`);
                     // Log a snippet of HTML for debugging
-                    const htmlSnippet = html.substring(0, 500).replace(/\s+/g, ' ');
-                    console.log(`📄 [${proxyName}] HTML snippet: ${htmlSnippet}...`);
+                    const htmlSnippet = html.substring(0, 1000).replace(/\s+/g, ' ');
+                    console.log(`📄 [${proxyName}] HTML snippet (first 1000 chars): ${htmlSnippet}...`);
                     continue;
                 }
             } else {
