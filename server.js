@@ -94,10 +94,12 @@ async function fetchInstagramProfile(username) {
         console.log(`[PROFILE] Using Apify to extract profile picture for ${username}`);
         
         // Prepare Apify Actor input
+        // For profile picture, we need to use directUrls with addParentData to get profile info
         const input = {
             directUrls: [`https://www.instagram.com/${username}/`],
-            resultsType: "details", // Get profile details, not posts
-            resultsLimit: 1,
+            resultsType: "posts", // Get posts, but parent data will contain profile info
+            resultsLimit: 1, // Only need 1 post to get profile data
+            addParentData: true, // This includes profile information in parent data
         };
         
         console.log(`[PROFILE] Calling Apify actor with input:`, JSON.stringify(input));
@@ -109,38 +111,53 @@ async function fetchInstagramProfile(username) {
         console.log(`[PROFILE] Apify returned ${items ? items.length : 0} items`);
         
         if (items && items.length > 0) {
-            const profileData = items[0];
-            console.log(`[PROFILE] Profile data keys:`, Object.keys(profileData));
-            console.log(`[PROFILE] Profile data (first 500 chars):`, JSON.stringify(profileData).substring(0, 500));
+            const item = items[0];
+            console.log(`[PROFILE] Item data keys:`, Object.keys(item));
+            console.log(`[PROFILE] Item data (first 1000 chars):`, JSON.stringify(item).substring(0, 1000));
+            
+            // Check for errors first
+            if (item.error) {
+                console.log(`[PROFILE] ⚠️ Apify returned error: ${item.error} - ${item.errorDescription || ''}`);
+                return { success: false, error: `Profile not found: ${item.errorDescription || item.error}` };
+            }
             
             // Extract profile picture URL from various possible locations
+            // With addParentData: true, profile info is in parentData or ownerBio
             let profilePicUrl = null;
             
             // Try different paths for profile picture
-            if (profileData.profilePicUrl) {
-                profilePicUrl = profileData.profilePicUrl;
-            } else if (profileData.profile_pic_url) {
-                profilePicUrl = profileData.profile_pic_url;
-            } else if (profileData.profilePicUrlHd) {
-                profilePicUrl = profileData.profilePicUrlHd;
-            } else if (profileData.profile_pic_url_hd) {
-                profilePicUrl = profileData.profile_pic_url_hd;
-            } else if (profileData.profile && profileData.profile.profilePicUrl) {
-                profilePicUrl = profileData.profile.profilePicUrl;
-            } else if (profileData.profile && profileData.profile.profile_pic_url) {
-                profilePicUrl = profileData.profile.profile_pic_url;
-            } else if (profileData.profile && profileData.profile.profilePicUrlHd) {
-                profilePicUrl = profileData.profile.profilePicUrlHd;
-            } else if (profileData.profile && profileData.profile.profile_pic_url_hd) {
-                profilePicUrl = profileData.profile.profile_pic_url_hd;
-            } else if (profileData.user && profileData.user.profilePicUrl) {
-                profilePicUrl = profileData.user.profilePicUrl;
-            } else if (profileData.user && profileData.user.profile_pic_url) {
-                profilePicUrl = profileData.user.profile_pic_url;
-            } else if (profileData.user && profileData.user.profilePicUrlHd) {
-                profilePicUrl = profileData.user.profilePicUrlHd;
-            } else if (profileData.user && profileData.user.profile_pic_url_hd) {
-                profilePicUrl = profileData.user.profile_pic_url_hd;
+            if (item.parentData && item.parentData.profilePicUrl) {
+                profilePicUrl = item.parentData.profilePicUrl;
+            } else if (item.parentData && item.parentData.profile_pic_url) {
+                profilePicUrl = item.parentData.profile_pic_url;
+            } else if (item.parentData && item.parentData.profilePicUrlHd) {
+                profilePicUrl = item.parentData.profilePicUrlHd;
+            } else if (item.parentData && item.parentData.profile_pic_url_hd) {
+                profilePicUrl = item.parentData.profile_pic_url_hd;
+            } else if (item.ownerBio && item.ownerBio.profilePicUrl) {
+                profilePicUrl = item.ownerBio.profilePicUrl;
+            } else if (item.ownerBio && item.ownerBio.profile_pic_url) {
+                profilePicUrl = item.ownerBio.profile_pic_url;
+            } else if (item.ownerProfilePicUrl) {
+                profilePicUrl = item.ownerProfilePicUrl;
+            } else if (item.ownerProfilePicUrlHd) {
+                profilePicUrl = item.ownerProfilePicUrlHd;
+            } else if (item.profilePicUrl) {
+                profilePicUrl = item.profilePicUrl;
+            } else if (item.profile_pic_url) {
+                profilePicUrl = item.profile_pic_url;
+            } else if (item.profilePicUrlHd) {
+                profilePicUrl = item.profilePicUrlHd;
+            } else if (item.profile_pic_url_hd) {
+                profilePicUrl = item.profile_pic_url_hd;
+            } else if (item.profile && item.profile.profilePicUrl) {
+                profilePicUrl = item.profile.profilePicUrl;
+            } else if (item.profile && item.profile.profile_pic_url) {
+                profilePicUrl = item.profile.profile_pic_url;
+            } else if (item.user && item.user.profilePicUrl) {
+                profilePicUrl = item.user.profilePicUrl;
+            } else if (item.user && item.user.profile_pic_url) {
+                profilePicUrl = item.user.profile_pic_url;
             }
             
             if (profilePicUrl && profilePicUrl.length > 0) {
@@ -726,10 +743,12 @@ async function fetchInstagramFullName(username) {
         console.log(`[INSTAGRAM] Using Apify to extract name for ${username}`);
         
         // Prepare Apify Actor input
+        // For profile data, we need to use directUrls without resultsType, or use posts with addParentData
         const input = {
             directUrls: [`https://www.instagram.com/${username}/`],
-            resultsType: "details", // Get profile details, not posts
-            resultsLimit: 1,
+            resultsType: "posts", // Get posts, but parent data will contain profile info
+            resultsLimit: 1, // Only need 1 post to get profile data
+            addParentData: true, // This includes profile information in parent data
         };
         
         console.log(`[INSTAGRAM] Calling Apify actor with input:`, JSON.stringify(input));
@@ -741,28 +760,45 @@ async function fetchInstagramFullName(username) {
         console.log(`[INSTAGRAM] Apify returned ${items ? items.length : 0} items`);
         
         if (items && items.length > 0) {
-            const profileData = items[0];
-            console.log(`[INSTAGRAM] Profile data keys:`, Object.keys(profileData));
-            console.log(`[INSTAGRAM] Profile data (first 500 chars):`, JSON.stringify(profileData).substring(0, 500));
+            const item = items[0];
+            console.log(`[INSTAGRAM] Item data keys:`, Object.keys(item));
+            console.log(`[INSTAGRAM] Item data (first 1000 chars):`, JSON.stringify(item).substring(0, 1000));
+            
+            // Check for errors first
+            if (item.error) {
+                console.log(`[INSTAGRAM] ⚠️ Apify returned error: ${item.error} - ${item.errorDescription || ''}`);
+                return { success: false, error: `Profile not found: ${item.errorDescription || item.error}` };
+            }
             
             // Extract full_name from various possible locations
+            // With addParentData: true, profile info is in parentData or ownerBio
             let fullName = null;
             
             // Try different paths for full_name
-            if (profileData.fullName) {
-                fullName = profileData.fullName.trim();
-            } else if (profileData.full_name) {
-                fullName = profileData.full_name.trim();
-            } else if (profileData.name) {
-                fullName = profileData.name.trim();
-            } else if (profileData.profile && profileData.profile.fullName) {
-                fullName = profileData.profile.fullName.trim();
-            } else if (profileData.profile && profileData.profile.full_name) {
-                fullName = profileData.profile.full_name.trim();
-            } else if (profileData.user && profileData.user.fullName) {
-                fullName = profileData.user.fullName.trim();
-            } else if (profileData.user && profileData.user.full_name) {
-                fullName = profileData.user.full_name.trim();
+            if (item.parentData && item.parentData.fullName) {
+                fullName = item.parentData.fullName.trim();
+            } else if (item.parentData && item.parentData.full_name) {
+                fullName = item.parentData.full_name.trim();
+            } else if (item.ownerBio && item.ownerBio.fullName) {
+                fullName = item.ownerBio.fullName.trim();
+            } else if (item.ownerBio && item.ownerBio.full_name) {
+                fullName = item.ownerBio.full_name.trim();
+            } else if (item.ownerFullName) {
+                fullName = item.ownerFullName.trim();
+            } else if (item.fullName) {
+                fullName = item.fullName.trim();
+            } else if (item.full_name) {
+                fullName = item.full_name.trim();
+            } else if (item.name) {
+                fullName = item.name.trim();
+            } else if (item.profile && item.profile.fullName) {
+                fullName = item.profile.fullName.trim();
+            } else if (item.profile && item.profile.full_name) {
+                fullName = item.profile.full_name.trim();
+            } else if (item.user && item.user.fullName) {
+                fullName = item.user.fullName.trim();
+            } else if (item.user && item.user.full_name) {
+                fullName = item.user.full_name.trim();
             }
             
             if (fullName && fullName.length > 0) {
