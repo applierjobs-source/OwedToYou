@@ -7,12 +7,16 @@ console.log('✅ Current time:', new Date().toISOString());
 
 // CRITICAL: Export handleSearch immediately (before function definition)
 // This ensures it's available for inline onclick handlers
-// The real function will be defined later and will replace this at line ~1585
+// The real function will be defined later and will replace this at line ~1627
 window.handleSearch = function() {
-    console.log('⚠️ Placeholder handleSearch called');
-    // The real function should have replaced this by now
-    // If we're still here, the script hasn't finished loading
-    console.error('⚠️ Real handleSearch not available - script may still be loading');
+    console.error('⚠️⚠️⚠️ PLACEHOLDER handleSearch called - this should NOT happen!');
+    console.error('⚠️ Real function should have replaced this at line ~1627');
+    console.error('⚠️ This means the script failed to load completely');
+    // Try to call the real function if it exists (shouldn't be needed)
+    if (typeof handleSearch === 'function' && handleSearch !== window.handleSearch) {
+        console.log('✅ Found real handleSearch, calling it');
+        return handleSearch.apply(this, arguments);
+    }
     alert('Search function is still loading. Please wait a moment and try again.');
 };
 
@@ -1620,6 +1624,15 @@ async function handleSearch() {
             alert('An error occurred while searching. Please try again.');
         }
     }
+}
+
+// CRITICAL: Export handleSearch to window IMMEDIATELY after function definition
+// This replaces the placeholder with the real function as soon as script loads
+// This MUST be synchronous and happen before any other code runs
+if (typeof window !== 'undefined') {
+    window.handleSearch = handleSearch;
+    console.log('✅✅✅ Real handleSearch function exported to window (replaced placeholder)');
+    console.log('✅✅✅ handleSearch type:', typeof window.handleSearch);
 }
 
 // Show phone number collection modal
