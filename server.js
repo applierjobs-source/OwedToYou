@@ -385,7 +385,7 @@ async function fetchInstagramFullName(username) {
         console.log(`[INSTAGRAM] Using Playwright to extract name for ${username}`);
         
         browser = await chromium.launch({
-            headless: 'new', // Use new headless mode (harder to detect)
+            headless: true, // Required for Railway (no X server)
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
