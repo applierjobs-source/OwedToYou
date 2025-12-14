@@ -95,8 +95,9 @@ async function fetchInstagramProfile(username) {
         
         // Prepare Apify Actor input
         // Use Instagram Profile Scraper specifically designed for profile data
+        // It requires 'usernames' field (just the username, not full URL)
         const input = {
-            profileUrls: [`https://www.instagram.com/${username}/`],
+            usernames: [username], // Just the username, not the full URL
         };
         
         console.log(`[PROFILE] Calling Apify Instagram Profile Scraper with input:`, JSON.stringify(input));
@@ -733,8 +734,9 @@ async function fetchInstagramFullName(username) {
         
         // Prepare Apify Actor input
         // Use Instagram Profile Scraper specifically designed for profile data
+        // It requires 'usernames' field (just the username, not full URL)
         const input = {
-            profileUrls: [`https://www.instagram.com/${username}/`],
+            usernames: [username], // Just the username, not the full URL
         };
         
         console.log(`[INSTAGRAM] Calling Apify Instagram Profile Scraper with input:`, JSON.stringify(input));
