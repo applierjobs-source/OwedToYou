@@ -17,6 +17,7 @@
     "pg": "^8.11.3",
     "playwright": "^1.57.0",
     "puppeteer-extra": "^3.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2"
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "stripe": "^14.25.0"
   }
 }

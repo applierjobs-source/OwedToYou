@@ -2740,6 +2740,14 @@ async function showShareModal(firstName, lastName, amount, results = []) {
                     After sharing, your claim will be processed for free!
                 </p>
             </div>
+            <div class="payment-option" style="margin-top: 30px; padding-top: 30px; border-top: 2px solid #e0e0e0; text-align: center;">
+                <p style="color: #666; font-size: 0.95rem; margin-bottom: 15px; line-height: 1.6;">
+                    OR skip notifying others and pay $12.95 processing to begin the claim process now
+                </p>
+                <button class="btn btn-buy-now" onclick="handleBuyNow('${escapeHtml(firstName)}', '${escapeHtml(lastName)}', ${amount})" style="width: 100%; max-width: 400px; padding: 14px; font-size: 1.1rem; font-weight: 600; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);">
+                    Buy Now - $12.95
+                </button>
+            </div>
         </div>
     `;
     
@@ -3078,4 +3086,73 @@ function closeTermsModal() {
 
 window.showTermsModal = showTermsModal;
 window.closeTermsModal = closeTermsModal;
+
+// Initialize Stripe - use environment variable or fallback to public key
+// Note: Public key should be set via environment variable or injected at build time
+const stripePublishableKey = window.STRIPE_PUBLISHABLE_KEY || 'pk_live_51Se2egIQyA54diWonr9yTd5aQImAqY4Mmp1tQPg3VJXMvfHLM8TxQGqlbNhDlG8MLSwEfqKdsIqS5HwZkbQppCXi00vBXKs9Qh';
+let stripe = null;
+try {
+    stripe = Stripe(stripePublishableKey);
+} catch (e) {
+    console.error('Failed to initialize Stripe:', e);
+}
+
+// Handle Buy Now button click
+async function handleBuyNow(firstName, lastName, amount) {
+    console.log('Buy Now clicked:', { firstName, lastName, amount });
+    
+    // Get the button element
+    const button = document.querySelector('.btn-buy-now');
+    if (!button) {
+        console.error('Buy Now button not found');
+        return;
+    }
+    
+    const originalText = button.textContent;
+    
+    try {
+        // Disable button and show loading
+        button.disabled = true;
+        button.textContent = 'Processing...';
+        
+        // Create checkout session via backend
+        const response = await fetch('/api/create-checkout-session', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                firstName: firstName,
+                lastName: lastName,
+                amount: amount,
+                processingFee: 12.95
+            })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Failed to create checkout session' }));
+            throw new Error(errorData.error || 'Failed to create checkout session');
+        }
+        
+        const session = await response.json();
+        
+        // Redirect to Stripe Checkout
+        const result = await stripe.redirectToCheckout({
+            sessionId: session.id
+        });
+        
+        if (result.error) {
+            throw new Error(result.error.message);
+        }
+    } catch (error) {
+        console.error('Error processing payment:', error);
+        alert('Error processing payment: ' + error.message);
+        if (button) {
+            button.disabled = false;
+            button.textContent = originalText;
+        }
+    }
+}
+
+window.handleBuyNow = handleBuyNow;
 

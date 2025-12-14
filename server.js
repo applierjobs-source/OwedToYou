@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
 const { searchMissingMoney } = require('./missingMoneySearch');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const PORT = process.env.PORT || 3000;
 
@@ -731,6 +732,66 @@ const server = http.createServer((req, res) => {
                 res.writeHead(500, corsHeaders);
                 res.end(JSON.stringify({ success: false, error: error.message }));
             });
+    }
+    // Handle Stripe checkout session creation
+    else if (parsedUrl.pathname === '/api/create-checkout-session' && req.method === 'POST') {
+        let body = '';
+        
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        
+        req.on('end', async () => {
+            try {
+                if (!stripe) {
+                    res.writeHead(500, corsHeaders);
+                    res.end(JSON.stringify({ error: 'Stripe not configured. Please set STRIPE_SECRET_KEY environment variable.' }));
+                    return;
+                }
+                
+                const data = JSON.parse(body);
+                const { firstName, lastName, amount, processingFee } = data;
+                
+                if (!firstName || !lastName) {
+                    res.writeHead(400, corsHeaders);
+                    res.end(JSON.stringify({ error: 'First name and last name are required' }));
+                    return;
+                }
+                
+                // Create Stripe Checkout Session
+                const session = await stripe.checkout.sessions.create({
+                    payment_method_types: ['card'],
+                    line_items: [
+                        {
+                            price_data: {
+                                currency: 'usd',
+                                product_data: {
+                                    name: 'Unclaimed Funds Processing Fee',
+                                    description: `Processing fee for ${firstName} ${lastName} - Claim amount: $${amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
+                                },
+                                unit_amount: Math.round(processingFee * 100) // Convert to cents
+                            },
+                            quantity: 1
+                        }
+                    ],
+                    mode: 'payment',
+                    success_url: `${req.headers.origin || 'https://www.owedtoyou.ai'}/success?session_id={CHECKOUT_SESSION_ID}`,
+                    cancel_url: `${req.headers.origin || 'https://www.owedtoyou.ai'}/cancel`,
+                    metadata: {
+                        firstName: firstName,
+                        lastName: lastName,
+                        claimAmount: amount.toString()
+                    }
+                });
+                
+                res.writeHead(200, corsHeaders);
+                res.end(JSON.stringify({ id: session.id }));
+            } catch (error) {
+                console.error('Error creating checkout session:', error);
+                res.writeHead(500, corsHeaders);
+                res.end(JSON.stringify({ error: error.message }));
+            }
+        });
     }
     // Handle Missing Money search
     else if (parsedUrl.pathname === '/api/search-missing-money' && req.method === 'POST') {
