@@ -1569,10 +1569,21 @@ function displayLeaderboard(users) {
 // Handle search - CRITICAL FUNCTION - MUST WORK
 // CRITICAL FIX: Use different name to avoid identifier resolution conflict with window.handleSearch
 // This prevents JavaScript from resolving 'handleSearch' to window.handleSearch (placeholder)
+// Track if search is in progress to prevent duplicate calls
+let searchInProgress = false;
+
 async function handleSearchImpl() {
+    // Prevent duplicate calls
+    if (searchInProgress) {
+        console.log('⚠️ Search already in progress, ignoring duplicate call');
+        return;
+    }
+    
     console.log('🔍🔍🔍 handleSearch CALLED - STARTING SEARCH');
     console.log('🔍🔍🔍 handleSearchImpl function type:', typeof handleSearchImpl);
     console.log('🔍🔍🔍 window.handleSearch type:', typeof window.handleSearch);
+    
+    searchInProgress = true;
     
     const input = document.getElementById('instagramHandle');
     console.log('🔍 Input element:', input ? 'FOUND' : 'NOT FOUND');
@@ -1636,13 +1647,14 @@ async function handleSearchImpl() {
             console.error('Error stack:', nameError.stack);
             nameExtractionError = nameError;
             // If it's a timeout, show user feedback
-            if (nameError.message && nameError.message.includes('timeout')) {
-                // Re-enable button
-                searchBtn.disabled = false;
-                searchBtn.textContent = 'Search';
-                alert('Instagram request timed out. This can happen if Instagram is slow or blocking requests. Please try again in a moment, or search by name directly using the link below.');
-                return;
-            }
+                if (nameError.message && nameError.message.includes('timeout')) {
+                    // Re-enable button
+                    searchBtn.disabled = false;
+                    searchBtn.textContent = 'Search';
+                    searchInProgress = false;
+                    alert('Instagram request timed out. This can happen if Instagram is slow or blocking requests. Please try again in a moment, or search by name directly using the link below.');
+                    return;
+                }
         }
         
         // Split full name into first and last name
@@ -1663,78 +1675,84 @@ async function handleSearchImpl() {
             hasBothNames: !!(firstName && lastName)
         });
         
-        // If we got a valid name, start the search automatically
-        if (firstName && lastName) {
-            console.log(`✅ Starting search with extracted Instagram name: "${firstName} ${lastName}"`);
-            // Re-enable button immediately
-            searchBtn.disabled = false;
-            searchBtn.textContent = 'Search';
-            
-            // Start the search automatically
-            await startMissingMoneySearch(firstName, lastName, cleanHandleValue);
-        } else if (firstName && !lastName && fullName) {
-            // Handle single-word names (e.g., "Naval", "Madonna")
-            // Use the first name as both first and last name for the search
-            console.log(`⚠️ Single-word name detected: "${firstName}". Using as both first and last name.`);
-            searchBtn.disabled = false;
-            searchBtn.textContent = 'Search';
-            
-            // Use firstName as both first and last name
-            await startMissingMoneySearch(firstName, firstName, cleanHandleValue);
-        } else {
-            console.log('⚠️ Could not extract name from Instagram');
-            console.log('⚠️ Attempted extraction but got:', { fullName, firstName, lastName });
-            
-            // If extraction completely failed, show helpful error
-            if (!fullName) {
-                console.error('❌ Instagram name extraction failed completely');
+            // If we got a valid name, start the search automatically
+            if (firstName && lastName) {
+                console.log(`✅ Starting search with extracted Instagram name: "${firstName} ${lastName}"`);
+                // Re-enable button immediately
                 searchBtn.disabled = false;
                 searchBtn.textContent = 'Search';
                 
-                // Show error if it was a timeout
-                if (nameExtractionError && nameExtractionError.message && nameExtractionError.message.includes('timeout')) {
-                    alert('Instagram request timed out. This can happen if Instagram is slow or blocking requests. Please try again in a moment, or search by name directly using the link below.');
+                // Start the search automatically
+                await startMissingMoneySearch(firstName, lastName, cleanHandleValue);
+                searchInProgress = false;
+            } else if (firstName && !lastName && fullName) {
+                // Handle single-word names (e.g., "Naval", "Madonna")
+                // Use the first name as both first and last name for the search
+                console.log(`⚠️ Single-word name detected: "${firstName}". Using as both first and last name.`);
+                searchBtn.disabled = false;
+                searchBtn.textContent = 'Search';
+                
+                // Use firstName as both first and last name
+                await startMissingMoneySearch(firstName, firstName, cleanHandleValue);
+                searchInProgress = false;
+            } else {
+                console.log('⚠️ Could not extract name from Instagram');
+                console.log('⚠️ Attempted extraction but got:', { fullName, firstName, lastName });
+                
+                // If extraction completely failed, show helpful error
+                if (!fullName) {
+                    console.error('❌ Instagram name extraction failed completely');
+                    searchBtn.disabled = false;
+                    searchBtn.textContent = 'Search';
+                    searchInProgress = false;
+                    
+                    // Show error if it was a timeout
+                    if (nameExtractionError && nameExtractionError.message && nameExtractionError.message.includes('timeout')) {
+                        alert('Instagram request timed out. This can happen if Instagram is slow or blocking requests. Please try again in a moment, or search by name directly using the link below.');
+                        return;
+                    }
+                    
+                    // For other errors, show a helpful message with more details
+                    const errorDetails = nameExtractionError ? ` Error: ${nameExtractionError.message}` : '';
+                    alert(`Unable to extract name from Instagram profile.${errorDetails}\n\nThis can happen if:\n- The profile is private\n- The profile doesn't exist\n- Instagram is blocking requests\n\nPlease try searching by name directly using the "Search by Full Name instead" link below.`);
                     return;
                 }
                 
-                // For other errors, show a helpful message with more details
-                const errorDetails = nameExtractionError ? ` Error: ${nameExtractionError.message}` : '';
-                alert(`Unable to extract name from Instagram profile.${errorDetails}\n\nThis can happen if:\n- The profile is private\n- The profile doesn't exist\n- Instagram is blocking requests\n\nPlease try searching by name directly using the "Search by Full Name instead" link below.`);
+                // If we have a fullName but couldn't split it properly, try to use it anyway
+                // This handles cases where extraction worked but splitting failed
+                if (fullName && (!firstName || !lastName)) {
+                    console.log('⚠️ Got fullName but couldn\'t split properly, trying to use fullName directly');
+                    // Try to split the fullName one more time
+                    const nameParts = fullName.trim().split(/\s+/);
+                    if (nameParts.length >= 2) {
+                        firstName = nameParts[0];
+                        lastName = nameParts.slice(1).join(' ');
+                        console.log(`✅ Using split name: "${firstName} ${lastName}"`);
+                        searchBtn.disabled = false;
+                        searchBtn.textContent = 'Search';
+                        await startMissingMoneySearch(firstName, lastName, cleanHandleValue);
+                        searchInProgress = false;
+                        return;
+                    } else if (nameParts.length === 1) {
+                        // Single word name - use as both first and last
+                        firstName = nameParts[0];
+                        console.log(`✅ Using single-word name as both first and last: "${firstName}"`);
+                        searchBtn.disabled = false;
+                        searchBtn.textContent = 'Search';
+                        await startMissingMoneySearch(firstName, firstName, cleanHandleValue);
+                        searchInProgress = false;
+                        return;
+                    }
+                }
+                
+                // If we still don't have a name, silently fail
+                console.log('⚠️ Instagram name extraction failed - not using unreliable fallback methods');
+                searchBtn.disabled = false;
+                searchBtn.textContent = 'Search';
+                searchInProgress = false;
+                // Don't show alert - user can try manual search if needed
                 return;
             }
-            
-            // If we have a fullName but couldn't split it properly, try to use it anyway
-            // This handles cases where extraction worked but splitting failed
-            if (fullName && (!firstName || !lastName)) {
-                console.log('⚠️ Got fullName but couldn\'t split properly, trying to use fullName directly');
-                // Try to split the fullName one more time
-                const nameParts = fullName.trim().split(/\s+/);
-                if (nameParts.length >= 2) {
-                    firstName = nameParts[0];
-                    lastName = nameParts.slice(1).join(' ');
-                    console.log(`✅ Using split name: "${firstName} ${lastName}"`);
-                    searchBtn.disabled = false;
-                    searchBtn.textContent = 'Search';
-                    await startMissingMoneySearch(firstName, lastName, cleanHandleValue);
-                    return;
-                } else if (nameParts.length === 1) {
-                    // Single word name - use as both first and last
-                    firstName = nameParts[0];
-                    console.log(`✅ Using single-word name as both first and last: "${firstName}"`);
-                    searchBtn.disabled = false;
-                    searchBtn.textContent = 'Search';
-                    await startMissingMoneySearch(firstName, firstName, cleanHandleValue);
-                    return;
-                }
-            }
-            
-            // If we still don't have a name, silently fail
-            console.log('⚠️ Instagram name extraction failed - not using unreliable fallback methods');
-            searchBtn.disabled = false;
-            searchBtn.textContent = 'Search';
-            // Don't show alert - user can try manual search if needed
-            return;
-        }
     } catch (error) {
         console.error('❌ Error in handleSearch:', error);
         console.error('Error stack:', error.stack);
@@ -2880,47 +2898,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         return;
     }
     
-    // Remove any existing listeners by cloning
-    const newBtn = searchBtn.cloneNode(true);
-    searchBtn.parentNode.replaceChild(newBtn, searchBtn);
-    const newInput = searchInput.cloneNode(true);
-    searchInput.parentNode.replaceChild(newInput, searchInput);
-    
-    // Get fresh references
-    const freshBtn = document.getElementById('searchBtn');
-    const freshInput = document.getElementById('instagramHandle');
-    
-    if (freshBtn) {
-        freshBtn.addEventListener('click', function(e) {
-            console.log('🖱️🖱️🖱️ Search button clicked (DOMContentLoaded handler)');
-            e.preventDefault();
-            e.stopPropagation();
-            // Use window.handleSearch to ensure we get the exported version
-            if (typeof window.handleSearch === 'function') {
-                const funcStr = window.handleSearch.toString();
-                if (funcStr.includes('PLACEHOLDER')) {
-                    console.error('❌❌❌ Placeholder still active in DOMContentLoaded handler!');
-                    // Try to force export
-                    if (typeof _realHandleSearch === 'function' && !_realHandleSearch.toString().includes('PLACEHOLDER')) {
-                        window.handleSearch = _realHandleSearch;
-                        console.log('🔄 Force exported from _realHandleSearch in DOMContentLoaded handler');
-                    } else if (typeof handleSearchImpl === 'function') {
-                        window.handleSearch = handleSearchImpl;
-                        console.log('🔄 Force exported from handleSearchImpl in DOMContentLoaded handler');
-                    }
-                }
-                console.log('✅ Calling window.handleSearch');
-                window.handleSearch();
-            } else if (typeof handleSearchImpl === 'function') {
-                console.log('✅ Falling back to handleSearchImpl');
-                handleSearchImpl();
-            } else {
-                console.error('❌ handleSearch not available in click handler!');
-                alert('Error: Search function not available. Please refresh the page.');
-            }
-        });
-        console.log('✅ Click listener attached to search button');
-    }
+    // Don't add duplicate listener - inline onclick handler already handles clicks
+    // The inline onclick is sufficient and prevents duplicate calls
+    console.log('✅ Search button found - using inline onclick handler (no duplicate listener needed)');
     
     if (freshInput) {
         freshInput.addEventListener('keypress', function(e) {
