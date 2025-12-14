@@ -1726,13 +1726,26 @@ function createEntryHTML(user, rank) {
     const formattedAmount = user.isPlaceholder ? '$500+' : `$${user.amount}`;
     const escapedName = user.name.replace(/'/g, "\\'");
     
+    // Check localStorage for profile pic if not in user object
+    let profilePic = user.profilePic;
+    if (!profilePic || profilePic.length === 0) {
+        const storedProfilePics = loadProfilePicsFromStorage();
+        const cleanUserHandle = cleanHandle(user.handle);
+        profilePic = storedProfilePics[user.handle] || storedProfilePics[cleanUserHandle] || null;
+        if (profilePic) {
+            console.log(`🖼️ createEntryHTML: Found profilePic in localStorage for ${user.handle}`);
+        }
+    }
+    
     // Create profile picture HTML with fallback
     let profilePicHtml = '';
-    if (user.profilePic && user.profilePic.length > 0) {
-        console.log(`🖼️ createEntryHTML: Creating img tag for ${user.handle} with profilePic: ${user.profilePic.substring(0, 50)}...`);
-        profilePicHtml = `<img src="${user.profilePic}" alt="${escapedName}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;" onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='${initials}'; this.parentElement.style.display='flex'; this.parentElement.style.alignItems='center'; this.parentElement.style.justifyContent='center';">`;
+    if (profilePic && profilePic.length > 0) {
+        console.log(`🖼️✅✅✅ createEntryHTML: Creating img tag for ${user.handle} with profilePic: ${profilePic.substring(0, 50)}...`);
+        // Escape the profilePic URL for HTML
+        const escapedProfilePic = profilePic.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        profilePicHtml = `<img src="${escapedProfilePic}" alt="${escapedName}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;" onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='${initials}'; this.parentElement.style.display='flex'; this.parentElement.style.alignItems='center'; this.parentElement.style.justifyContent='center';">`;
     } else {
-        console.log(`⚠️ createEntryHTML: No profilePic for ${user.handle}, using initials: ${initials}`);
+        console.log(`⚠️⚠️⚠️ createEntryHTML: No profilePic for ${user.handle}, using initials: ${initials}`);
         profilePicHtml = initials;
     }
     
