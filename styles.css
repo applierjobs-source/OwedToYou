@@ -192,6 +192,10 @@ h1 {
     height: 100%;
     border-radius: 50%;
     object-fit: cover;
+    display: block; /* Ensure image displays on mobile */
+    -webkit-backface-visibility: hidden; /* Fix rendering issues on mobile */
+    backface-visibility: hidden;
+    transform: translateZ(0); /* Force hardware acceleration on mobile */
 }
 
 .entry-info {
@@ -830,6 +834,18 @@ h1 {
     .rank-number {
         font-size: 2rem;
         min-width: 50px;
+    }
+    
+    .profile-picture {
+        width: 50px;
+        height: 50px;
+        min-width: 50px; /* Prevent shrinking on mobile */
+        min-height: 50px;
+    }
+    
+    .profile-picture img {
+        display: block !important; /* Force display on mobile */
+        opacity: 1 !important; /* Prevent transparency issues */
     }
 
     .modal-content {

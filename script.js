@@ -1580,26 +1580,45 @@ async function loadProfilePicturesInBackground(users) {
                 if (profilePictureDiv) {
                     console.log(`[${index}] Updating profile picture for ${user.handle} in DOM`);
                     const initials = getInitials(user.name);
-                    const img = document.createElement('img');
-                    img.src = profilePic;
+                    
+                    // Preload image before inserting to prevent flickering
+                    const img = new Image();
                     img.alt = user.name;
                     img.style.width = '100%';
                     img.style.height = '100%';
                     img.style.borderRadius = '50%';
                     img.style.objectFit = 'cover';
+                    img.style.display = 'block'; // Ensure image displays on mobile
+                    
+                    img.onload = function() {
+                        console.log(`[${index}] Image loaded successfully for ${user.handle}: ${profilePic}`);
+                        // Only update DOM after image is fully loaded
+                        profilePictureDiv.innerHTML = '';
+                        profilePictureDiv.appendChild(img);
+                        // Force reflow on mobile to ensure image displays
+                        profilePictureDiv.offsetHeight;
+                    };
+                    
                     img.onerror = function() {
                         console.log(`[${index}] Image failed to load for ${user.handle}, showing initials`);
-                        this.remove();
                         profilePictureDiv.innerHTML = initials;
                         profilePictureDiv.style.display = 'flex';
                         profilePictureDiv.style.alignItems = 'center';
                         profilePictureDiv.style.justifyContent = 'center';
                     };
-                    img.onload = function() {
-                        console.log(`[${index}] Image loaded successfully for ${user.handle}: ${profilePic}`);
-                    };
-                    profilePictureDiv.innerHTML = '';
-                    profilePictureDiv.appendChild(img);
+                    
+                    // Start loading the image
+                    img.src = profilePic;
+                    
+                    // Fallback: if image doesn't load within 5 seconds, show initials
+                    setTimeout(() => {
+                        if (!img.complete || img.naturalHeight === 0) {
+                            console.log(`[${index}] Image load timeout for ${user.handle}, showing initials`);
+                            if (profilePictureDiv.querySelector('img') === img) {
+                                img.onerror();
+                            }
+                        }
+                    }, 5000);
                 } else {
                     console.log(`[${index}] Profile picture div not found for ${user.handle}`);
                 }
