@@ -1894,7 +1894,13 @@ function displayLeaderboard(users) {
     
     // Load profile pictures in background (non-blocking) - this will fetch missing ones
     console.log(`🖼️ Starting to load profile pictures for ${usersWithPics.length} users...`);
-    loadProfilePicturesInBackground(usersWithPics);
+    // On mobile, delay background loading slightly to let initial render complete
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) {
+        setTimeout(() => loadProfilePicturesInBackground(usersWithPics), 200);
+    } else {
+        loadProfilePicturesInBackground(usersWithPics);
+    }
 }
 
 // Handle search - CRITICAL FUNCTION - MUST WORK
