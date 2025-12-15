@@ -1904,23 +1904,42 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 .replace(/\s+/g, ' ') // Normalize whitespace
                 .trim();
             
-            // Check for full name match (e.g., "tom cruise", "cruise tom")
-            const hasFullName = normalizedEntity.includes(normalizedFullName) || 
-                               normalizedEntity.includes(`${normalizedLastName} ${normalizedFirstName}`);
+            // Split entity into words for better matching
+            const entityWords = normalizedEntity.split(/\s+/);
             
-            // Check for individual name matches
+            // Check for full name match in normal order (e.g., "tom cruise")
+            const hasFullNameNormal = normalizedEntity.includes(normalizedFullName);
+            
+            // Check for full name match in reverse order (e.g., "cruise tom", "brady tom")
+            const hasFullNameReverse = normalizedEntity.includes(`${normalizedLastName} ${normalizedFirstName}`);
+            
+            // Check for individual name matches anywhere in the entity
             const hasFirstName = normalizedEntity.includes(normalizedFirstName);
             const hasLastName = normalizedEntity.includes(normalizedLastName);
             
-            // Also check for last name first format (e.g., "CRUISE, TOM" or "CRUISE TOM")
-            const lastNameFirst = normalizedEntity.includes(`${normalizedLastName}, ${normalizedFirstName}`) ||
-                                 normalizedEntity.includes(`${normalizedLastName} ${normalizedFirstName}`);
+            // Check for last name first format with comma (e.g., "CRUISE, TOM")
+            const lastNameFirstComma = normalizedEntity.includes(`${normalizedLastName}, ${normalizedFirstName}`);
             
-            // Check if entity contains both names (either as full name or separately, in any order)
-            if (!hasFullName && !lastNameFirst && !(hasFirstName && hasLastName)) {
+            // Check if both names appear as separate words (handles "Brady Tom" format)
+            const hasFirstNameWord = entityWords.includes(normalizedFirstName);
+            const hasLastNameWord = entityWords.includes(normalizedLastName);
+            const hasBothWords = hasFirstNameWord && hasLastNameWord;
+            
+            // Check if entity contains both names in any format:
+            // 1. Full name normal order: "Tom Cruise"
+            // 2. Full name reverse order: "Cruise Tom" or "Brady Tom"
+            // 3. Last name first with comma: "CRUISE, TOM"
+            // 4. Both names as separate words anywhere: "Tom" and "Cruise" both appear
+            const matches = hasFullNameNormal || 
+                           hasFullNameReverse || 
+                           lastNameFirstComma || 
+                           hasBothWords;
+            
+            if (!matches) {
                 filteredCount++;
                 if (filteredCount <= 10) {
                     console.log(`🚫 Filtered out entity: "${cleanEntity}" (does not contain both "${normalizedFirstName}" and "${normalizedLastName}")`);
+                    console.log(`   Debug: normalizedEntity="${normalizedEntity}", hasFullNameNormal=${hasFullNameNormal}, hasFullNameReverse=${hasFullNameReverse}, hasBothWords=${hasBothWords}`);
                 }
                 return;
             }
