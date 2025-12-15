@@ -1545,6 +1545,12 @@ function generateLeaderboard(searchHandle) {
 async function loadProfilePicturesInBackground(users) {
     console.log(`Loading profile pictures for ${users.length} users...`);
     
+    // On mobile, add a small delay to let initial images load first
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
     // Load profile pictures for all users in parallel
     const profilePicPromises = users.map(async (user, index) => {
         console.log(`[${index}] Processing profile picture for ${user.handle} (has profilePic: ${!!user.profilePic})`);
@@ -1562,10 +1568,15 @@ async function loadProfilePicturesInBackground(users) {
                     const apiBase = window.location.origin;
                     img.src = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(user.profilePic)}`;
                     img.alt = user.name;
+                    img.loading = 'eager'; // Force immediate loading on mobile
+                    img.decoding = 'sync'; // Synchronous decoding for mobile
                     img.style.width = '100%';
                     img.style.height = '100%';
                     img.style.borderRadius = '50%';
                     img.style.objectFit = 'cover';
+                    img.style.display = 'block'; // Ensure image displays on mobile
+                    img.style.webkitBackfaceVisibility = 'hidden'; // Fix rendering issues on mobile
+                    img.style.transform = 'translateZ(0)'; // Force hardware acceleration on mobile
                     img.onerror = function() {
                         console.log(`[${index}] ❌ Image failed to load for ${user.handle} (CORS or network error), showing initials`);
                         this.onerror = null; // Prevent infinite loop
@@ -1671,12 +1682,16 @@ async function loadProfilePicturesInBackground(users) {
                     // Preload image before inserting to prevent flickering
                     const img = new Image();
                     img.alt = user.name;
+                    img.loading = 'eager'; // Force immediate loading on mobile
+                    img.decoding = 'sync'; // Synchronous decoding for mobile
                     img.style.width = '100%';
                     img.style.height = '100%';
                     img.style.borderRadius = '50%';
                     img.style.objectFit = 'cover';
                     img.style.display = 'block'; // Ensure image displays on mobile
                     img.style.opacity = '1'; // Force visibility
+                    img.style.webkitBackfaceVisibility = 'hidden'; // Fix rendering issues on mobile
+                    img.style.transform = 'translateZ(0)'; // Force hardware acceleration on mobile
                     
                     img.onload = function() {
                         console.log(`[${index}] ✅✅✅ IMAGE LOADED SUCCESSFULLY for ${user.handle}: ${profilePic.substring(0, 80)}...`);
@@ -1706,15 +1721,16 @@ async function loadProfilePicturesInBackground(users) {
                     console.log(`[${index}] 🖼️ Starting to load image via proxy: ${proxyUrl.substring(0, 80)}...`);
                     img.src = proxyUrl;
                     
-                    // Fallback: if image doesn't load within 10 seconds, show initials
+                    // Fallback: if image doesn't load within 15 seconds (longer on mobile), show initials
+                    const timeoutDuration = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 15000 : 10000;
                     setTimeout(() => {
                         if (!img.complete || img.naturalHeight === 0) {
                             console.log(`[${index}] ⏱️ Image load timeout for ${user.handle}, showing initials`);
-                            if (profilePictureDiv.querySelector('img') === img) {
+                            if (profilePictureDiv && profilePictureDiv.querySelector('img') === img) {
                                 img.onerror();
                             }
                         }
-                    }, 10000);
+                    }, timeoutDuration);
                 } else {
                     console.error(`[${index}] ❌❌❌ Profile picture div not found for ${user.handle} in entry`);
                 }
@@ -1730,6 +1746,10 @@ async function loadProfilePicturesInBackground(users) {
                             console.log(`[${index}] ✅ Found entry by name match, updating profile picture`);
                             const img = new Image();
                             const apiBase = window.location.origin;
+                            img.loading = 'eager'; // Force immediate loading on mobile
+                            img.decoding = 'sync'; // Synchronous decoding for mobile
+                            img.style.webkitBackfaceVisibility = 'hidden'; // Fix rendering issues on mobile
+                            img.style.transform = 'translateZ(0)'; // Force hardware acceleration on mobile
                             img.src = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(profilePic)}`;
                             img.onerror = function() {
                                 this.onerror = null;
@@ -1744,6 +1764,8 @@ async function loadProfilePicturesInBackground(users) {
                                 if (profilePictureDiv) {
                                     profilePictureDiv.innerHTML = '';
                                     profilePictureDiv.appendChild(img);
+                                    // Force reflow on mobile
+                                    profilePictureDiv.offsetHeight;
                                 }
                             };
                             break;
