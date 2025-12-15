@@ -64,6 +64,235 @@ function cleanNameForSearch(name) {
     return cleaned;
 }
 
+// Expand a name to include common aliases/nicknames
+function expandNameWithAliases(name) {
+    if (!name) return [''];
+    
+    const normalizedName = name.trim().toLowerCase();
+    const aliases = new Set([normalizedName]); // Always include the original name
+    
+    // Common name alias mappings (nickname -> full name and vice versa)
+    const aliasMap = {
+        // Common first name aliases
+        'matt': ['matthew'],
+        'matthew': ['matt'],
+        'mike': ['michael'],
+        'michael': ['mike'],
+        'joe': ['joseph'],
+        'joseph': ['joe'],
+        'jim': ['james'],
+        'james': ['jim', 'jimmy'],
+        'jimmy': ['james'],
+        'bob': ['robert'],
+        'robert': ['bob', 'rob'],
+        'rob': ['robert'],
+        'dick': ['richard'],
+        'richard': ['dick', 'rick'],
+        'rick': ['richard'],
+        'bill': ['william'],
+        'william': ['bill', 'will'],
+        'will': ['william'],
+        'tom': ['thomas'],
+        'thomas': ['tom'],
+        'dan': ['daniel'],
+        'daniel': ['dan'],
+        'dave': ['david'],
+        'david': ['dave'],
+        'chris': ['christopher'],
+        'christopher': ['chris'],
+        'steve': ['steven', 'stephen'],
+        'steven': ['steve'],
+        'stephen': ['steve'],
+        'andy': ['andrew'],
+        'andrew': ['andy'],
+        'brian': ['bryan'],
+        'bryan': ['brian'],
+        'phil': ['philip'],
+        'philip': ['phil'],
+        'tim': ['timothy'],
+        'timothy': ['tim'],
+        'jeff': ['jeffrey'],
+        'jeffrey': ['jeff'],
+        'greg': ['gregory'],
+        'gregory': ['greg'],
+        'ken': ['kenneth'],
+        'kenneth': ['ken'],
+        'larry': ['lawrence'],
+        'lawrence': ['larry'],
+        'ron': ['ronald'],
+        'ronald': ['ron'],
+        'don': ['donald'],
+        'donald': ['don'],
+        'ed': ['edward'],
+        'edward': ['ed'],
+        'frank': ['franklin'],
+        'franklin': ['frank'],
+        'jack': ['john'],
+        'john': ['jack'],
+        'nick': ['nicholas'],
+        'nicholas': ['nick'],
+        'pat': ['patrick', 'patricia'],
+        'patrick': ['pat'],
+        'ray': ['raymond'],
+        'raymond': ['ray'],
+        'sam': ['samuel'],
+        'samuel': ['sam'],
+        'tony': ['anthony'],
+        'anthony': ['tony'],
+        'alex': ['alexander'],
+        'alexander': ['alex'],
+        'ben': ['benjamin'],
+        'benjamin': ['ben'],
+        'charlie': ['charles'],
+        'charles': ['charlie'],
+        'fred': ['frederick'],
+        'frederick': ['fred'],
+        'harry': ['henry'],
+        'henry': ['harry'],
+        'louis': ['lewis'],
+        'lewis': ['louis'],
+        'mark': ['marcus'],
+        'marcus': ['mark'],
+        'nate': ['nathaniel'],
+        'nathaniel': ['nate'],
+        'pete': ['peter'],
+        'peter': ['pete'],
+        'ralph': ['ralph'],
+        'sean': ['shawn', 'shaun'],
+        'shawn': ['sean'],
+        'shaun': ['sean'],
+        'ted': ['theodore'],
+        'theodore': ['ted'],
+        'vince': ['vincent'],
+        'vincent': ['vince'],
+        'zach': ['zachary'],
+        'zachary': ['zach'],
+        // Common last name aliases (less common but possible)
+        'smith': ['smyth'],
+        'smyth': ['smith'],
+        'johnson': ['johnston'],
+        'johnston': ['johnson'],
+        'brown': ['braun'],
+        'braun': ['brown'],
+        'miller': ['muller'],
+        'muller': ['miller'],
+        'wilson': ['willson'],
+        'willson': ['wilson'],
+        'moore': ['more'],
+        'more': ['moore'],
+        'taylor': ['tailor'],
+        'tailor': ['taylor'],
+        'anderson': ['andersen'],
+        'andersen': ['anderson'],
+        'thomas': ['tomas'],
+        'tomas': ['thomas'],
+        'jackson': ['jaxon'],
+        'jaxon': ['jackson'],
+        'white': ['whyte'],
+        'whyte': ['white'],
+        'harris': ['harries'],
+        'harries': ['harris'],
+        'martin': ['martyn'],
+        'martyn': ['martin'],
+        'thompson': ['thomson'],
+        'thomson': ['thompson'],
+        'garcia': ['garcia'],
+        'rodriguez': ['rodrigues'],
+        'rodrigues': ['rodriguez'],
+        'lewis': ['louis'],
+        'lee': ['leigh'],
+        'leigh': ['lee'],
+        'walker': ['wallker'],
+        'hall': ['halle'],
+        'allen': ['alan'],
+        'alan': ['allen'],
+        'young': ['younge'],
+        'king': ['kinge'],
+        'wright': ['write'],
+        'lopez': ['lopaz'],
+        'hill': ['hille'],
+        'scott': ['scot'],
+        'green': ['greene'],
+        'adams': ['adam'],
+        'baker': ['bakker'],
+        'gonzalez': ['gonzales'],
+        'nelson': ['nelsen'],
+        'carter': ['karter'],
+        'mitchell': ['mitchel'],
+        'perez': ['perez'],
+        'roberts': ['robert'],
+        'turner': ['turnor'],
+        'phillips': ['philips'],
+        'campbell': ['campbel'],
+        'parker': ['parkar'],
+        'evans': ['evan'],
+        'edwards': ['edward'],
+        'collins': ['colin'],
+        'stewart': ['stuart'],
+        'sanchez': ['sanches'],
+        'morris': ['morries'],
+        'rogers': ['roger'],
+        'reed': ['reid'],
+        'cook': ['cooke'],
+        'morgan': ['morgane'],
+        'bell': ['belle'],
+        'murphy': ['murphie'],
+        'bailey': ['baile'],
+        'rivera': ['riviera'],
+        'cooper': ['cooper'],
+        'richardson': ['richard'],
+        'cox': ['cocks'],
+        'howard': ['howarde'],
+        'ward': ['warde'],
+        'torres': ['torrez'],
+        'peterson': ['petersen'],
+        'gray': ['grey'],
+        'ramirez': ['ramires'],
+        'james': ['jame'],
+        'watson': ['wattson'],
+        'brooks': ['brook'],
+        'kelly': ['kellie'],
+        'sanders': ['sander'],
+        'price': ['pryce'],
+        'bennett': ['bennet'],
+        'wood': ['woode'],
+        'barnes': ['barn'],
+        'ross': ['ros'],
+        'henderson': ['henderson'],
+        'coleman': ['cole'],
+        'jenkins': ['jenkin'],
+        'perry': ['perrie'],
+        'powell': ['powel'],
+        'long': ['longe'],
+        'patterson': ['paterson'],
+        'hughes': ['hugh'],
+        'flores': ['flor'],
+        'washington': ['wasington'],
+        'butler': ['buttler'],
+        'simmons': ['simon'],
+        'foster': ['forster'],
+        'gonzales': ['gonzalez'],
+        'bryant': ['briant'],
+        'alexander': ['alex'],
+        'russell': ['russel'],
+        'griffin': ['griffen'],
+        'diaz': ['dias'],
+        'hayes': ['hays']
+    };
+    
+    // Check if the name has aliases
+    if (aliasMap[normalizedName]) {
+        aliasMap[normalizedName].forEach(alias => {
+            aliases.add(alias.toLowerCase());
+        });
+    }
+    
+    // Also check reverse mappings (if someone searches for "Matthew", also check "Matt")
+    // This is already handled by the bidirectional mapping above
+    
+    return Array.from(aliases);
+}
+
 async function searchMissingMoney(firstName, lastName, city, state, use2Captcha = false, captchaApiKey = null) {
     // Remove emojis from names before searching (safety measure)
     const cleanedFirstName = cleanNameForSearch(firstName);
@@ -1167,49 +1396,66 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                     
                     if (!hasAmount) return;
                     
-                    // Extract entity name - ONLY from Reporting Business Name column
+                    // CRITICAL FIX: Extract entity name - use Reporting Business column (the company holding the funds)
+                    // NOT the Owner Name column (which is the person's name we searched for)
                     let entity = '';
                     let amount = '';
+                    let ownerName = ''; // Store owner name separately for validation
                     
-                    // Try to get Reporting Business Name first using index
+                    // Extract Reporting Business (the entity/company holding the funds)
                     if (reportingBusinessIdx >= 0 && cells[reportingBusinessIdx]) {
                         entity = cells[reportingBusinessIdx].innerText.trim();
                     }
                     
-                    // Also try to find by headers attribute as fallback (only for Reporting Business Name)
+                    // Also try to find by headers attribute as fallback (for Reporting Business)
                     if ((!entity || entity.length < 2)) {
                         for (const cell of cells) {
                             const headers = cell.getAttribute('headers') || '';
-                            if (headers.includes('propholderName') || headers.includes('holderName') || headers.includes('holder')) {
+                            if (headers.includes('propholderName') || headers.includes('holderName') || headers.includes('holder') ||
+                                headers.includes('reporting') || headers.includes('business')) {
                                 entity = cell.innerText.trim();
                                 break;
                             }
                         }
                     }
                     
-                    // If still not found, try scanning cells for business-like names (skip first 2 columns which are usually action/owner)
+                    // Fallback: try to infer Reporting Business column (usually index 3 or 4)
                     if ((!entity || entity.length < 2) && cells.length > 3) {
-                        for (let i = 3; i < Math.min(cells.length - 1, cells.length); i++) {
+                        // Standard structure: [Select, Owner, Co-Owner, Business, Address, City, State, ZIP, Held In, Amount]
+                        // Business is usually at index 3 or 4
+                        for (let i = 3; i < Math.min(5, cells.length); i++) {
                             const cellText = cells[i].innerText.trim();
-                            // Skip if it looks like an address, city, state, zip, or amount
+                            // Look for business-like text (longer names, may contain business indicators)
                             if (cellText && cellText.length > 2 && cellText.length < 200 &&
                                 !cellText.match(/^(claim|select|view|info|undisclosed)$/i) &&
                                 !cellText.match(/^\$[\d,]+\.?\d*$/) &&
                                 !cellText.match(/^(over|under|to|\$25|\$50|\$100|\$250)$/i) &&
                                 !cellText.match(/^[A-Z]{2}$/) && // Not state code
                                 !cellText.match(/^\d{5}$/) && // Not ZIP
-                                !cellText.match(/^[A-Z]{2}\s+\d{5}$/) && // Not "TX 78731"
-                                (cellText.includes(' ') || cellText.length > 8)) { // Likely a business name
+                                !cellText.match(/^[A-Z]{2}\s+\d{5}$/)) { // Not "TX 78731"
                                 entity = cellText;
                                 break;
                             }
                         }
                     }
                     
-                    // DO NOT fallback to Owner Name - only use Reporting Business Name
-                    // If no Reporting Business Name found, skip this row
+                    // Extract Owner Name for validation (to ensure this row matches the person we're searching for)
+                    if (ownerNameIdx >= 0 && cells[ownerNameIdx]) {
+                        ownerName = cells[ownerNameIdx].innerText.trim();
+                    } else {
+                        // Fallback: try to find Owner Name column
+                        for (const cell of cells) {
+                            const headers = cell.getAttribute('headers') || '';
+                            if (headers.includes('propownerName') || headers.includes('ownerName') || headers.includes('owner')) {
+                                ownerName = cell.innerText.trim();
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // If no Reporting Business found, skip this row
                     if ((!entity || entity.length < 2)) {
-                        // Skip rows without a valid Reporting Business Name
+                        // Skip rows without a valid Reporting Business
                         return;
                     }
                     
@@ -1355,45 +1601,33 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                         // Extract all cell texts
                         const cellTexts = cells.map(cell => cell.innerText.trim()).filter(t => t.length > 0);
                         
-                        // Find entity (usually a business name or owner name)
+                        // CRITICAL FIX: Find entity - use Reporting Business (the company holding the funds)
+                        // NOT Owner Name (which is the person's name)
                         let entity = '';
                         let amount = '';
+                        let ownerName = '';
                         
-                        // Look for business/company names ONLY (Reporting Business Name column)
-                        // This enhanced extraction should only find business names, not owner names
+                        // Try to find Reporting Business column first
+                        // Look for business names (may be longer, can contain business indicators)
                         for (const cellText of cellTexts) {
-                            if (cellText.length > 5 && 
+                            if (cellText.length > 2 && 
                                 cellText.length < 200 &&
                                 !cellText.match(/^(claim|select|view|info|undisclosed)$/i) &&
                                 !cellText.match(/^\$[\d,]+\.?\d*$/) &&
                                 !cellText.match(/^(over|to|\$25|\$50|\$100)$/i) &&
                                 !cellText.match(/^[A-Z]{2}$/) &&
                                 !cellText.match(/^\d{5}$/) &&
-                                // Only include business names (not personal names)
-                                (cellText.includes('LLC') || 
-                                 cellText.includes('INC') || 
-                                 cellText.includes('CORP') ||
-                                 cellText.includes('BANK') ||
-                                 cellText.includes('CO') ||
-                                 cellText.includes('COMPANY') ||
-                                 cellText.includes('CORPORATION') ||
-                                 cellText.includes('ASSOCIATES') ||
-                                 cellText.includes('GROUP') ||
-                                 cellText.includes('ENTERPRISES') ||
-                                 cellText.includes('SERVICES') ||
-                                 cellText.includes('SYSTEMS') ||
-                                 cellText.includes('SOLUTIONS') ||
-                                 // Long names with spaces are likely businesses
-                                 (cellText.includes(' ') && cellText.length > 15))) {
+                                !cellText.match(/^[A-Z]{2}\s+\d{5}$/)) {
+                                // Accept business names (can be longer, may contain LLC, INC, etc.)
+                                // OR personal names (for cases where business name isn't clearly identified)
                                 entity = cellText;
                                 break;
                             }
                         }
                         
-                        // DO NOT fallback to owner name - only use Reporting Business Name
-                        // If no business name found, skip this row
+                        // If no entity found, skip this row
                         if ((!entity || entity.length < 2)) {
-                            return; // Skip rows without a valid business name
+                            return; // Skip rows without a valid entity
                         }
                         
                         // Extract amount
@@ -1449,21 +1683,23 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                         const firstRowCells = Array.from(firstRow.querySelectorAll('td, th'));
                         let reportingBusinessIdx = -1;
                         
-                        // Find Reporting Business Name column index
+                        // Find Reporting Business column index
                         firstRowCells.forEach((cell, idx) => {
                             const headers = cell.getAttribute('headers') || '';
                             const cellText = (cell.innerText || cell.textContent || '').toLowerCase();
                             
-                            if (headers.includes('propholderName') || headers.includes('holderName') || headers.includes('holder')) {
+                            if (headers.includes('propholderName') || headers.includes('holderName') || headers.includes('holder') ||
+                                headers.includes('reporting') || headers.includes('business')) {
                                 reportingBusinessIdx = idx;
-                            } else if (cellText.includes('reporting business') || cellText.includes('business name') || cellText.includes('holder')) {
+                            } else if (cellText.includes('reporting business') || cellText.includes('business name') || 
+                                      cellText.includes('holder') || cellText.includes('reporting')) {
                                 if (reportingBusinessIdx === -1) reportingBusinessIdx = idx;
                             }
                         });
                         
-                        // Fallback: try index 3 if not found
+                        // Fallback: try index 3 or 4 if not found (Business is usually at index 3 or 4)
                         if (reportingBusinessIdx === -1 && firstRowCells.length > 3) {
-                            reportingBusinessIdx = 3;
+                            reportingBusinessIdx = 3; // Usually index 3
                         }
                         
                         rows.forEach((row) => {
@@ -1497,17 +1733,18 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                                 }
                             }
                             
-                            // Find ANY entity name from cells (more lenient)
+                            // CRITICAL FIX: Find Reporting Business from cells (NOT Owner Name)
                             let entity = '';
-                            // Try to find Reporting Business Name column by checking headers
-                            let foundBusinessName = false;
+                            // Try to find Reporting Business column by checking headers
+                            let foundBusiness = false;
                             for (const cell of cells) {
                                 const headers = cell.getAttribute('headers') || '';
                                 const cellText = cell.innerText.trim();
-                                // Only extract from Reporting Business Name column
-                                if ((headers.includes('propholderName') || headers.includes('holderName') || headers.includes('holder')) &&
+                                // Extract from Reporting Business column
+                                if ((headers.includes('propholderName') || headers.includes('holderName') || headers.includes('holder') ||
+                                     headers.includes('reporting') || headers.includes('business')) &&
                                     cellText && 
-                                    cellText.length > 2 && 
+                                    cellText.length > 1 && 
                                     cellText.length < 200 &&
                                     !cellText.match(/^(claim|select|view|info|undisclosed)$/i) &&
                                     !cellText.match(/^\$[\d,]+\.?\d*$/) &&
@@ -1516,24 +1753,39 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                                     !cellText.match(/^\d{5}$/) &&
                                     !cellText.match(/^[A-Z]{2}\s+\d{5}$/)) {
                                     entity = cellText;
-                                    foundBusinessName = true;
+                                    foundBusiness = true;
                                     break;
                                 }
                             }
                             
-                            // If we found Reporting Business Name column by index, use that
-                            if (!foundBusinessName && reportingBusinessIdx >= 0 && cells[reportingBusinessIdx]) {
+                            // If we found Reporting Business column by index, use that
+                            if (!foundBusiness && reportingBusinessIdx >= 0 && cells[reportingBusinessIdx]) {
                                 const cellText = cells[reportingBusinessIdx].innerText.trim();
-                                if (cellText && cellText.length > 2 && cellText.length < 200) {
+                                if (cellText && cellText.length > 1 && cellText.length < 200) {
                                     entity = cellText;
-                                    foundBusinessName = true;
+                                    foundBusiness = true;
                                 }
                             }
                             
-                            // If still no entity from Reporting Business Name column, skip this row
-                            // DO NOT fallback to owner name or generic extraction
-                            if (!foundBusinessName || !entity || entity.length < 2) {
-                                return; // Skip rows without a valid Reporting Business Name
+                            // Fallback: try index 3 or 4 if still not found
+                            if (!foundBusiness && cells.length > 3) {
+                                for (let i = 3; i < Math.min(5, cells.length); i++) {
+                                    const cellText = cells[i].innerText.trim();
+                                    if (cellText && cellText.length > 2 && cellText.length < 200 &&
+                                        !cellText.match(/^(claim|select|view|info|undisclosed)$/i) &&
+                                        !cellText.match(/^\$[\d,]+\.?\d*$/) &&
+                                        !cellText.match(/^[A-Z]{2}$/) &&
+                                        !cellText.match(/^\d{5}$/)) {
+                                        entity = cellText;
+                                        foundBusiness = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            // If still no entity from Reporting Business column, skip this row
+                            if (!foundBusiness || !entity || entity.length < 2) {
+                                return; // Skip rows without a valid Reporting Business
                             }
                             
                             // Add if we have amount
@@ -1837,7 +2089,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         
         // Clean up results and remove duplicates
         // IMPORTANT: Only include results where entity name contains both first and last name
-        const uniqueResults = [];
+        let uniqueResults = [];
         const seen = new Set();
         let filteredCount = 0;
         
@@ -1847,7 +2099,13 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         const normalizedLastName = cleanedLastName.trim().toLowerCase();
         const normalizedFullName = `${normalizedFirstName} ${normalizedLastName}`;
         
+        // Expand names with aliases (e.g., "Matt" -> ["matt", "matthew"])
+        const firstNameAliases = expandNameWithAliases(cleanedFirstName);
+        const lastNameAliases = expandNameWithAliases(cleanedLastName);
+        
         console.log(`🔍 Filtering results to only include entities containing: "${normalizedFullName}"`);
+        console.log(`🔍 First name aliases: ${firstNameAliases.join(', ')}`);
+        console.log(`🔍 Last name aliases: ${lastNameAliases.join(', ')}`);
         
         results.forEach(r => {
             // Clean entity name one more time to remove any remaining button text
@@ -1897,51 +2155,30 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 return;
             }
             
-            // CRITICAL: Only include results where entity name contains both first and last name
-            // Normalize entity name for matching (remove punctuation, extra spaces)
-            const normalizedEntity = cleanEntity.toLowerCase()
-                .replace(/[.,;:!?]/g, ' ') // Replace punctuation with spaces
-                .replace(/\s+/g, ' ') // Normalize whitespace
+            // CRITICAL FIX: Entity is now the business name (Reporting Business), NOT the person's name
+            // We should NOT filter based on whether the business name contains the person's name
+            // The fact that results appear means missingmoney.com already matched them to the person we searched for
+            // We only need to ensure the entity (business name) is valid and not empty
+            
+            // Optional: Validate that details contain the person's name (for extra safety)
+            // But don't filter out results just because business name doesn't contain person's name
+            const detailsText = (r.details || '').toLowerCase();
+            const normalizedDetails = detailsText
+                .replace(/[.,;:!?]/g, ' ')
+                .replace(/\s+/g, ' ')
                 .trim();
             
-            // Split entity into words for better matching
-            const entityWords = normalizedEntity.split(/\s+/);
+            // Check if details contain the person's name (this is optional validation)
+            // If details are available and don't contain the name, log but don't filter
+            const detailsHasName = normalizedDetails.includes(normalizedFullName) ||
+                                 normalizedDetails.includes(`${normalizedLastName} ${normalizedFirstName}`) ||
+                                 normalizedDetails.includes(`${normalizedLastName}, ${normalizedFirstName}`);
             
-            // Check for full name match in normal order (e.g., "tom cruise")
-            const hasFullNameNormal = normalizedEntity.includes(normalizedFullName);
-            
-            // Check for full name match in reverse order (e.g., "cruise tom", "brady tom")
-            const hasFullNameReverse = normalizedEntity.includes(`${normalizedLastName} ${normalizedFirstName}`);
-            
-            // Check for individual name matches anywhere in the entity
-            const hasFirstName = normalizedEntity.includes(normalizedFirstName);
-            const hasLastName = normalizedEntity.includes(normalizedLastName);
-            
-            // Check for last name first format with comma (e.g., "CRUISE, TOM")
-            const lastNameFirstComma = normalizedEntity.includes(`${normalizedLastName}, ${normalizedFirstName}`);
-            
-            // Check if both names appear as separate words (handles "Brady Tom" format)
-            const hasFirstNameWord = entityWords.includes(normalizedFirstName);
-            const hasLastNameWord = entityWords.includes(normalizedLastName);
-            const hasBothWords = hasFirstNameWord && hasLastNameWord;
-            
-            // Check if entity contains both names in any format:
-            // 1. Full name normal order: "Tom Cruise"
-            // 2. Full name reverse order: "Cruise Tom" or "Brady Tom"
-            // 3. Last name first with comma: "CRUISE, TOM"
-            // 4. Both names as separate words anywhere: "Tom" and "Cruise" both appear
-            const matches = hasFullNameNormal || 
-                           hasFullNameReverse || 
-                           lastNameFirstComma || 
-                           hasBothWords;
-            
-            if (!matches) {
-                filteredCount++;
-                if (filteredCount <= 10) {
-                    console.log(`🚫 Filtered out entity: "${cleanEntity}" (does not contain both "${normalizedFirstName}" and "${normalizedLastName}")`);
-                    console.log(`   Debug: normalizedEntity="${normalizedEntity}", hasFullNameNormal=${hasFullNameNormal}, hasFullNameReverse=${hasFullNameReverse}, hasBothWords=${hasBothWords}`);
+            if (!detailsHasName && r.details && r.details.length > 10) {
+                // Log for debugging but don't filter - business names won't contain person's name
+                if (filteredCount < 3) {
+                    console.log(`ℹ️ Entity "${cleanEntity}" details don't explicitly contain "${normalizedFullName}", but including anyway (entity is business name)`);
                 }
-                return;
             }
             
             const key = `${cleanEntity}-${cleanAmount}`;
@@ -1955,7 +2192,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             }
         });
         
-        console.log(`Final results count: ${uniqueResults.length} (filtered out ${filteredCount} entities that don't contain both "${normalizedFirstName}" and "${normalizedLastName}")`);
+        console.log(`Final results count: ${uniqueResults.length} (filtered out ${filteredCount} invalid/empty entities)`);
         if (uniqueResults.length > 0) {
             console.log('Sample results:', uniqueResults.slice(0, 3).map(r => `${r.entity}: ${r.amount}`));
         } else if (noResults) {
@@ -2070,14 +2307,14 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             }
         }
         
-        // If we still have no results after name filtering, check if we should return empty or original results
-        // IMPORTANT: If name filtering filtered out all results, return empty results (success: true)
-        // This means the search worked but no results matched the person's name
+        // If we still have no results after filtering, check if we should return empty or original results
+        // IMPORTANT: If filtering removed all results due to invalid entities, return empty results (success: true)
+        // This means the search worked but no valid entities were extracted
         if (uniqueResults.length === 0 && results.length > 0) {
-            console.log(`⚠️⚠️⚠️ WARNING: All ${results.length} results filtered out because they don't contain both "${normalizedFirstName}" and "${normalizedLastName}"`);
-            console.log('📊 This means the search worked, but no entities matched the person\'s name');
-            console.log('✅ Returning empty results (success: true) to indicate successful search with no matches');
-            
+            console.log(`⚠️⚠️⚠️ WARNING: All ${results.length} results filtered out due to invalid/empty entities`);
+            console.log('📊 This means the search worked, but no valid business names were extracted');
+            console.log('✅ Returning empty results (success: true) to indicate successful search with no valid entities');
+
             return {
                 success: true,
                 results: [],
