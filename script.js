@@ -1201,6 +1201,14 @@ function loadMissingMoneyResultsFromStorage(firstName, lastName) {
             const key = `${firstName.toLowerCase()}_${lastName.toLowerCase()}`;
             const cached = parsed[key];
             if (cached) {
+                // Don't use cached failed searches - they might be temporary issues
+                if (cached.result && !cached.result.success) {
+                    console.log(`⚠️ Cached result for ${firstName} ${lastName} was a failed search, ignoring cache`);
+                    delete parsed[key];
+                    localStorage.setItem('missingMoneyResults', JSON.stringify(parsed));
+                    return null;
+                }
+                
                 // Check if cache is still valid (24 hours)
                 const age = Date.now() - cached.timestamp;
                 const maxAge = 24 * 60 * 60 * 1000; // 24 hours
@@ -1570,13 +1578,24 @@ async function loadProfilePicturesInBackground(users) {
                     img.alt = user.name;
                     img.loading = 'eager'; // Force immediate loading on mobile
                     img.decoding = 'sync'; // Synchronous decoding for mobile
+                    // CRITICAL: Mobile-optimized styles to ensure display
                     img.style.width = '100%';
                     img.style.height = '100%';
                     img.style.borderRadius = '50%';
                     img.style.objectFit = 'cover';
-                    img.style.display = 'block'; // Ensure image displays on mobile
-                    img.style.webkitBackfaceVisibility = 'hidden'; // Fix rendering issues on mobile
-                    img.style.transform = 'translateZ(0)'; // Force hardware acceleration on mobile
+                    img.style.display = 'block';
+                    img.style.visibility = 'visible';
+                    img.style.opacity = '1';
+                    img.style.position = 'absolute';
+                    img.style.top = '0';
+                    img.style.left = '0';
+                    img.style.zIndex = '2';
+                    img.style.maxWidth = '100%';
+                    img.style.maxHeight = '100%';
+                    img.style.webkitBackfaceVisibility = 'visible'; // Changed to visible for mobile
+                    img.style.backfaceVisibility = 'visible'; // Changed to visible for mobile
+                    img.style.transform = 'translateZ(0)';
+                    img.style.webkitTransform = 'translateZ(0)'; // Safari mobile fix
                     img.onerror = function() {
                         console.log(`[${index}] ❌ Image failed to load for ${user.handle} (CORS or network error), showing initials`);
                         this.onerror = null; // Prevent infinite loop
@@ -1684,14 +1703,24 @@ async function loadProfilePicturesInBackground(users) {
                     img.alt = user.name;
                     img.loading = 'eager'; // Force immediate loading on mobile
                     img.decoding = 'sync'; // Synchronous decoding for mobile
+                    // CRITICAL: Mobile-optimized styles to ensure display
                     img.style.width = '100%';
                     img.style.height = '100%';
                     img.style.borderRadius = '50%';
                     img.style.objectFit = 'cover';
-                    img.style.display = 'block'; // Ensure image displays on mobile
-                    img.style.opacity = '1'; // Force visibility
-                    img.style.webkitBackfaceVisibility = 'hidden'; // Fix rendering issues on mobile
-                    img.style.transform = 'translateZ(0)'; // Force hardware acceleration on mobile
+                    img.style.display = 'block';
+                    img.style.visibility = 'visible';
+                    img.style.opacity = '1';
+                    img.style.position = 'absolute';
+                    img.style.top = '0';
+                    img.style.left = '0';
+                    img.style.zIndex = '2';
+                    img.style.maxWidth = '100%';
+                    img.style.maxHeight = '100%';
+                    img.style.webkitBackfaceVisibility = 'visible'; // Changed to visible for mobile
+                    img.style.backfaceVisibility = 'visible'; // Changed to visible for mobile
+                    img.style.transform = 'translateZ(0)';
+                    img.style.webkitTransform = 'translateZ(0)'; // Safari mobile fix
                     
                     img.onload = function() {
                         console.log(`[${index}] ✅✅✅ IMAGE LOADED SUCCESSFULLY for ${user.handle}: ${profilePic.substring(0, 80)}...`);
@@ -1748,8 +1777,24 @@ async function loadProfilePicturesInBackground(users) {
                             const apiBase = window.location.origin;
                             img.loading = 'eager'; // Force immediate loading on mobile
                             img.decoding = 'sync'; // Synchronous decoding for mobile
-                            img.style.webkitBackfaceVisibility = 'hidden'; // Fix rendering issues on mobile
-                            img.style.transform = 'translateZ(0)'; // Force hardware acceleration on mobile
+                            // CRITICAL: Mobile-optimized styles to ensure display
+                            img.style.width = '100%';
+                            img.style.height = '100%';
+                            img.style.borderRadius = '50%';
+                            img.style.objectFit = 'cover';
+                            img.style.display = 'block';
+                            img.style.visibility = 'visible';
+                            img.style.opacity = '1';
+                            img.style.position = 'absolute';
+                            img.style.top = '0';
+                            img.style.left = '0';
+                            img.style.zIndex = '2';
+                            img.style.maxWidth = '100%';
+                            img.style.maxHeight = '100%';
+                            img.style.webkitBackfaceVisibility = 'visible'; // Changed to visible for mobile
+                            img.style.backfaceVisibility = 'visible'; // Changed to visible for mobile
+                            img.style.transform = 'translateZ(0)';
+                            img.style.webkitTransform = 'translateZ(0)'; // Safari mobile fix
                             img.src = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(profilePic)}`;
                             img.onerror = function() {
                                 this.onerror = null;
@@ -1781,8 +1826,340 @@ async function loadProfilePicturesInBackground(users) {
     // Don't wait for all to complete, just fire and forget
     Promise.all(profilePicPromises).then(() => {
         console.log('All profile picture requests completed');
+        // On mobile, check more aggressively and multiple times
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        if (isMobile) {
+            // Check immediately, then again after delays
+            setTimeout(() => checkAndRetryFailedProfilePictures(users), 2000);
+            setTimeout(() => checkAndRetryFailedProfilePictures(users), 5000);
+            setTimeout(() => checkAndRetryFailedProfilePictures(users), 10000);
+            setTimeout(() => checkAndRetryFailedProfilePictures(users), 15000);
+        } else {
+            setTimeout(() => {
+                checkAndRetryFailedProfilePictures(users);
+            }, 5000);
+        }
     }).catch(err => {
         console.error('Some profile pictures failed to load:', err);
+        // Still check for failed images even if some promises failed
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        if (isMobile) {
+            setTimeout(() => checkAndRetryFailedProfilePictures(users), 2000);
+            setTimeout(() => checkAndRetryFailedProfilePictures(users), 5000);
+            setTimeout(() => checkAndRetryFailedProfilePictures(users), 10000);
+        } else {
+            setTimeout(() => {
+                checkAndRetryFailedProfilePictures(users);
+            }, 5000);
+        }
+    });
+}
+
+// Global function to retry a single profile picture (called from inline onerror handlers)
+window.retrySingleProfilePicture = function(handle) {
+    console.log(`🔄 Immediate retry triggered for ${handle} from onerror handler`);
+    // Find the entry and trigger retry
+    const entry = document.querySelector(`.leaderboard-entry[data-handle="${handle}"]`);
+    if (entry) {
+        const profilePictureDiv = entry.querySelector('.profile-picture');
+        const nameElement = entry.querySelector('.entry-name');
+        const name = nameElement ? nameElement.textContent.trim() : '';
+        
+        if (profilePictureDiv && handle) {
+            // Get current users from leaderboardData
+            const user = leaderboardData.find(u => cleanHandle(u.handle) === cleanHandle(handle));
+            if (user) {
+                retryProfilePicture({
+                    handle: handle,
+                    name: name,
+                    entry: entry,
+                    profilePictureDiv: profilePictureDiv
+                }, leaderboardData);
+            }
+        }
+    }
+};
+
+// Check all leaderboard entries and retry failed profile pictures
+async function checkAndRetryFailedProfilePictures(users) {
+    console.log('🔍 Checking for failed profile pictures...');
+    const entries = document.querySelectorAll('.leaderboard-entry');
+    const failedEntries = [];
+    const checkedHandles = new Set(); // Prevent duplicate retries
+    
+    entries.forEach(entry => {
+        const profilePictureDiv = entry.querySelector('.profile-picture');
+        if (!profilePictureDiv) return;
+        
+        const handle = entry.getAttribute('data-handle');
+        if (!handle || checkedHandles.has(handle)) return;
+        
+        const nameElement = entry.querySelector('.entry-name');
+        const name = nameElement ? nameElement.textContent.trim() : '';
+        
+        // Check if it's showing initials (text content) instead of an image
+        const hasImage = profilePictureDiv.querySelector('img');
+        const hasText = profilePictureDiv.textContent && profilePictureDiv.textContent.trim().length > 0;
+        const textContent = profilePictureDiv.textContent.trim();
+        
+        // More aggressive detection:
+        // 1. Has text (initials) but no image
+        // 2. Has image but it failed to load (naturalHeight === 0 or not complete)
+        // 3. Has image but it's still loading after reasonable time (on mobile)
+        // 4. Image exists but src is empty or broken
+        let isFailed = false;
+        
+        if (hasText && !hasImage) {
+            // Showing initials - definitely failed
+            isFailed = true;
+            console.log(`🔍 Detected failed pic for ${handle}: showing initials "${textContent}"`);
+        } else if (hasImage) {
+            const img = hasImage;
+            // Check if image actually loaded
+            if (!img.complete || img.naturalHeight === 0 || img.naturalWidth === 0) {
+                isFailed = true;
+                console.log(`🔍 Detected failed pic for ${handle}: image not loaded (complete=${img.complete}, height=${img.naturalHeight})`);
+            } else if (!img.src || img.src.includes('data:') || img.src.length < 10) {
+                // Image has invalid src
+                isFailed = true;
+                console.log(`🔍 Detected failed pic for ${handle}: invalid src`);
+            }
+        } else {
+            // No image and no text - empty div, should have something
+            isFailed = true;
+            console.log(`🔍 Detected failed pic for ${handle}: empty div`);
+        }
+        
+        if (isFailed) {
+            checkedHandles.add(handle);
+            failedEntries.push({
+                handle: handle,
+                name: name,
+                entry: entry,
+                profilePictureDiv: profilePictureDiv
+            });
+        }
+    });
+    
+    if (failedEntries.length === 0) {
+        console.log('✅ All profile pictures loaded successfully!');
+        return;
+    }
+    
+    console.log(`⚠️ Found ${failedEntries.length} failed profile pictures, attempting to retry...`);
+    
+    // Retry each failed entry with more attempts
+    for (const failedEntry of failedEntries) {
+        await retryProfilePicture(failedEntry, users);
+        // Add delay between retries to avoid rate limiting (shorter on mobile)
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        await new Promise(resolve => setTimeout(resolve, isMobile ? 300 : 500));
+    }
+}
+
+// Retry loading a profile picture with different methods
+async function retryProfilePicture(failedEntry, users) {
+    const { handle, name, entry, profilePictureDiv } = failedEntry;
+    console.log(`🔄 Retrying profile picture for ${handle}...`);
+    
+    // Find the user data
+    const user = users.find(u => cleanHandle(u.handle) === cleanHandle(handle));
+    if (!user) {
+        console.log(`⚠️ User data not found for handle: ${handle}`);
+        return;
+    }
+    
+    // Method 1: Try fetching fresh from Instagram API
+    console.log(`🔄 Method 1: Fetching fresh from Instagram API for ${handle}...`);
+    try {
+        const freshProfilePic = await getInstagramProfilePicture(handle);
+        if (freshProfilePic) {
+            console.log(`✅ Fresh profile pic fetched for ${handle}, attempting to load...`);
+            await loadProfilePictureImage(freshProfilePic, profilePictureDiv, name, handle, 'fresh-api');
+            
+            // Check if it loaded successfully
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            const img = profilePictureDiv.querySelector('img');
+            if (img && img.complete && img.naturalHeight > 0) {
+                console.log(`✅✅✅ Successfully loaded profile pic for ${handle} using fresh API fetch`);
+                // Update localStorage and leaderboardData
+                const storedProfilePics = loadProfilePicsFromStorage();
+                storedProfilePics[handle] = freshProfilePic;
+                storedProfilePics[cleanHandle(handle)] = freshProfilePic;
+                saveProfilePicsToStorage(storedProfilePics);
+                
+                const userIndex = leaderboardData.findIndex(e => cleanHandle(e.handle) === cleanHandle(handle));
+                if (userIndex >= 0) {
+                    leaderboardData[userIndex].profilePic = freshProfilePic;
+                }
+                return; // Success, no need to try other methods
+            }
+        }
+    } catch (error) {
+        console.log(`❌ Method 1 failed for ${handle}:`, error.message);
+    }
+    
+    // Method 2: Try direct URL (if we have a cached URL)
+    const storedProfilePics = loadProfilePicsFromStorage();
+    const cachedUrl = storedProfilePics[handle] || storedProfilePics[cleanHandle(handle)] || user.profilePic;
+    if (cachedUrl && cachedUrl.startsWith('http')) {
+        console.log(`🔄 Method 2: Trying direct URL for ${handle}...`);
+        try {
+            await loadProfilePictureImage(cachedUrl, profilePictureDiv, name, handle, 'direct-url');
+            
+            // Check if it loaded successfully
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            const img = profilePictureDiv.querySelector('img');
+            if (img && img.complete && img.naturalHeight > 0) {
+                console.log(`✅✅✅ Successfully loaded profile pic for ${handle} using direct URL`);
+                return; // Success
+            }
+        } catch (error) {
+            console.log(`❌ Method 2 failed for ${handle}:`, error.message);
+        }
+    }
+    
+    // Method 3: Try proxy with cache-busting parameter
+    if (cachedUrl) {
+        console.log(`🔄 Method 3: Trying proxy with cache-busting for ${handle}...`);
+        const apiBase = window.location.origin;
+        const cacheBuster = `&_cb=${Date.now()}`;
+        const proxyUrl = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(cachedUrl)}${cacheBuster}`;
+        
+        try {
+            await loadProfilePictureImage(proxyUrl, profilePictureDiv, name, handle, 'proxy-cache-bust');
+            
+            // Check if it loaded successfully
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            const img = profilePictureDiv.querySelector('img');
+            if (img && img.complete && img.naturalHeight > 0) {
+                console.log(`✅✅✅ Successfully loaded profile pic for ${handle} using proxy with cache-busting`);
+                return; // Success
+            }
+        } catch (error) {
+            console.log(`❌ Method 3 failed for ${handle}:`, error.message);
+        }
+    }
+    
+    // Method 4: Try proxy multiple times with different cache-busting (mobile-specific)
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (cachedUrl && isMobile) {
+        console.log(`🔄 Method 4: Trying proxy multiple times for ${handle} (mobile)...`);
+        const apiBase = window.location.origin;
+        
+        // Try up to 3 times with different cache busters
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            const cacheBuster = `&_cb=${Date.now()}-${attempt}`;
+            const proxyUrl = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(cachedUrl)}${cacheBuster}`;
+            
+            try {
+                await loadProfilePictureImage(proxyUrl, profilePictureDiv, name, handle, `proxy-retry-${attempt}`);
+                
+                // Check if it loaded successfully
+                await new Promise(resolve => setTimeout(resolve, 3000)); // Longer wait on mobile
+                const img = profilePictureDiv.querySelector('img');
+                if (img && img.complete && img.naturalHeight > 0) {
+                    console.log(`✅✅✅ Successfully loaded profile pic for ${handle} using proxy retry ${attempt}`);
+                    return; // Success
+                }
+            } catch (error) {
+                console.log(`❌ Method 4 attempt ${attempt} failed for ${handle}:`, error.message);
+            }
+            
+            // Wait between attempts
+            if (attempt < 3) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        }
+    }
+    
+    // Method 5: Force reload by clearing and re-adding (last resort)
+    if (cachedUrl) {
+        console.log(`🔄 Method 5: Force reload for ${handle}...`);
+        const apiBase = window.location.origin;
+        const proxyUrl = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(cachedUrl)}&_force=${Date.now()}`;
+        
+        try {
+            // Clear the div first
+            profilePictureDiv.innerHTML = '';
+            
+            await loadProfilePictureImage(proxyUrl, profilePictureDiv, name, handle, 'force-reload');
+            
+            // Check if it loaded successfully
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            const img = profilePictureDiv.querySelector('img');
+            if (img && img.complete && img.naturalHeight > 0) {
+                console.log(`✅✅✅ Successfully loaded profile pic for ${handle} using force reload`);
+                return; // Success
+            }
+        } catch (error) {
+            console.log(`❌ Method 5 failed for ${handle}:`, error.message);
+        }
+    }
+    
+    console.log(`❌ All retry methods failed for ${handle}, keeping initials`);
+}
+
+// Helper function to load a profile picture image
+function loadProfilePictureImage(imageUrl, profilePictureDiv, name, handle, method) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const initials = getInitials(name);
+        
+        img.alt = name;
+        img.loading = 'eager';
+        img.decoding = 'sync';
+        // CRITICAL: Mobile-optimized styles to ensure display
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.borderRadius = '50%';
+        img.style.objectFit = 'cover';
+        img.style.display = 'block';
+        img.style.visibility = 'visible';
+        img.style.opacity = '1';
+        img.style.position = 'absolute';
+        img.style.top = '0';
+        img.style.left = '0';
+        img.style.zIndex = '2';
+        img.style.maxWidth = '100%';
+        img.style.maxHeight = '100%';
+        img.style.webkitBackfaceVisibility = 'visible'; // Changed to visible for mobile
+        img.style.backfaceVisibility = 'visible'; // Changed to visible for mobile
+        img.style.transform = 'translateZ(0)';
+        img.style.webkitTransform = 'translateZ(0)'; // Safari mobile fix
+        img.crossOrigin = 'anonymous';
+        
+        // Set timeout first
+        const timeout = setTimeout(() => {
+            if (!img.complete || img.naturalHeight === 0) {
+                img.onerror();
+            }
+        }, 10000);
+        
+        img.onload = function() {
+            clearTimeout(timeout);
+            console.log(`✅ Image loaded via ${method} for ${handle}`);
+            if (profilePictureDiv) {
+                profilePictureDiv.innerHTML = '';
+                profilePictureDiv.appendChild(img);
+                profilePictureDiv.offsetHeight; // Force reflow
+            }
+            resolve();
+        };
+        
+        img.onerror = function() {
+            clearTimeout(timeout);
+            console.log(`❌ Image failed to load via ${method} for ${handle}`);
+            if (profilePictureDiv && !profilePictureDiv.querySelector('img')) {
+                profilePictureDiv.innerHTML = initials;
+                profilePictureDiv.style.display = 'flex';
+                profilePictureDiv.style.alignItems = 'center';
+                profilePictureDiv.style.justifyContent = 'center';
+            }
+            reject(new Error(`Failed to load image via ${method}`));
+        };
+        
+        img.src = imageUrl;
     });
 }
 
@@ -1823,8 +2200,10 @@ function createEntryHTML(user, rank) {
         const proxyUrl = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(profilePic)}`;
         const escapedProxyUrl = proxyUrl.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         const escapedInitials = initials.replace(/'/g, "\\'");
-        // Use a more robust onerror handler that checks for parent element existence
-        profilePicHtml = `<img src="${escapedProxyUrl}" alt="${escapedName}" loading="eager" decoding="sync" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; -webkit-backface-visibility: hidden; transform: translateZ(0);" onerror="(function(img){img.onerror=null;img.style.display='none';var parent=img.parentElement;if(parent){parent.innerHTML='${escapedInitials}';parent.style.display='flex';parent.style.alignItems='center';parent.style.justifyContent='center';}})(this);">`;
+        const escapedHandle = user.handle.replace(/'/g, "\\'");
+        // Enhanced onerror handler that triggers immediate retry
+        // CRITICAL: Mobile-optimized inline styles to ensure display
+        profilePicHtml = `<img src="${escapedProxyUrl}" alt="${escapedName}" loading="eager" decoding="sync" style="width: 100% !important; height: 100% !important; border-radius: 50%; object-fit: cover !important; display: block !important; visibility: visible !important; opacity: 1 !important; position: absolute; top: 0; left: 0; z-index: 2; -webkit-backface-visibility: visible !important; backface-visibility: visible !important; transform: translateZ(0) !important; -webkit-transform: translateZ(0) !important; max-width: 100%; max-height: 100%;" onerror="(function(img,handle){img.onerror=null;img.style.display='none';var parent=img.parentElement;if(parent){parent.innerHTML='${escapedInitials}';parent.style.display='flex';parent.style.alignItems='center';parent.style.justifyContent='center';}if(typeof window.retrySingleProfilePicture==='function'){setTimeout(function(){window.retrySingleProfilePicture('${escapedHandle}');},1000);}})(this,'${escapedHandle}');">`;
     } else {
         console.log(`⚠️⚠️⚠️ createEntryHTML: No profilePic for ${user.handle}, using initials: ${initials}`);
         profilePicHtml = initials;
@@ -1901,6 +2280,11 @@ function displayLeaderboard(users) {
     
     leaderboard.classList.remove('hidden');
     
+    // CRITICAL: Ensure profile pictures display on mobile immediately after rendering
+    setTimeout(() => {
+        ensureMobileProfilePicturesDisplay();
+    }, 100);
+    
     // Smooth scroll to leaderboard
     leaderboard.scrollIntoView({ behavior: 'smooth', block: 'start' });
     
@@ -1910,9 +2294,37 @@ function displayLeaderboard(users) {
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     if (isMobile) {
         setTimeout(() => loadProfilePicturesInBackground(usersWithPics), 200);
+        // Start continuous monitoring on mobile
+        startContinuousProfilePicMonitoring(usersWithPics);
     } else {
         loadProfilePicturesInBackground(usersWithPics);
     }
+}
+
+// Start continuous monitoring of profile pictures on mobile
+function startContinuousProfilePicMonitoring(users) {
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (!isMobile) return;
+    
+    console.log('🔄 Starting continuous profile picture monitoring on mobile...');
+    
+    // Check every 10 seconds for the first minute, then every 30 seconds
+    let checkCount = 0;
+    const intervalId = setInterval(() => {
+        checkCount++;
+        console.log(`🔍 Continuous check #${checkCount} for failed profile pictures...`);
+        checkAndRetryFailedProfilePictures(users);
+        
+        // After 6 checks (1 minute), reduce frequency
+        if (checkCount >= 6) {
+            clearInterval(intervalId);
+            // Continue checking every 30 seconds
+            setInterval(() => {
+                console.log('🔍 Periodic check for failed profile pictures...');
+                checkAndRetryFailedProfilePictures(users);
+            }, 30000);
+        }
+    }, 10000); // Check every 10 seconds
 }
 
 // Handle search - CRITICAL FUNCTION - MUST WORK
@@ -2740,18 +3152,21 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
         hideProgressModal();
         
         // Process cached result same as fresh result
-        if (cachedResult.success && cachedResult.results && cachedResult.results.length > 0) {
+        // Note: Failed searches should not be cached, but double-check just in case
+        if (!cachedResult.success) {
+            console.log('⚠️ Cached result was a failed search, ignoring cache and performing fresh search');
+            // Don't return - continue to fresh search below
+        } else if (cachedResult.results && cachedResult.results.length > 0) {
             console.log('✅ Showing cached results modal with', cachedResult.results.length, 'results');
             await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), cachedResult.totalAmount, false, true, cachedResult.results || [], claimData.profilePic);
             showResultsModal(claimData, cachedResult);
-        } else if (cachedResult.success) {
+            return;
+        } else {
             console.log('✅ Cached search completed successfully but no results found');
             await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 0, false, true, [], claimData.profilePic);
             showNoResultsModal(claimData);
-        } else {
-            showErrorModal(cachedResult.error || 'Search failed');
+            return;
         }
-        return;
     }
     
     // Progress modal should already be shown from handleSearchImpl
@@ -3322,9 +3737,61 @@ function shareToWhatsApp(name, amount, url) {
 }
 
 // Event listeners
+// CRITICAL: Mobile-specific function to ensure profile pictures display
+function ensureMobileProfilePicturesDisplay() {
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth <= 768;
+    if (!isMobile) return;
+    
+    console.log('📱 Mobile device detected - ensuring profile pictures display...');
+    
+    // Force all profile picture images to be visible
+    const profilePics = document.querySelectorAll('.profile-picture img');
+    profilePics.forEach((img, index) => {
+        // Force display styles
+        img.style.display = 'block';
+        img.style.visibility = 'visible';
+        img.style.opacity = '1';
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.position = 'absolute';
+        img.style.top = '0';
+        img.style.left = '0';
+        img.style.zIndex = '2';
+        
+        // If image failed to load, trigger retry
+        if (!img.complete || img.naturalHeight === 0) {
+            const handle = img.closest('.leaderboard-entry')?.getAttribute('data-handle');
+            if (handle && typeof window.retrySingleProfilePicture === 'function') {
+                console.log(`📱 Retrying profile picture for ${handle} on mobile`);
+                setTimeout(() => window.retrySingleProfilePicture(handle), 500 * (index + 1));
+            }
+        }
+    });
+    
+    // Ensure containers are properly sized
+    const containers = document.querySelectorAll('.profile-picture');
+    containers.forEach(container => {
+        container.style.position = 'relative';
+        container.style.overflow = 'hidden';
+        if (container.querySelector('img')) {
+            container.style.minHeight = '50px';
+            container.style.minWidth = '50px';
+        }
+    });
+    
+    console.log(`📱 Processed ${profilePics.length} profile pictures on mobile`);
+}
+
 document.addEventListener('DOMContentLoaded', async function() {
     const searchBtn = document.getElementById('searchBtn');
     const searchInput = document.getElementById('instagramHandle');
+    
+    // CRITICAL: Ensure profile pictures display on mobile
+    ensureMobileProfilePicturesDisplay();
+    
+    // Also check after a delay to catch dynamically loaded images
+    setTimeout(ensureMobileProfilePicturesDisplay, 1000);
+    setTimeout(ensureMobileProfilePicturesDisplay, 3000);
     
     if (!searchBtn) {
         console.error('❌ Search button not found in DOM!');
