@@ -1774,7 +1774,9 @@ function createEntryHTML(user, rank) {
         console.log(`🖼️✅✅✅ createEntryHTML: Creating img tag for ${user.handle} with profilePic: ${profilePic.substring(0, 50)}...`);
         // Escape the profilePic URL for HTML
         const escapedProfilePic = profilePic.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-        profilePicHtml = `<img src="${escapedProfilePic}" alt="${escapedName}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;" onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='${initials}'; this.parentElement.style.display='flex'; this.parentElement.style.alignItems='center'; this.parentElement.style.justifyContent='center';">`;
+        const escapedInitials = initials.replace(/'/g, "\\'");
+        // Use a more robust onerror handler that checks for parent element existence
+        profilePicHtml = `<img src="${escapedProfilePic}" alt="${escapedName}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;" crossorigin="anonymous" onerror="(function(img){img.onerror=null;img.style.display='none';var parent=img.parentElement;if(parent){parent.innerHTML='${escapedInitials}';parent.style.display='flex';parent.style.alignItems='center';parent.style.justifyContent='center';}})(this);">`;
     } else {
         console.log(`⚠️⚠️⚠️ createEntryHTML: No profilePic for ${user.handle}, using initials: ${initials}`);
         profilePicHtml = initials;
