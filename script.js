@@ -2798,8 +2798,13 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
         
         const result = await response.json();
         
-        // Cache the result for future use
-        saveMissingMoneyResultsToStorage(claimData.firstName, claimData.lastName, result);
+        // Only cache successful searches (not failed ones)
+        // Failed searches might be due to temporary issues (browser closed, network error, etc.)
+        if (result.success) {
+            saveMissingMoneyResultsToStorage(claimData.firstName, claimData.lastName, result);
+        } else {
+            console.log('⚠️ Not caching failed search result (may be temporary issue)');
+        }
         
         // Debug: Log the response
         console.log('🔍 API Response:', {
