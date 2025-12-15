@@ -1802,7 +1802,7 @@ function createEntryHTML(user, rank) {
         const escapedProxyUrl = proxyUrl.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         const escapedInitials = initials.replace(/'/g, "\\'");
         // Use a more robust onerror handler that checks for parent element existence
-        profilePicHtml = `<img src="${escapedProxyUrl}" alt="${escapedName}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;" onerror="(function(img){img.onerror=null;img.style.display='none';var parent=img.parentElement;if(parent){parent.innerHTML='${escapedInitials}';parent.style.display='flex';parent.style.alignItems='center';parent.style.justifyContent='center';}})(this);">`;
+        profilePicHtml = `<img src="${escapedProxyUrl}" alt="${escapedName}" loading="eager" decoding="sync" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; -webkit-backface-visibility: hidden; transform: translateZ(0);" onerror="(function(img){img.onerror=null;img.style.display='none';var parent=img.parentElement;if(parent){parent.innerHTML='${escapedInitials}';parent.style.display='flex';parent.style.alignItems='center';parent.style.justifyContent='center';}})(this);">`;
     } else {
         console.log(`⚠️⚠️⚠️ createEntryHTML: No profilePic for ${user.handle}, using initials: ${initials}`);
         profilePicHtml = initials;
