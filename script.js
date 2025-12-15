@@ -2655,20 +2655,45 @@ function hideProgressModal() {
     progressModal.classList.add('hidden');
 }
 
+// Remove emojis and special characters from names for Missing Money search
+function cleanNameForSearch(name) {
+    if (!name) return '';
+    // Remove emojis using Unicode ranges
+    // This covers most emoji ranges: Emoticons, Miscellaneous Symbols, Dingbats, etc.
+    let cleaned = name.replace(/[\u{1F600}-\u{1F64F}]/gu, ''); // Emoticons
+    cleaned = cleaned.replace(/[\u{1F300}-\u{1F5FF}]/gu, ''); // Misc Symbols and Pictographs
+    cleaned = cleaned.replace(/[\u{1F680}-\u{1F6FF}]/gu, ''); // Transport and Map
+    cleaned = cleaned.replace(/[\u{1F1E0}-\u{1F1FF}]/gu, ''); // Flags (country flags)
+    cleaned = cleaned.replace(/[\u{2600}-\u{26FF}]/gu, ''); // Misc symbols
+    cleaned = cleaned.replace(/[\u{2700}-\u{27BF}]/gu, ''); // Dingbats
+    cleaned = cleaned.replace(/[\u{FE00}-\u{FE0F}]/gu, ''); // Variation Selectors
+    cleaned = cleaned.replace(/[\u{200D}]/gu, ''); // Zero Width Joiner
+    cleaned = cleaned.replace(/[\u{20E3}]/gu, ''); // Combining Enclosing Keycap
+    // Clean up extra spaces
+    cleaned = cleaned.trim().replace(/\s+/g, ' ');
+    return cleaned;
+}
+
 // Start missing money search directly with first and last name
 async function startMissingMoneySearch(firstName, lastName, handle, profilePic = null) {
     console.log(`🚀 startMissingMoneySearch called with: firstName="${firstName}", lastName="${lastName}", handle="${handle}"`);
     console.log(`[PROFILE PIC FLOW] startMissingMoneySearch received profilePic: ${profilePic ? `YES (${profilePic.substring(0, 40)}...)` : 'NO (null/undefined)'}`);
     
+    // Remove emojis from names before searching
+    const cleanedFirstName = cleanNameForSearch(firstName);
+    const cleanedLastName = cleanNameForSearch(lastName);
+    
+    console.log(`🧹 Cleaned names: "${firstName}" -> "${cleanedFirstName}", "${lastName}" -> "${cleanedLastName}"`);
+    
     // Basic validation - only check for empty or obviously invalid values
-    if (!firstName || !lastName || firstName.trim().length === 0 || lastName.trim().length === 0) {
-        console.error('❌ Invalid name extracted:', { firstName, lastName });
+    if (!cleanedFirstName || !cleanedLastName || cleanedFirstName.trim().length === 0 || cleanedLastName.trim().length === 0) {
+        console.error('❌ Invalid name extracted:', { firstName, lastName, cleanedFirstName, cleanedLastName });
         alert(`Unable to extract a valid name from Instagram profile @${handle}. Please try searching by name instead using the link below.`);
         return;
     }
     
     // Only reject if the name is exactly "Login" or "Instagram" (not if it contains those words)
-    const fullName = `${firstName} ${lastName}`.trim();
+    const fullName = `${cleanedFirstName} ${cleanedLastName}`.trim();
     if (fullName === 'Login' || fullName === 'Instagram' || fullName === 'Login • Instagram') {
         console.error('❌ Invalid name extracted (login page):', { firstName, lastName, fullName });
         alert(`Unable to extract a valid name from Instagram profile @${handle}. Please try searching by name instead using the link below.`);
@@ -2676,8 +2701,8 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
     }
     
     const claimData = {
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
+        firstName: cleanedFirstName.trim(),
+        lastName: cleanedLastName.trim(),
         city: '', // Not required by missingmoney.com
         state: '', // Not required by missingmoney.com
         phone: '', // Not required

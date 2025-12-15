@@ -45,7 +45,34 @@ function getFullStateName(abbreviation) {
     return stateMap[upperAbbr] || abbreviation; // Return original if not found
 }
 
+// Remove emojis and special characters from names for Missing Money search
+function cleanNameForSearch(name) {
+    if (!name) return '';
+    // Remove emojis using Unicode ranges
+    // This covers most emoji ranges: Emoticons, Miscellaneous Symbols, Dingbats, etc.
+    let cleaned = name.replace(/[\u{1F600}-\u{1F64F}]/gu, ''); // Emoticons
+    cleaned = cleaned.replace(/[\u{1F300}-\u{1F5FF}]/gu, ''); // Misc Symbols and Pictographs
+    cleaned = cleaned.replace(/[\u{1F680}-\u{1F6FF}]/gu, ''); // Transport and Map
+    cleaned = cleaned.replace(/[\u{1F1E0}-\u{1F1FF}]/gu, ''); // Flags (country flags)
+    cleaned = cleaned.replace(/[\u{2600}-\u{26FF}]/gu, ''); // Misc symbols
+    cleaned = cleaned.replace(/[\u{2700}-\u{27BF}]/gu, ''); // Dingbats
+    cleaned = cleaned.replace(/[\u{FE00}-\u{FE0F}]/gu, ''); // Variation Selectors
+    cleaned = cleaned.replace(/[\u{200D}]/gu, ''); // Zero Width Joiner
+    cleaned = cleaned.replace(/[\u{20E3}]/gu, ''); // Combining Enclosing Keycap
+    // Clean up extra spaces
+    cleaned = cleaned.trim().replace(/\s+/g, ' ');
+    return cleaned;
+}
+
 async function searchMissingMoney(firstName, lastName, city, state, use2Captcha = false, captchaApiKey = null) {
+    // Remove emojis from names before searching (safety measure)
+    const cleanedFirstName = cleanNameForSearch(firstName);
+    const cleanedLastName = cleanNameForSearch(lastName);
+    
+    if (cleanedFirstName !== firstName || cleanedLastName !== lastName) {
+        console.log(`🧹 Cleaned names: "${firstName}" -> "${cleanedFirstName}", "${lastName}" -> "${cleanedLastName}"`);
+    }
+    
     // Convert state abbreviation to full name
     const fullStateName = getFullStateName(state);
     console.log(`Converting state "${state}" to "${fullStateName}"`);
@@ -364,7 +391,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         
         // NOW FILL THE FORM FIELDS IMMEDIATELY - NO CLOUDFLARE CHECKS!
         // Try to fill last name first (it's the first field on Missing Money)
-        const lastNameFilled = await fillField(lastName, 'lastName', [
+        const lastNameFilled = await fillField(cleanedLastName, 'lastName', [
             'input[name*="lastName" i]',
             'input[id*="lastName" i]',
             'input[name*="last" i]',
@@ -374,7 +401,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         ]);
         
         // Try to fill first name
-        const firstNameFilled = await fillField(firstName, 'firstName', [
+        const firstNameFilled = await fillField(cleanedFirstName, 'firstName', [
             'input[name*="firstName" i]',
             'input[id*="firstName" i]',
             'input[name*="first" i]',

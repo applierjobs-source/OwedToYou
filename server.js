@@ -2031,7 +2031,12 @@ const server = http.createServer((req, res) => {
         const imageUrl = decodeURIComponent(parsedUrl.query.url);
         console.log(`[PROFILE PROXY] Proxying image: ${imageUrl.substring(0, 60)}...`);
         
-        https.get(imageUrl, (imageRes) => {
+        const https = require('https');
+        const http = require('http');
+        const urlObj = new URL(imageUrl);
+        const client = urlObj.protocol === 'https:' ? https : http;
+        
+        client.get(imageUrl, (imageRes) => {
             const headers = {
                 'Content-Type': imageRes.headers['content-type'] || 'image/jpeg',
                 'Access-Control-Allow-Origin': '*',
