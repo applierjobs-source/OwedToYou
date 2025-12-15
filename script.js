@@ -1749,13 +1749,23 @@ function createEntryHTML(user, rank) {
     
     // Check localStorage for profile pic if not in user object
     let profilePic = user.profilePic;
+    const cleanUserHandle = cleanHandle(user.handle);
+    
     if (!profilePic || profilePic.length === 0) {
         const storedProfilePics = loadProfilePicsFromStorage();
-        const cleanUserHandle = cleanHandle(user.handle);
-        profilePic = storedProfilePics[user.handle] || storedProfilePics[cleanUserHandle] || null;
+        // Try multiple handle formats
+        profilePic = storedProfilePics[user.handle] || 
+                     storedProfilePics[cleanUserHandle] || 
+                     storedProfilePics[`@${user.handle}`] ||
+                     storedProfilePics[`@${cleanUserHandle}`] ||
+                     null;
         if (profilePic) {
-            console.log(`🖼️ createEntryHTML: Found profilePic in localStorage for ${user.handle}`);
+            console.log(`🖼️ createEntryHTML: Found profilePic in localStorage for ${user.handle}: ${profilePic.substring(0, 50)}...`);
+        } else {
+            console.log(`⚠️⚠️⚠️ createEntryHTML: No profilePic found in localStorage for ${user.handle} (tried: ${user.handle}, ${cleanUserHandle}, @${user.handle}, @${cleanUserHandle})`);
         }
+    } else {
+        console.log(`✅ createEntryHTML: Using profilePic from user object for ${user.handle}: ${profilePic.substring(0, 50)}...`);
     }
     
     // Create profile picture HTML with fallback
