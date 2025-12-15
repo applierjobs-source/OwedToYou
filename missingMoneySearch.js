@@ -1836,10 +1836,18 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         }
         
         // Clean up results and remove duplicates
-        // IMPORTANT: Be very lenient - only filter truly invalid entities
+        // IMPORTANT: Only include results where entity name contains both first and last name
         const uniqueResults = [];
         const seen = new Set();
         let filteredCount = 0;
+        
+        // Normalize names for matching (case-insensitive, remove extra spaces)
+        const normalizedFirstName = firstName.trim().toLowerCase();
+        const normalizedLastName = lastName.trim().toLowerCase();
+        const normalizedFullName = `${normalizedFirstName} ${normalizedLastName}`;
+        
+        console.log(`🔍 Filtering results to only include entities containing: "${normalizedFullName}"`);
+        
         results.forEach(r => {
             // Clean entity name one more time to remove any remaining button text
             let cleanEntity = r.entity.trim();
@@ -1870,7 +1878,6 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             }
             
             // Only filter if entity is completely empty or just whitespace
-            // DO NOT filter based on name matching (user's name should be included)
             if (!cleanEntity || cleanEntity.length < 1) {
                 filteredCount++;
                 if (filteredCount <= 5) {
@@ -1886,6 +1893,21 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             
             // If still too short, skip only if it's truly invalid
             if (cleanEntity.length < 1) {
+                return;
+            }
+            
+            // CRITICAL: Only include results where entity name contains both first and last name
+            const normalizedEntity = cleanEntity.toLowerCase();
+            const hasFirstName = normalizedEntity.includes(normalizedFirstName);
+            const hasLastName = normalizedEntity.includes(normalizedLastName);
+            const hasFullName = normalizedEntity.includes(normalizedFullName);
+            
+            // Check if entity contains both names (either as full name or separately)
+            if (!hasFullName && !(hasFirstName && hasLastName)) {
+                filteredCount++;
+                if (filteredCount <= 10) {
+                    console.log(`🚫 Filtered out entity: "${cleanEntity}" (does not contain both "${normalizedFirstName}" and "${normalizedLastName}")`);
+                }
                 return;
             }
             
