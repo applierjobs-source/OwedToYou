@@ -1861,8 +1861,20 @@ function displayLeaderboard(users) {
     console.log(`📊 displayLeaderboard called with ${users.length} users`);
     console.log(`📊 First user profilePic check:`, users[0] ? { handle: users[0].handle, hasPic: !!users[0].profilePic, pic: users[0].profilePic ? users[0].profilePic.substring(0, 50) + '...' : 'none' } : 'no users');
     
+    // Sort users by amount (descending) - highest amount first
+    // Placeholders should go to the bottom
+    const sortedUsers = [...users].sort((a, b) => {
+        // Placeholders always go to bottom
+        if (a.isPlaceholder && !b.isPlaceholder) return 1;
+        if (!a.isPlaceholder && b.isPlaceholder) return -1;
+        // Sort by amount descending (highest first)
+        return (b.amount || 0) - (a.amount || 0);
+    });
+    
+    console.log(`📊 Sorted ${sortedUsers.length} users by amount (descending)`);
+    
     // Ensure profile pictures from localStorage are loaded before displaying
-    const usersWithPics = users.map(user => {
+    const usersWithPics = sortedUsers.map(user => {
         if (!user.profilePic) {
             const storedProfilePics = loadProfilePicsFromStorage();
             const cleanUserHandle = cleanHandle(user.handle);
