@@ -1898,13 +1898,26 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             }
             
             // CRITICAL: Only include results where entity name contains both first and last name
-            const normalizedEntity = cleanEntity.toLowerCase();
+            // Normalize entity name for matching (remove punctuation, extra spaces)
+            const normalizedEntity = cleanEntity.toLowerCase()
+                .replace(/[.,;:!?]/g, ' ') // Replace punctuation with spaces
+                .replace(/\s+/g, ' ') // Normalize whitespace
+                .trim();
+            
+            // Check for full name match (e.g., "tom cruise", "cruise tom")
+            const hasFullName = normalizedEntity.includes(normalizedFullName) || 
+                               normalizedEntity.includes(`${normalizedLastName} ${normalizedFirstName}`);
+            
+            // Check for individual name matches
             const hasFirstName = normalizedEntity.includes(normalizedFirstName);
             const hasLastName = normalizedEntity.includes(normalizedLastName);
-            const hasFullName = normalizedEntity.includes(normalizedFullName);
             
-            // Check if entity contains both names (either as full name or separately)
-            if (!hasFullName && !(hasFirstName && hasLastName)) {
+            // Also check for last name first format (e.g., "CRUISE, TOM" or "CRUISE TOM")
+            const lastNameFirst = normalizedEntity.includes(`${normalizedLastName}, ${normalizedFirstName}`) ||
+                                 normalizedEntity.includes(`${normalizedLastName} ${normalizedFirstName}`);
+            
+            // Check if entity contains both names (either as full name or separately, in any order)
+            if (!hasFullName && !lastNameFirst && !(hasFirstName && hasLastName)) {
                 filteredCount++;
                 if (filteredCount <= 10) {
                     console.log(`🚫 Filtered out entity: "${cleanEntity}" (does not contain both "${normalizedFirstName}" and "${normalizedLastName}")`);
