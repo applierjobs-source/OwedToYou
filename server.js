@@ -2026,6 +2026,27 @@ const server = http.createServer((req, res) => {
         return;
     }
     
+    // Handle profile picture proxy (to bypass CORS)
+    if (parsedUrl.pathname === '/api/profile-pic-proxy' && parsedUrl.query.url) {
+        const imageUrl = decodeURIComponent(parsedUrl.query.url);
+        console.log(`[PROFILE PROXY] Proxying image: ${imageUrl.substring(0, 60)}...`);
+        
+        https.get(imageUrl, (imageRes) => {
+            const headers = {
+                'Content-Type': imageRes.headers['content-type'] || 'image/jpeg',
+                'Access-Control-Allow-Origin': '*',
+                'Cache-Control': 'public, max-age=86400'
+            };
+            res.writeHead(200, headers);
+            imageRes.pipe(res);
+        }).on('error', (err) => {
+            console.error(`[PROFILE PROXY] Error proxying image:`, err.message);
+            res.writeHead(500, corsHeaders);
+            res.end(JSON.stringify({ success: false, error: err.message }));
+        });
+        return;
+    }
+    
     // Handle profile picture fetch
     if (parsedUrl.pathname === '/api/profile-pic' && parsedUrl.query.username) {
         const username = parsedUrl.query.username.replace('@', '').trim();

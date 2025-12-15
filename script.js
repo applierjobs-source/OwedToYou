@@ -1558,18 +1558,24 @@ async function loadProfilePicturesInBackground(users) {
                 const profilePictureDiv = entry.querySelector('.profile-picture');
                 if (profilePictureDiv && !profilePictureDiv.querySelector('img')) {
                     const img = document.createElement('img');
-                    img.src = user.profilePic;
+                    // Use proxy endpoint to bypass CORS
+                    const apiBase = window.location.origin;
+                    img.src = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(user.profilePic)}`;
                     img.alt = user.name;
                     img.style.width = '100%';
                     img.style.height = '100%';
                     img.style.borderRadius = '50%';
                     img.style.objectFit = 'cover';
                     img.onerror = function() {
+                        console.log(`[${index}] ❌ Image failed to load for ${user.handle} (CORS or network error), showing initials`);
+                        this.onerror = null; // Prevent infinite loop
                         this.remove();
-                        profilePictureDiv.innerHTML = getInitials(user.name);
-                        profilePictureDiv.style.display = 'flex';
-                        profilePictureDiv.style.alignItems = 'center';
-                        profilePictureDiv.style.justifyContent = 'center';
+                        if (profilePictureDiv) {
+                            profilePictureDiv.innerHTML = getInitials(user.name);
+                            profilePictureDiv.style.display = 'flex';
+                            profilePictureDiv.style.alignItems = 'center';
+                            profilePictureDiv.style.justifyContent = 'center';
+                        }
                     };
                     profilePictureDiv.innerHTML = '';
                     profilePictureDiv.appendChild(img);
@@ -1683,16 +1689,22 @@ async function loadProfilePicturesInBackground(users) {
                     };
                     
                     img.onerror = function() {
-                        console.log(`[${index}] ❌ Image failed to load for ${user.handle}, showing initials`);
-                        profilePictureDiv.innerHTML = initials;
-                        profilePictureDiv.style.display = 'flex';
-                        profilePictureDiv.style.alignItems = 'center';
-                        profilePictureDiv.style.justifyContent = 'center';
+                        console.log(`[${index}] ❌ Image failed to load for ${user.handle} (CORS or network error), showing initials`);
+                        this.onerror = null; // Prevent infinite loop
+                        if (profilePictureDiv) {
+                            profilePictureDiv.innerHTML = initials;
+                            profilePictureDiv.style.display = 'flex';
+                            profilePictureDiv.style.alignItems = 'center';
+                            profilePictureDiv.style.justifyContent = 'center';
+                        }
                     };
+                    img.crossOrigin = 'anonymous'; // Try to allow CORS
                     
-                    // Start loading the image
-                    console.log(`[${index}] 🖼️ Starting to load image: ${profilePic.substring(0, 80)}...`);
-                    img.src = profilePic;
+                    // Start loading the image via proxy to bypass CORS
+                    const apiBase = window.location.origin;
+                    const proxyUrl = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(profilePic)}`;
+                    console.log(`[${index}] 🖼️ Starting to load image via proxy: ${proxyUrl.substring(0, 80)}...`);
+                    img.src = proxyUrl;
                     
                     // Fallback: if image doesn't load within 10 seconds, show initials
                     setTimeout(() => {
@@ -1717,10 +1729,22 @@ async function loadProfilePicturesInBackground(users) {
                         if (profilePictureDiv) {
                             console.log(`[${index}] ✅ Found entry by name match, updating profile picture`);
                             const img = new Image();
-                            img.src = profilePic;
+                            const apiBase = window.location.origin;
+                            img.src = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(profilePic)}`;
+                            img.onerror = function() {
+                                this.onerror = null;
+                                if (profilePictureDiv) {
+                                    profilePictureDiv.innerHTML = getInitials(user.name);
+                                    profilePictureDiv.style.display = 'flex';
+                                    profilePictureDiv.style.alignItems = 'center';
+                                    profilePictureDiv.style.justifyContent = 'center';
+                                }
+                            };
                             img.onload = function() {
-                                profilePictureDiv.innerHTML = '';
-                                profilePictureDiv.appendChild(img);
+                                if (profilePictureDiv) {
+                                    profilePictureDiv.innerHTML = '';
+                                    profilePictureDiv.appendChild(img);
+                                }
                             };
                             break;
                         }
@@ -1772,11 +1796,13 @@ function createEntryHTML(user, rank) {
     let profilePicHtml = '';
     if (profilePic && profilePic.length > 0) {
         console.log(`🖼️✅✅✅ createEntryHTML: Creating img tag for ${user.handle} with profilePic: ${profilePic.substring(0, 50)}...`);
-        // Escape the profilePic URL for HTML
-        const escapedProfilePic = profilePic.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        // Use proxy endpoint to bypass CORS
+        const apiBase = window.location.origin;
+        const proxyUrl = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(profilePic)}`;
+        const escapedProxyUrl = proxyUrl.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         const escapedInitials = initials.replace(/'/g, "\\'");
         // Use a more robust onerror handler that checks for parent element existence
-        profilePicHtml = `<img src="${escapedProfilePic}" alt="${escapedName}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;" crossorigin="anonymous" onerror="(function(img){img.onerror=null;img.style.display='none';var parent=img.parentElement;if(parent){parent.innerHTML='${escapedInitials}';parent.style.display='flex';parent.style.alignItems='center';parent.style.justifyContent='center';}})(this);">`;
+        profilePicHtml = `<img src="${escapedProxyUrl}" alt="${escapedName}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;" onerror="(function(img){img.onerror=null;img.style.display='none';var parent=img.parentElement;if(parent){parent.innerHTML='${escapedInitials}';parent.style.display='flex';parent.style.alignItems='center';parent.style.justifyContent='center';}})(this);">`;
     } else {
         console.log(`⚠️⚠️⚠️ createEntryHTML: No profilePic for ${user.handle}, using initials: ${initials}`);
         profilePicHtml = initials;
