@@ -2038,9 +2038,34 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             }
         }
         
-        // If we still have no results, return empty
-        // CRITICAL: If we still have no results after cleaning, return the original results
-        // This ensures we ALWAYS return something if results were found
+        // If we still have no results after name filtering, check if we should return empty or original results
+        // IMPORTANT: If name filtering filtered out all results, return empty results (success: true)
+        // This means the search worked but no results matched the person's name
+        if (uniqueResults.length === 0 && results.length > 0) {
+            console.log(`⚠️⚠️⚠️ WARNING: All ${results.length} results filtered out because they don't contain both "${normalizedFirstName}" and "${normalizedLastName}"`);
+            console.log('📊 This means the search worked, but no entities matched the person\'s name');
+            console.log('✅ Returning empty results (success: true) to indicate successful search with no matches');
+            
+            return {
+                success: true,
+                results: [],
+                totalAmount: 0,
+                message: `No unclaimed funds found matching "${normalizedFirstName} ${normalizedLastName}"`
+            };
+        }
+        
+        // If we have no results at all (search found nothing), return empty results with success: true
+        if (uniqueResults.length === 0 && results.length === 0) {
+            console.log('⚠️ No results found at all from Missing Money search');
+            return {
+                success: true,
+                results: [],
+                totalAmount: 0,
+                message: 'No unclaimed funds found'
+            };
+        }
+        
+        // Legacy fallback code (should not be reached, but kept for safety)
         if (uniqueResults.length === 0 && results.length > 0) {
             console.log('⚠️⚠️⚠️ WARNING: All results filtered out during cleaning! Returning original results ⚠️⚠️⚠️');
             console.log('📊 Original results count:', results.length);
