@@ -1553,11 +1553,7 @@ function generateLeaderboard(searchHandle) {
 async function loadProfilePicturesInBackground(users) {
     console.log(`Loading profile pictures for ${users.length} users...`);
     
-    // On mobile, add a small delay to let initial images load first
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    if (isMobile) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-    }
+    // CRITICAL: No delays - load immediately for instant display
     
     // Load profile pictures for all users in parallel
     const profilePicPromises = users.map(async (user, index) => {
@@ -1652,8 +1648,11 @@ async function loadProfilePicturesInBackground(users) {
             const cleanUserHandle = cleanHandle(user.handle);
             
             while (attempts < maxAttempts && !entry) {
-                // Wait a bit for DOM to be ready (increasing delay)
-                await new Promise(resolve => setTimeout(resolve, 200 * (attempts + 1)));
+                // CRITICAL: No delays - check immediately for instant display
+                // Only wait if DOM truly not ready (first attempt only, minimal delay)
+                if (attempts > 0) {
+                    await new Promise(resolve => setTimeout(resolve, 50)); // Minimal delay only on retries
+                }
                 
                 // Find the entry by data-handle attribute (most reliable)
                 entry = document.querySelector(`.leaderboard-entry[data-handle="${cleanUserHandle}"]`);
@@ -1701,8 +1700,9 @@ async function loadProfilePicturesInBackground(users) {
                     // Preload image before inserting to prevent flickering
                     const img = new Image();
                     img.alt = user.name;
-                    img.loading = 'eager'; // Force immediate loading on mobile
-                    img.decoding = 'sync'; // Synchronous decoding for mobile
+                    img.loading = 'eager'; // Force immediate loading
+                    img.decoding = 'sync'; // Synchronous decoding
+                    img.fetchPriority = 'high'; // CRITICAL: High priority for instant display
                     // CRITICAL: Mobile-optimized styles to ensure display
                     img.style.width = '100%';
                     img.style.height = '100%';
@@ -1775,8 +1775,9 @@ async function loadProfilePicturesInBackground(users) {
                             console.log(`[${index}] ✅ Found entry by name match, updating profile picture`);
                             const img = new Image();
                             const apiBase = window.location.origin;
-                            img.loading = 'eager'; // Force immediate loading on mobile
-                            img.decoding = 'sync'; // Synchronous decoding for mobile
+                            img.loading = 'eager'; // Force immediate loading
+                            img.decoding = 'sync'; // Synchronous decoding
+                            img.fetchPriority = 'high'; // CRITICAL: High priority for instant display
                             // CRITICAL: Mobile-optimized styles to ensure display
                             img.style.width = '100%';
                             img.style.height = '100%';
@@ -1826,31 +1827,30 @@ async function loadProfilePicturesInBackground(users) {
     // Don't wait for all to complete, just fire and forget
     Promise.all(profilePicPromises).then(() => {
         console.log('All profile picture requests completed');
-        // On mobile, check more aggressively and multiple times
+        // Check for failed images quickly (reduced delays for instant feedback)
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         if (isMobile) {
-            // Check immediately, then again after delays
-            setTimeout(() => checkAndRetryFailedProfilePictures(users), 2000);
-            setTimeout(() => checkAndRetryFailedProfilePictures(users), 5000);
-            setTimeout(() => checkAndRetryFailedProfilePictures(users), 10000);
-            setTimeout(() => checkAndRetryFailedProfilePictures(users), 15000);
+            // Check immediately, then again after shorter delays
+            setTimeout(() => checkAndRetryFailedProfilePictures(users), 500);
+            setTimeout(() => checkAndRetryFailedProfilePictures(users), 1500);
+            setTimeout(() => checkAndRetryFailedProfilePictures(users), 3000);
         } else {
             setTimeout(() => {
                 checkAndRetryFailedProfilePictures(users);
-            }, 5000);
+            }, 1000);
         }
     }).catch(err => {
         console.error('Some profile pictures failed to load:', err);
-        // Still check for failed images even if some promises failed
+        // Still check for failed images even if some promises failed (reduced delays)
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         if (isMobile) {
-            setTimeout(() => checkAndRetryFailedProfilePictures(users), 2000);
-            setTimeout(() => checkAndRetryFailedProfilePictures(users), 5000);
-            setTimeout(() => checkAndRetryFailedProfilePictures(users), 10000);
+            setTimeout(() => checkAndRetryFailedProfilePictures(users), 500);
+            setTimeout(() => checkAndRetryFailedProfilePictures(users), 1500);
+            setTimeout(() => checkAndRetryFailedProfilePictures(users), 3000);
         } else {
             setTimeout(() => {
                 checkAndRetryFailedProfilePictures(users);
-            }, 5000);
+            }, 1000);
         }
     });
 }
@@ -2109,6 +2109,7 @@ function loadProfilePictureImage(imageUrl, profilePictureDiv, name, handle, meth
         img.alt = name;
         img.loading = 'eager';
         img.decoding = 'sync';
+        img.fetchPriority = 'high'; // CRITICAL: High priority for instant display
         // CRITICAL: Mobile-optimized styles to ensure display
         img.style.width = '100%';
         img.style.height = '100%';
@@ -2202,8 +2203,8 @@ function createEntryHTML(user, rank) {
         const escapedInitials = initials.replace(/'/g, "\\'");
         const escapedHandle = user.handle.replace(/'/g, "\\'");
         // Enhanced onerror handler that triggers immediate retry
-        // CRITICAL: Mobile-optimized inline styles to ensure display
-        profilePicHtml = `<img src="${escapedProxyUrl}" alt="${escapedName}" loading="eager" decoding="sync" style="width: 100% !important; height: 100% !important; border-radius: 50%; object-fit: cover !important; display: block !important; visibility: visible !important; opacity: 1 !important; position: absolute; top: 0; left: 0; z-index: 2; -webkit-backface-visibility: visible !important; backface-visibility: visible !important; transform: translateZ(0) !important; -webkit-transform: translateZ(0) !important; max-width: 100%; max-height: 100%;" onerror="(function(img,handle){img.onerror=null;img.style.display='none';var parent=img.parentElement;if(parent){parent.innerHTML='${escapedInitials}';parent.style.display='flex';parent.style.alignItems='center';parent.style.justifyContent='center';}if(typeof window.retrySingleProfilePicture==='function'){setTimeout(function(){window.retrySingleProfilePicture('${escapedHandle}');},1000);}})(this,'${escapedHandle}');">`;
+        // CRITICAL: Mobile-optimized inline styles + fetchpriority for instant display
+        profilePicHtml = `<img src="${escapedProxyUrl}" alt="${escapedName}" loading="eager" decoding="sync" fetchpriority="high" style="width: 100% !important; height: 100% !important; border-radius: 50%; object-fit: cover !important; display: block !important; visibility: visible !important; opacity: 1 !important; position: absolute; top: 0; left: 0; z-index: 2; -webkit-backface-visibility: visible !important; backface-visibility: visible !important; transform: translateZ(0) !important; -webkit-transform: translateZ(0) !important; max-width: 100%; max-height: 100%;" onerror="(function(img,handle){img.onerror=null;img.style.display='none';var parent=img.parentElement;if(parent){parent.innerHTML='${escapedInitials}';parent.style.display='flex';parent.style.alignItems='center';parent.style.justifyContent='center';}if(typeof window.retrySingleProfilePicture==='function'){setTimeout(function(){window.retrySingleProfilePicture('${escapedHandle}');},500);}})(this,'${escapedHandle}');">`;
     } else {
         console.log(`⚠️⚠️⚠️ createEntryHTML: No profilePic for ${user.handle}, using initials: ${initials}`);
         profilePicHtml = initials;
@@ -2280,24 +2281,41 @@ function displayLeaderboard(users) {
     
     leaderboard.classList.remove('hidden');
     
-    // CRITICAL: Ensure profile pictures display on mobile immediately after rendering
+    // CRITICAL: Preload all profile pictures IMMEDIATELY for instant display
+    const apiBase = window.location.origin;
+    usersWithPics.forEach(user => {
+        if (user.profilePic) {
+            const proxyUrl = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(user.profilePic)}`;
+            // Preload image immediately
+            const link = document.createElement('link');
+            link.rel = 'preload';
+            link.as = 'image';
+            link.href = proxyUrl;
+            link.fetchPriority = 'high';
+            document.head.appendChild(link);
+        }
+    });
+    
+    // CRITICAL: Ensure profile pictures display IMMEDIATELY (no delay)
+    ensureMobileProfilePicturesDisplay();
+    
+    // Also check after a tiny delay to catch any edge cases
     setTimeout(() => {
         ensureMobileProfilePicturesDisplay();
-    }, 100);
+    }, 10);
     
     // Smooth scroll to leaderboard
     leaderboard.scrollIntoView({ behavior: 'smooth', block: 'start' });
     
-    // Load profile pictures in background (non-blocking) - this will fetch missing ones
-    console.log(`🖼️ Starting to load profile pictures for ${usersWithPics.length} users...`);
-    // On mobile, delay background loading slightly to let initial render complete
+    // CRITICAL: Load profile pictures IMMEDIATELY (no delays) for instant display
+    console.log(`🖼️ Starting to load profile pictures for ${usersWithPics.length} users IMMEDIATELY...`);
+    // Start loading immediately - no delays
+    loadProfilePicturesInBackground(usersWithPics);
+    
+    // On mobile, also start continuous monitoring (but don't delay initial load)
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     if (isMobile) {
-        setTimeout(() => loadProfilePicturesInBackground(usersWithPics), 200);
-        // Start continuous monitoring on mobile
         startContinuousProfilePicMonitoring(usersWithPics);
-    } else {
-        loadProfilePicturesInBackground(usersWithPics);
     }
 }
 
@@ -3763,7 +3781,7 @@ function ensureMobileProfilePicturesDisplay() {
             const handle = img.closest('.leaderboard-entry')?.getAttribute('data-handle');
             if (handle && typeof window.retrySingleProfilePicture === 'function') {
                 console.log(`📱 Retrying profile picture for ${handle} on mobile`);
-                setTimeout(() => window.retrySingleProfilePicture(handle), 500 * (index + 1));
+                setTimeout(() => window.retrySingleProfilePicture(handle), 100 * (index + 1)); // Reduced delay for instant retry
             }
         }
     });
@@ -3789,9 +3807,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     // CRITICAL: Ensure profile pictures display on mobile
     ensureMobileProfilePicturesDisplay();
     
-    // Also check after a delay to catch dynamically loaded images
-    setTimeout(ensureMobileProfilePicturesDisplay, 1000);
-    setTimeout(ensureMobileProfilePicturesDisplay, 3000);
+    // Also check after minimal delays to catch dynamically loaded images
+    setTimeout(ensureMobileProfilePicturesDisplay, 50); // Immediate check
+    setTimeout(ensureMobileProfilePicturesDisplay, 200); // Quick follow-up
     
     if (!searchBtn) {
         console.error('❌ Search button not found in DOM!');
