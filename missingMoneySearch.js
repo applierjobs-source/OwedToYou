@@ -1842,8 +1842,9 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         let filteredCount = 0;
         
         // Normalize names for matching (case-insensitive, remove extra spaces)
-        const normalizedFirstName = firstName.trim().toLowerCase();
-        const normalizedLastName = lastName.trim().toLowerCase();
+        // Use cleaned names (without emojis) for matching
+        const normalizedFirstName = cleanedFirstName.trim().toLowerCase();
+        const normalizedLastName = cleanedLastName.trim().toLowerCase();
         const normalizedFullName = `${normalizedFirstName} ${normalizedLastName}`;
         
         console.log(`🔍 Filtering results to only include entities containing: "${normalizedFullName}"`);
@@ -1922,7 +1923,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             }
         });
         
-        console.log(`Final results count: ${uniqueResults.length} (filtered out ${filteredCount} invalid entities)`);
+        console.log(`Final results count: ${uniqueResults.length} (filtered out ${filteredCount} entities that don't contain both "${normalizedFirstName}" and "${normalizedLastName}")`);
         if (uniqueResults.length > 0) {
             console.log('Sample results:', uniqueResults.slice(0, 3).map(r => `${r.entity}: ${r.amount}`));
         } else if (noResults) {
