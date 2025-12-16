@@ -1162,6 +1162,107 @@ function saveProfilePicsToStorage(profilePics) {
     }
 }
 
+// CRITICAL: Convert image URL to base64 data URL for instant display
+async function convertImageToBase64(imageUrl) {
+    try {
+        const apiBase = window.location.origin;
+        const proxyUrl = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(imageUrl)}`;
+        
+        const response = await fetch(proxyUrl);
+        if (!response.ok) {
+            console.error(`Failed to fetch image for base64 conversion: ${response.status}`);
+            return null;
+        }
+        
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    } catch (error) {
+        console.error('Error converting image to base64:', error);
+        return null;
+    }
+}
+
+// CRITICAL: Get base64 version of profile picture (from cache or convert)
+async function getProfilePicBase64(handle, imageUrl) {
+    if (!imageUrl || !imageUrl.startsWith('http')) {
+        return null;
+    }
+    
+    const cleanHandleValue = cleanHandle(handle);
+    const base64Key = `${cleanHandleValue}_base64`;
+    const urlKey = `${cleanHandleValue}_url`;
+    
+    // Check if we have cached base64
+    try {
+        const stored = localStorage.getItem('leaderboardProfilePicsBase64');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            // Check if we have base64 for this handle and URL matches
+            if (parsed[base64Key] && parsed[urlKey] === imageUrl) {
+                console.log(`✅ Found cached base64 for ${handle}`);
+                return parsed[base64Key];
+            }
+        }
+    } catch (e) {
+        console.error('Error loading base64 cache:', e);
+    }
+    
+    // Convert to base64 and cache it
+    console.log(`🔄 Converting image to base64 for ${handle}...`);
+    const base64 = await convertImageToBase64(imageUrl);
+    if (base64) {
+        try {
+            const stored = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
+            stored[base64Key] = base64;
+            stored[urlKey] = imageUrl;
+            // Also store with original handle
+            stored[`${handle}_base64`] = base64;
+            stored[`${handle}_url`] = imageUrl;
+            localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(stored));
+            console.log(`✅ Cached base64 for ${handle}`);
+        } catch (e) {
+            console.error('Error saving base64 cache:', e);
+        }
+    }
+    
+    return base64;
+}
+
+// CRITICAL: Get profile picture (base64 if available, otherwise URL)
+function getProfilePicForDisplay(handle, imageUrl) {
+    if (!imageUrl || !imageUrl.startsWith('http')) {
+        return null;
+    }
+    
+    const cleanHandleValue = cleanHandle(handle);
+    const base64Key = `${cleanHandleValue}_base64`;
+    
+    // Check for base64 first (instant display)
+    try {
+        const stored = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
+        if (stored[base64Key]) {
+            console.log(`⚡ Using INSTANT base64 for ${handle}`);
+            return stored[base64Key];
+        }
+        // Also check with original handle
+        if (stored[`${handle}_base64`]) {
+            console.log(`⚡ Using INSTANT base64 for ${handle} (original handle)`);
+            return stored[`${handle}_base64`];
+        }
+    } catch (e) {
+        console.error('Error loading base64:', e);
+    }
+    
+    // Fallback to URL (will convert to base64 in background)
+    console.log(`📡 Using URL for ${handle} (will convert to base64 in background)`);
+    return imageUrl;
+}
+
 // Load Instagram names from localStorage
 function loadInstagramNamesFromStorage() {
     try {
@@ -1515,6 +1616,11 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
                 storedProfilePics[cleanHandleValue] = profilePic;
                 saveProfilePicsToStorage(storedProfilePics);
                 console.log(`✅✅✅ Saved profilePic to localStorage for ${handle} (new entry): ${profilePic.substring(0, 50)}...`);
+                
+                // CRITICAL: Convert to base64 in background for instant display next time
+                getProfilePicBase64(handle, profilePic).catch(err => {
+                    console.error(`Background base64 conversion failed for ${handle}:`, err);
+                });
             }
             
             // Verify profilePic is set in leaderboardData
@@ -1568,12 +1674,24 @@ async function loadProfilePicturesInBackground(users) {
                 const profilePictureDiv = entry.querySelector('.profile-picture');
                 if (profilePictureDiv && !profilePictureDiv.querySelector('img')) {
                     const img = document.createElement('img');
-                    // Use proxy endpoint to bypass CORS
-                    const apiBase = window.location.origin;
-                    img.src = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(user.profilePic)}`;
+                    // CRITICAL: Use base64 if available for instant display, otherwise use proxy
+                    const displayPic = getProfilePicForDisplay(user.handle, user.profilePic);
+                    const isBase64 = displayPic && displayPic.startsWith('data:image');
+                    if (isBase64) {
+                        img.src = displayPic; // Instant display - no network request!
+                        console.log(`⚡⚡⚡ INSTANT BASE64 DISPLAY for ${user.handle}`);
+                    } else {
+                        const apiBase = window.location.origin;
+                        img.src = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(displayPic)}`;
+                        // Convert to base64 in background for next time
+                        getProfilePicBase64(user.handle, displayPic).catch(err => {
+                            console.error(`Background base64 conversion failed:`, err);
+                        });
+                    }
                     img.alt = user.name;
-                    img.loading = 'eager'; // Force immediate loading on mobile
-                    img.decoding = 'sync'; // Synchronous decoding for mobile
+                    img.loading = 'eager'; // Force immediate loading
+                    img.decoding = 'sync'; // Synchronous decoding
+                    img.fetchPriority = 'high'; // CRITICAL: High priority for instant display
                     // CRITICAL: Mobile-optimized styles to ensure display
                     img.style.width = '100%';
                     img.style.height = '100%';
@@ -1640,6 +1758,11 @@ async function loadProfilePicturesInBackground(users) {
             storedProfilePics[cleanHandle(user.handle)] = profilePic; // Also save with cleaned handle
             saveProfilePicsToStorage(storedProfilePics);
             console.log(`[${index}] ✅ Saved profile pic to localStorage for ${user.handle}`);
+            
+            // CRITICAL: Convert to base64 in background for instant display next time
+            getProfilePicBase64(user.handle, profilePic).catch(err => {
+                console.error(`Background base64 conversion failed for ${user.handle}:`, err);
+            });
             
             // Try multiple times to find and update the DOM element (retry logic)
             let attempts = 0;
@@ -1988,6 +2111,11 @@ async function retryProfilePicture(failedEntry, users) {
                 storedProfilePics[cleanHandle(handle)] = freshProfilePic;
                 saveProfilePicsToStorage(storedProfilePics);
                 
+                // CRITICAL: Convert to base64 in background for instant display next time
+                getProfilePicBase64(handle, freshProfilePic).catch(err => {
+                    console.error(`Background base64 conversion failed:`, err);
+                });
+                
                 const userIndex = leaderboardData.findIndex(e => cleanHandle(e.handle) === cleanHandle(handle));
                 if (userIndex >= 0) {
                     leaderboardData[userIndex].profilePic = freshProfilePic;
@@ -2195,16 +2323,27 @@ function createEntryHTML(user, rank) {
     // Create profile picture HTML with fallback
     let profilePicHtml = '';
     if (profilePic && profilePic.length > 0) {
-        console.log(`🖼️✅✅✅ createEntryHTML: Creating img tag for ${user.handle} with profilePic: ${profilePic.substring(0, 50)}...`);
-        // Use proxy endpoint to bypass CORS
-        const apiBase = window.location.origin;
-        const proxyUrl = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(profilePic)}`;
-        const escapedProxyUrl = proxyUrl.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        // CRITICAL: Get base64 version for instant display (no network request)
+        const displayPic = getProfilePicForDisplay(user.handle, profilePic);
+        const isBase64 = displayPic && displayPic.startsWith('data:image');
+        
+        console.log(`🖼️✅✅✅ createEntryHTML: Creating img tag for ${user.handle} with ${isBase64 ? 'INSTANT BASE64' : 'URL'}: ${isBase64 ? 'data:image...' : displayPic.substring(0, 50)}...`);
+        
+        const escapedPic = isBase64 ? displayPic.replace(/"/g, '&quot;').replace(/'/g, '&#39;') : 
+                                      `${window.location.origin}/api/profile-pic-proxy?url=${encodeURIComponent(displayPic)}`.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         const escapedInitials = initials.replace(/'/g, "\\'");
         const escapedHandle = user.handle.replace(/'/g, "\\'");
+        
         // Enhanced onerror handler that triggers immediate retry
         // CRITICAL: Mobile-optimized inline styles + fetchpriority for instant display
-        profilePicHtml = `<img src="${escapedProxyUrl}" alt="${escapedName}" loading="eager" decoding="sync" fetchpriority="high" style="width: 100% !important; height: 100% !important; border-radius: 50%; object-fit: cover !important; display: block !important; visibility: visible !important; opacity: 1 !important; position: absolute; top: 0; left: 0; z-index: 2; -webkit-backface-visibility: visible !important; backface-visibility: visible !important; transform: translateZ(0) !important; -webkit-transform: translateZ(0) !important; max-width: 100%; max-height: 100%;" onerror="(function(img,handle){img.onerror=null;img.style.display='none';var parent=img.parentElement;if(parent){parent.innerHTML='${escapedInitials}';parent.style.display='flex';parent.style.alignItems='center';parent.style.justifyContent='center';}if(typeof window.retrySingleProfilePicture==='function'){setTimeout(function(){window.retrySingleProfilePicture('${escapedHandle}');},500);}})(this,'${escapedHandle}');">`;
+        profilePicHtml = `<img src="${escapedPic}" alt="${escapedName}" loading="eager" decoding="sync" fetchpriority="high" style="width: 100% !important; height: 100% !important; border-radius: 50%; object-fit: cover !important; display: block !important; visibility: visible !important; opacity: 1 !important; position: absolute; top: 0; left: 0; z-index: 2; -webkit-backface-visibility: visible !important; backface-visibility: visible !important; transform: translateZ(0) !important; -webkit-transform: translateZ(0) !important; max-width: 100%; max-height: 100%;" onerror="(function(img,handle){img.onerror=null;img.style.display='none';var parent=img.parentElement;if(parent){parent.innerHTML='${escapedInitials}';parent.style.display='flex';parent.style.alignItems='center';parent.style.justifyContent='center';}if(typeof window.retrySingleProfilePicture==='function'){setTimeout(function(){window.retrySingleProfilePicture('${escapedHandle}');},500);}})(this,'${escapedHandle}');">`;
+        
+        // If using URL (not base64), convert to base64 in background for next time
+        if (!isBase64 && displayPic && displayPic.startsWith('http')) {
+            getProfilePicBase64(user.handle, displayPic).catch(err => {
+                console.error(`Background base64 conversion failed for ${user.handle}:`, err);
+            });
+        }
     } else {
         console.log(`⚠️⚠️⚠️ createEntryHTML: No profilePic for ${user.handle}, using initials: ${initials}`);
         profilePicHtml = initials;
@@ -2467,6 +2606,11 @@ async function handleSearchImpl() {
             storedProfilePicsToSave[handle] = profilePic;
             saveProfilePicsToStorage(storedProfilePicsToSave);
             console.log(`[PROFILE PIC FLOW] 💾 Saved profilePic to localStorage for ${cleanHandleValue}`);
+            
+            // CRITICAL: Convert to base64 in background for instant display next time
+            getProfilePicBase64(cleanHandleValue, profilePic).catch(err => {
+                console.error(`Background base64 conversion failed:`, err);
+            });
         } else {
             console.log(`[PROFILE PIC FLOW] ⚠️ No profile picture available for ${cleanHandleValue}`);
         }
