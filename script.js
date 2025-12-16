@@ -1482,7 +1482,7 @@ async function deleteFromLeaderboard(handle) {
                     return {
                         ...entry,
                         profilePic: existingPic || null, // Preserve existing profile pic if available
-                        isPlaceholder: entry.isPlaceholder || false
+                        isPlaceholder: false
                     };
                 });
             // Refresh display if leaderboard is visible
@@ -1629,7 +1629,7 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
                     return {
                         ...entry,
                         profilePic: finalProfilePic,
-                        isPlaceholder: false
+                        isPlaceholder: entry.isPlaceholder || false
                     };
                 });
             
