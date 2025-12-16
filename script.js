@@ -3716,33 +3716,64 @@ function showNoResultsModal(claimData) {
 
 // Show error modal
 function showErrorModal(message) {
-    const modal = document.getElementById('claimModal');
-    const form = document.getElementById('claimForm');
-    
-    // Hide the form and show message
-    form.style.display = 'none';
-    
-    const modalContent = modal.querySelector('.modal-content');
-    const existingMessage = modalContent.querySelector('.error-message');
-    
-    if (!existingMessage) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = 'error-message';
-        messageDiv.style.cssText = 'padding: 40px; text-align: center;';
-        messageDiv.innerHTML = `
-            <div style="font-size: 3rem; margin-bottom: 20px;">⚠️</div>
-            <h2 style="margin-bottom: 16px; color: #d32f2f;">Error</h2>
-            <p style="color: #666; margin-bottom: 30px;">
-                ${message}
-            </p>
-            <button class="btn btn-submit" onclick="closeClaimModal(); location.reload();" style="margin: 0 auto;">
-                Close
-            </button>
-        `;
-        modalContent.appendChild(messageDiv);
+    // Use progress modal to show error (it's already visible during search)
+    const progressModal = document.getElementById('progressModal');
+    if (progressModal) {
+        const progressMessage = document.getElementById('progressMessage');
+        if (progressMessage) {
+            progressMessage.textContent = message;
+            progressMessage.style.color = '#d32f2f';
+            progressMessage.style.fontWeight = '600';
+            progressMessage.className = 'progress-message error';
+        }
+        
+        // Hide all progress steps
+        for (let i = 1; i <= 6; i++) {
+            const step = document.getElementById(`step${i}`);
+            if (step) {
+                step.classList.remove('active', 'completed');
+            }
+        }
+        
+        // Add close button to progress body
+        const progressBody = progressModal.querySelector('.progress-body');
+        if (progressBody) {
+            // Remove existing close button if any
+            const existingCloseBtn = progressBody.querySelector('.error-close-btn');
+            if (existingCloseBtn) {
+                existingCloseBtn.remove();
+            }
+            
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'btn btn-submit error-close-btn';
+            closeBtn.textContent = 'Close';
+            closeBtn.style.marginTop = '30px';
+            closeBtn.style.width = '200px';
+            closeBtn.onclick = function() {
+                hideProgressModal();
+                searchInProgress = false;
+                const searchBtn = document.getElementById('searchBtn');
+                if (searchBtn) {
+                    searchBtn.disabled = false;
+                    searchBtn.textContent = 'Search';
+                }
+            };
+            progressBody.appendChild(closeBtn);
+        }
+        
+        progressModal.classList.remove('hidden');
+        console.log('✅ Error shown in progress modal');
+        return;
     }
     
-    modal.classList.remove('hidden');
+    // Fallback: use alert if progress modal not available
+    alert(message);
+    searchInProgress = false;
+    const searchBtn = document.getElementById('searchBtn');
+    if (searchBtn) {
+        searchBtn.disabled = false;
+        searchBtn.textContent = 'Search';
+    }
 }
 
 // Show results modal with unclaimed funds
