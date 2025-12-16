@@ -2938,9 +2938,28 @@ async function handleSearchImpl() {
         
         // Show user-friendly error message in modal instead of alert
         let errorMessage = 'An error occurred while searching. Please try again.';
-        if (error.message && error.message.includes('timeout')) {
-            errorMessage = 'Request timed out. Instagram may be slow or blocking requests. Please try again in a moment, or search by name directly using the link below.';
+        
+        // Provide more specific error messages based on error type
+        if (error.message) {
+            if (error.message.includes('timeout')) {
+                errorMessage = 'Request timed out. Instagram may be slow or blocking requests. Please try again in a moment, or search by name directly using the link below.';
+            } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                errorMessage = 'Network error. Please check your internet connection and try again.';
+            } else if (error.message.includes('Instagram') || error.message.includes('profile')) {
+                errorMessage = `Instagram error: ${error.message}. You can try searching by full name directly using the link below.`;
+            } else if (error.message.includes('Missing Money') || error.message.includes('missingmoney')) {
+                errorMessage = `Search error: ${error.message}. Please try again or search by name directly.`;
+            } else {
+                // Include the actual error message for debugging
+                errorMessage = `An error occurred: ${error.message}. Please try again or search by name directly using the link below.`;
+            }
         }
+        
+        console.error('❌ Full error details:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        });
         
         // Use error modal instead of alert
         showErrorModal(errorMessage);
