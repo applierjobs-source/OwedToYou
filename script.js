@@ -4297,14 +4297,26 @@ document.addEventListener('DOMContentLoaded', async function() {
     await loadLeaderboard();
     
     // Always show leaderboard if it has entries (on page load)
+    const leaderboard = document.getElementById('leaderboard');
+    if (!leaderboard) {
+        console.error('❌ Leaderboard element not found in DOM!');
+        return;
+    }
+    
     if (leaderboardData.length > 0) {
+        console.log(`📊 Page load: Displaying leaderboard with ${leaderboardData.length} entries`);
         displayLeaderboard(leaderboardData);
+        
+        // CRITICAL: Force leaderboard to be visible on page load
+        leaderboard.classList.remove('hidden');
+        leaderboard.style.display = 'block';
+        leaderboard.style.visibility = 'visible';
+        leaderboard.style.opacity = '1';
+        console.log('✅ Leaderboard forced visible on page load');
     } else {
         // Hide leaderboard if empty
-        const leaderboard = document.getElementById('leaderboard');
-        if (leaderboard) {
-            leaderboard.classList.add('hidden');
-        }
+        leaderboard.classList.add('hidden');
+        console.log('⚠️ Leaderboard hidden - no entries');
     }
 });
 
