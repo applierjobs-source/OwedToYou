@@ -2339,31 +2339,24 @@ function createEntryHTML(user, rank) {
     // Create profile picture HTML with fallback
     let profilePicHtml = '';
     if (profilePic && profilePic.length > 0) {
-        // CRITICAL: profilePic should already be base64 at this point (pre-converted)
         const isBase64 = profilePic.startsWith('data:image');
+        const originalUrl = isBase64 ? null : profilePic;
         
-        console.log(`🖼️✅✅✅ createEntryHTML: Creating img tag for ${user.handle} with ${isBase64 ? 'INSTANT BASE64' : 'URL'}: ${isBase64 ? 'data:image...' : profilePic.substring(0, 50)}...`);
+        console.log(`🖼️ createEntryHTML: ${user.handle} - ${isBase64 ? 'BASE64 (INSTANT)' : 'URL (via proxy)'}`);
         
-        // CRITICAL: Use base64 directly - NO network request, INSTANT display
+        // Use base64 if available (instant), otherwise use proxy URL (fast)
         const escapedPic = isBase64 ? profilePic.replace(/"/g, '&quot;').replace(/'/g, '&#39;') : 
                                       `${window.location.origin}/api/profile-pic-proxy?url=${encodeURIComponent(profilePic)}`.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         const escapedInitials = initials.replace(/'/g, "\\'");
         const escapedHandle = user.handle.replace(/'/g, "\\'");
+        const escapedUrl = originalUrl ? originalUrl.replace(/'/g, "\\'") : '';
         
-        // CRITICAL: Enhanced onload handler to convert to base64 immediately when image loads (for URL fallback)
+        // CRITICAL: Convert to base64 when image loads successfully (for next time)
         // Enhanced onerror handler that triggers immediate retry
         // CRITICAL: Mobile-optimized inline styles + fetchpriority for instant display
-        profilePicHtml = `<img src="${escapedPic}" alt="${escapedName}" loading="eager" decoding="sync" fetchpriority="high" style="width: 100% !important; height: 100% !important; border-radius: 50%; object-fit: cover !important; display: block !important; visibility: visible !important; opacity: 1 !important; position: absolute; top: 0; left: 0; z-index: 2; -webkit-backface-visibility: visible !important; backface-visibility: visible !important; transform: translateZ(0) !important; -webkit-transform: translateZ(0) !important; max-width: 100%; max-height: 100%;" onload="(function(img,handle,url){if(!img.src.startsWith('data:')&&typeof window.getProfilePicBase64==='function'){window.getProfilePicBase64(handle,url).catch(function(e){console.error('Base64 conversion failed:',e);});}})(this,'${escapedHandle}','${profilePic.replace(/'/g, "\\'")}');" onerror="(function(img,handle){img.onerror=null;img.style.display='none';var parent=img.parentElement;if(parent){parent.innerHTML='${escapedInitials}';parent.style.display='flex';parent.style.alignItems='center';parent.style.justifyContent='center';}if(typeof window.retrySingleProfilePicture==='function'){setTimeout(function(){window.retrySingleProfilePicture('${escapedHandle}');},500);}})(this,'${escapedHandle}');">`;
-        
-        // If using URL (not base64), also start conversion immediately
-        if (!isBase64 && profilePic && profilePic.startsWith('http')) {
-            // Start conversion immediately (don't wait)
-            getProfilePicBase64(user.handle, profilePic).catch(err => {
-                console.error(`Background base64 conversion failed for ${user.handle}:`, err);
-            });
-        }
+        profilePicHtml = `<img src="${escapedPic}" alt="${escapedName}" loading="eager" decoding="sync" fetchpriority="high" style="width: 100% !important; height: 100% !important; border-radius: 50%; object-fit: cover !important; display: block !important; visibility: visible !important; opacity: 1 !important; position: absolute; top: 0; left: 0; z-index: 2; -webkit-backface-visibility: visible !important; backface-visibility: visible !important; transform: translateZ(0) !important; -webkit-transform: translateZ(0) !important; max-width: 100%; max-height: 100%;" onload="(function(img,handle,url){if(url&&!img.src.startsWith('data:')&&typeof window.getProfilePicBase64==='function'){window.getProfilePicBase64(handle,url).catch(function(){});}})(this,'${escapedHandle}','${escapedUrl}');" onerror="(function(img,handle){img.onerror=null;img.style.display='none';var parent=img.parentElement;if(parent){parent.innerHTML='${escapedInitials}';parent.style.display='flex';parent.style.alignItems='center';parent.style.justifyContent='center';}if(typeof window.retrySingleProfilePicture==='function'){setTimeout(function(){window.retrySingleProfilePicture('${escapedHandle}');},500);}})(this,'${escapedHandle}');">`;
     } else {
-        console.log(`⚠️⚠️⚠️ createEntryHTML: No profilePic for ${user.handle}, using initials: ${initials}`);
+        console.log(`⚠️ createEntryHTML: No profilePic for ${user.handle}, using initials: ${initials}`);
         profilePicHtml = initials;
     }
     
@@ -2431,35 +2424,35 @@ async function displayLeaderboard(users) {
     
     console.log(`📊 Users with profile pics:`, usersWithPics.map(u => `${u.handle}: ${u.profilePic ? 'HAS PIC' : 'NO PIC'}`));
     
-    // CRITICAL: Pre-convert ALL URLs to base64 BEFORE rendering for INSTANT display
-    console.log(`🔄 Pre-converting all profile pictures to base64 for INSTANT display...`);
-    const conversionPromises = usersWithPics.map(async (user) => {
+    // CRITICAL: Check for base64 FIRST, but render IMMEDIATELY (don't wait for conversion)
+    // If base64 exists, use it. Otherwise use URL and convert in background.
+    const usersWithDisplayPics = usersWithPics.map(user => {
         if (user.profilePic && user.profilePic.startsWith('http')) {
-            // Check if we already have base64
-            const existingBase64 = getProfilePicForDisplay(user.handle, user.profilePic);
-            if (existingBase64 && existingBase64.startsWith('data:image')) {
-                // Already have base64, use it
-                return { ...user, profilePic: existingBase64 };
-            } else {
-                // Convert to base64 NOW before rendering
-                const base64 = await getProfilePicBase64(user.handle, user.profilePic);
-                if (base64) {
-                    console.log(`✅ Pre-converted ${user.handle} to base64 - INSTANT DISPLAY READY`);
-                    return { ...user, profilePic: base64 };
-                }
+            const base64 = getProfilePicForDisplay(user.handle, user.profilePic);
+            if (base64 && base64.startsWith('data:image')) {
+                // Use base64 for instant display
+                return { ...user, profilePic: base64 };
             }
+            // Use URL - will convert to base64 after it loads
         }
         return user;
     });
     
-    // Wait for all conversions to complete
-    const usersWithBase64 = await Promise.all(conversionPromises);
-    console.log(`✅ All profile pictures pre-converted to base64 - rendering INSTANT display`);
-    
-    // Generate HTML for all entries with base64 images (INSTANT display)
-    listContainer.innerHTML = usersWithBase64.map((user, index) => 
+    // Generate HTML IMMEDIATELY - don't wait for anything
+    listContainer.innerHTML = usersWithDisplayPics.map((user, index) => 
         createEntryHTML(user, index + 1)
     ).join('');
+    
+    // Convert URLs to base64 in background AFTER rendering (non-blocking)
+    usersWithPics.forEach(user => {
+        if (user.profilePic && user.profilePic.startsWith('http')) {
+            const base64 = getProfilePicForDisplay(user.handle, user.profilePic);
+            if (!base64 || !base64.startsWith('data:image')) {
+                // Start conversion immediately (non-blocking)
+                getProfilePicBase64(user.handle, user.profilePic).catch(() => {});
+            }
+        }
+    });
     
     leaderboard.classList.remove('hidden');
     
