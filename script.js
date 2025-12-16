@@ -2438,10 +2438,34 @@ async function displayLeaderboard(users) {
         return user;
     });
     
-    // Generate HTML IMMEDIATELY - don't wait for anything
+    // CRITICAL: Preload ALL images BEFORE rendering HTML to eliminate delay
+    const apiBase = window.location.origin;
+    usersWithDisplayPics.forEach(user => {
+        if (user.profilePic) {
+            const displayPic = getProfilePicForDisplay(user.handle, user.profilePic);
+            if (displayPic && !displayPic.startsWith('data:image')) {
+                // Preload via link tag for instant loading
+                const link = document.createElement('link');
+                link.rel = 'preload';
+                link.as = 'image';
+                link.href = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(displayPic)}`;
+                link.fetchPriority = 'high';
+                document.head.appendChild(link);
+                
+                // Also create Image object to start loading immediately
+                const preloadImg = new Image();
+                preloadImg.src = link.href;
+                preloadImg.fetchPriority = 'high';
+            }
+        }
+    });
+    
+    // Generate HTML IMMEDIATELY - images already preloading
     listContainer.innerHTML = usersWithDisplayPics.map((user, index) => 
         createEntryHTML(user, index + 1)
     ).join('');
+    
+    leaderboard.classList.remove('hidden');
     
     // Convert URLs to base64 in background AFTER rendering (non-blocking)
     usersWithPics.forEach(user => {
@@ -2453,65 +2477,6 @@ async function displayLeaderboard(users) {
             }
         }
     });
-    
-    leaderboard.classList.remove('hidden');
-    
-    // CRITICAL: Force load all profile pictures IMMEDIATELY
-    // This ensures images appear even if base64 conversion fails
-    setTimeout(() => {
-        usersWithPics.forEach((user, index) => {
-            if (user.profilePic) {
-                const entry = document.querySelector(`.leaderboard-entry[data-handle="${cleanHandle(user.handle)}"]`);
-                if (entry) {
-                    const profilePictureDiv = entry.querySelector('.profile-picture');
-                    if (profilePictureDiv && !profilePictureDiv.querySelector('img')) {
-                        // Force create and load image immediately
-                        const img = document.createElement('img');
-                        const displayPic = getProfilePicForDisplay(user.handle, user.profilePic);
-                        const isBase64 = displayPic && displayPic.startsWith('data:image');
-                        
-                        if (isBase64) {
-                            img.src = displayPic;
-                        } else {
-                            const apiBase = window.location.origin;
-                            img.src = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(displayPic)}`;
-                            // Convert to base64 when loaded
-                            img.onload = function() {
-                                getProfilePicBase64(user.handle, displayPic).catch(() => {});
-                            };
-                        }
-                        
-                        img.alt = user.name;
-                        img.loading = 'eager';
-                        img.decoding = 'sync';
-                        img.fetchPriority = 'high';
-                        img.style.width = '100%';
-                        img.style.height = '100%';
-                        img.style.borderRadius = '50%';
-                        img.style.objectFit = 'cover';
-                        img.style.display = 'block';
-                        img.style.visibility = 'visible';
-                        img.style.opacity = '1';
-                        img.style.position = 'absolute';
-                        img.style.top = '0';
-                        img.style.left = '0';
-                        img.style.zIndex = '2';
-                        img.onerror = function() {
-                            this.remove();
-                            if (profilePictureDiv) {
-                                profilePictureDiv.innerHTML = getInitials(user.name);
-                                profilePictureDiv.style.display = 'flex';
-                                profilePictureDiv.style.alignItems = 'center';
-                                profilePictureDiv.style.justifyContent = 'center';
-                            }
-                        };
-                        profilePictureDiv.innerHTML = '';
-                        profilePictureDiv.appendChild(img);
-                    }
-                }
-            }
-        });
-    }, 0); // Execute immediately
     
     // CRITICAL: Ensure profile pictures display IMMEDIATELY (no delay)
     ensureMobileProfilePicturesDisplay();
