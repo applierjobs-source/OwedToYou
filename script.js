@@ -1240,6 +1240,11 @@ async function getProfilePicBase64(handle, imageUrl) {
 
 // CRITICAL: Get profile picture (base64 if available, otherwise URL)
 function getProfilePicForDisplay(handle, imageUrl) {
+    // If already base64, return immediately
+    if (imageUrl && imageUrl.startsWith('data:image')) {
+        return imageUrl;
+    }
+    
     if (!imageUrl || !imageUrl.startsWith('http')) {
         return null;
     }
@@ -2334,26 +2339,26 @@ function createEntryHTML(user, rank) {
     // Create profile picture HTML with fallback
     let profilePicHtml = '';
     if (profilePic && profilePic.length > 0) {
-        // CRITICAL: Get base64 version for instant display (no network request)
-        const displayPic = getProfilePicForDisplay(user.handle, profilePic);
-        const isBase64 = displayPic && displayPic.startsWith('data:image');
+        // CRITICAL: profilePic should already be base64 at this point (pre-converted)
+        const isBase64 = profilePic.startsWith('data:image');
         
-        console.log(`🖼️✅✅✅ createEntryHTML: Creating img tag for ${user.handle} with ${isBase64 ? 'INSTANT BASE64' : 'URL'}: ${isBase64 ? 'data:image...' : displayPic.substring(0, 50)}...`);
+        console.log(`🖼️✅✅✅ createEntryHTML: Creating img tag for ${user.handle} with ${isBase64 ? 'INSTANT BASE64' : 'URL'}: ${isBase64 ? 'data:image...' : profilePic.substring(0, 50)}...`);
         
-        const escapedPic = isBase64 ? displayPic.replace(/"/g, '&quot;').replace(/'/g, '&#39;') : 
-                                      `${window.location.origin}/api/profile-pic-proxy?url=${encodeURIComponent(displayPic)}`.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        // CRITICAL: Use base64 directly - NO network request, INSTANT display
+        const escapedPic = isBase64 ? profilePic.replace(/"/g, '&quot;').replace(/'/g, '&#39;') : 
+                                      `${window.location.origin}/api/profile-pic-proxy?url=${encodeURIComponent(profilePic)}`.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         const escapedInitials = initials.replace(/'/g, "\\'");
         const escapedHandle = user.handle.replace(/'/g, "\\'");
         
-        // CRITICAL: Enhanced onload handler to convert to base64 immediately when image loads
+        // CRITICAL: Enhanced onload handler to convert to base64 immediately when image loads (for URL fallback)
         // Enhanced onerror handler that triggers immediate retry
         // CRITICAL: Mobile-optimized inline styles + fetchpriority for instant display
-        profilePicHtml = `<img src="${escapedPic}" alt="${escapedName}" loading="eager" decoding="sync" fetchpriority="high" style="width: 100% !important; height: 100% !important; border-radius: 50%; object-fit: cover !important; display: block !important; visibility: visible !important; opacity: 1 !important; position: absolute; top: 0; left: 0; z-index: 2; -webkit-backface-visibility: visible !important; backface-visibility: visible !important; transform: translateZ(0) !important; -webkit-transform: translateZ(0) !important; max-width: 100%; max-height: 100%;" onload="(function(img,handle,url){if(!img.src.startsWith('data:')&&typeof window.getProfilePicBase64==='function'){window.getProfilePicBase64(handle,url).catch(function(e){console.error('Base64 conversion failed:',e);});}})(this,'${escapedHandle}','${displayPic.replace(/'/g, "\\'")}');" onerror="(function(img,handle){img.onerror=null;img.style.display='none';var parent=img.parentElement;if(parent){parent.innerHTML='${escapedInitials}';parent.style.display='flex';parent.style.alignItems='center';parent.style.justifyContent='center';}if(typeof window.retrySingleProfilePicture==='function'){setTimeout(function(){window.retrySingleProfilePicture('${escapedHandle}');},500);}})(this,'${escapedHandle}');">`;
+        profilePicHtml = `<img src="${escapedPic}" alt="${escapedName}" loading="eager" decoding="sync" fetchpriority="high" style="width: 100% !important; height: 100% !important; border-radius: 50%; object-fit: cover !important; display: block !important; visibility: visible !important; opacity: 1 !important; position: absolute; top: 0; left: 0; z-index: 2; -webkit-backface-visibility: visible !important; backface-visibility: visible !important; transform: translateZ(0) !important; -webkit-transform: translateZ(0) !important; max-width: 100%; max-height: 100%;" onload="(function(img,handle,url){if(!img.src.startsWith('data:')&&typeof window.getProfilePicBase64==='function'){window.getProfilePicBase64(handle,url).catch(function(e){console.error('Base64 conversion failed:',e);});}})(this,'${escapedHandle}','${profilePic.replace(/'/g, "\\'")}');" onerror="(function(img,handle){img.onerror=null;img.style.display='none';var parent=img.parentElement;if(parent){parent.innerHTML='${escapedInitials}';parent.style.display='flex';parent.style.alignItems='center';parent.style.justifyContent='center';}if(typeof window.retrySingleProfilePicture==='function'){setTimeout(function(){window.retrySingleProfilePicture('${escapedHandle}');},500);}})(this,'${escapedHandle}');">`;
         
         // If using URL (not base64), also start conversion immediately
-        if (!isBase64 && displayPic && displayPic.startsWith('http')) {
+        if (!isBase64 && profilePic && profilePic.startsWith('http')) {
             // Start conversion immediately (don't wait)
-            getProfilePicBase64(user.handle, displayPic).catch(err => {
+            getProfilePicBase64(user.handle, profilePic).catch(err => {
                 console.error(`Background base64 conversion failed for ${user.handle}:`, err);
             });
         }
@@ -2386,7 +2391,7 @@ function createEntryHTML(user, rank) {
 }
 
 // Display leaderboard
-function displayLeaderboard(users) {
+async function displayLeaderboard(users) {
     const leaderboard = document.getElementById('leaderboard');
     const listContainer = document.getElementById('leaderboardList');
     
@@ -2426,8 +2431,33 @@ function displayLeaderboard(users) {
     
     console.log(`📊 Users with profile pics:`, usersWithPics.map(u => `${u.handle}: ${u.profilePic ? 'HAS PIC' : 'NO PIC'}`));
     
-    // Generate HTML for all entries immediately with profile pics if available
-    listContainer.innerHTML = usersWithPics.map((user, index) => 
+    // CRITICAL: Pre-convert ALL URLs to base64 BEFORE rendering for INSTANT display
+    console.log(`🔄 Pre-converting all profile pictures to base64 for INSTANT display...`);
+    const conversionPromises = usersWithPics.map(async (user) => {
+        if (user.profilePic && user.profilePic.startsWith('http')) {
+            // Check if we already have base64
+            const existingBase64 = getProfilePicForDisplay(user.handle, user.profilePic);
+            if (existingBase64 && existingBase64.startsWith('data:image')) {
+                // Already have base64, use it
+                return { ...user, profilePic: existingBase64 };
+            } else {
+                // Convert to base64 NOW before rendering
+                const base64 = await getProfilePicBase64(user.handle, user.profilePic);
+                if (base64) {
+                    console.log(`✅ Pre-converted ${user.handle} to base64 - INSTANT DISPLAY READY`);
+                    return { ...user, profilePic: base64 };
+                }
+            }
+        }
+        return user;
+    });
+    
+    // Wait for all conversions to complete
+    const usersWithBase64 = await Promise.all(conversionPromises);
+    console.log(`✅ All profile pictures pre-converted to base64 - rendering INSTANT display`);
+    
+    // Generate HTML for all entries with base64 images (INSTANT display)
+    listContainer.innerHTML = usersWithBase64.map((user, index) => 
         createEntryHTML(user, index + 1)
     ).join('');
     
