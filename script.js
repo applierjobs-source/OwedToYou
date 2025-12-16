@@ -2516,11 +2516,6 @@ async function displayLeaderboard(users) {
     // CRITICAL: Ensure profile pictures display IMMEDIATELY (no delay)
     ensureMobileProfilePicturesDisplay();
     
-    // Also check after a tiny delay to catch any edge cases
-    setTimeout(() => {
-        ensureMobileProfilePicturesDisplay();
-    }, 10);
-    
     // Smooth scroll to leaderboard
     leaderboard.scrollIntoView({ behavior: 'smooth', block: 'start' });
     
@@ -4026,12 +4021,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     const searchBtn = document.getElementById('searchBtn');
     const searchInput = document.getElementById('instagramHandle');
     
-    // CRITICAL: Ensure profile pictures display on mobile
+    // CRITICAL: Ensure profile pictures display immediately
     ensureMobileProfilePicturesDisplay();
-    
-    // Also check after minimal delays to catch dynamically loaded images
-    setTimeout(ensureMobileProfilePicturesDisplay, 50); // Immediate check
-    setTimeout(ensureMobileProfilePicturesDisplay, 200); // Quick follow-up
     
     if (!searchBtn) {
         console.error('❌ Search button not found in DOM!');
