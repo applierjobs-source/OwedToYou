@@ -2725,32 +2725,47 @@ async function handleSearchImpl() {
         }
         
         // CRITICAL: Convert to base64 IMMEDIATELY and save base64 (not URL) for instant display
+        // Wrap in try-catch to prevent base64 conversion errors from breaking the search
         if (profilePic) {
-            console.log(`[PROFILE PIC FLOW] 🔄 Converting profile pic to base64 IMMEDIATELY for ${cleanHandleValue}...`);
-            const base64 = await getProfilePicBase64(cleanHandleValue, profilePic);
-            if (base64) {
-                // Save BASE64 to localStorage (not URL) - instant display next time
-                const storedProfilePicsToSave = loadProfilePicsFromStorage();
-                storedProfilePicsToSave[cleanHandleValue] = base64; // Save base64, not URL
-                storedProfilePicsToSave[handle] = base64;
-                saveProfilePicsToStorage(storedProfilePicsToSave);
-                
-                // Also save to base64 cache
-                const base64Cache = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
-                base64Cache[`${cleanHandleValue}_base64`] = base64;
-                base64Cache[`${cleanHandleValue}_url`] = profilePic;
-                base64Cache[`${handle}_base64`] = base64;
-                base64Cache[`${handle}_url`] = profilePic;
-                localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(base64Cache));
-                
-                console.log(`[PROFILE PIC FLOW] ✅✅✅ Saved BASE64 to localStorage for ${cleanHandleValue} - INSTANT DISPLAY READY`);
-            } else {
-                // Fallback: save URL if base64 conversion fails
-                const storedProfilePicsToSave = loadProfilePicsFromStorage();
-                storedProfilePicsToSave[cleanHandleValue] = profilePic;
-                storedProfilePicsToSave[handle] = profilePic;
-                saveProfilePicsToStorage(storedProfilePicsToSave);
-                console.log(`[PROFILE PIC FLOW] ⚠️ Base64 conversion failed, saved URL instead`);
+            try {
+                console.log(`[PROFILE PIC FLOW] 🔄 Converting profile pic to base64 IMMEDIATELY for ${cleanHandleValue}...`);
+                const base64 = await getProfilePicBase64(cleanHandleValue, profilePic);
+                if (base64) {
+                    // Save BASE64 to localStorage (not URL) - instant display next time
+                    const storedProfilePicsToSave = loadProfilePicsFromStorage();
+                    storedProfilePicsToSave[cleanHandleValue] = base64; // Save base64, not URL
+                    storedProfilePicsToSave[handle] = base64;
+                    saveProfilePicsToStorage(storedProfilePicsToSave);
+                    
+                    // Also save to base64 cache
+                    const base64Cache = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
+                    base64Cache[`${cleanHandleValue}_base64`] = base64;
+                    base64Cache[`${cleanHandleValue}_url`] = profilePic;
+                    base64Cache[`${handle}_base64`] = base64;
+                    base64Cache[`${handle}_url`] = profilePic;
+                    localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(base64Cache));
+                    
+                    console.log(`[PROFILE PIC FLOW] ✅✅✅ Saved BASE64 to localStorage for ${cleanHandleValue} - INSTANT DISPLAY READY`);
+                } else {
+                    // Fallback: save URL if base64 conversion fails
+                    const storedProfilePicsToSave = loadProfilePicsFromStorage();
+                    storedProfilePicsToSave[cleanHandleValue] = profilePic;
+                    storedProfilePicsToSave[handle] = profilePic;
+                    saveProfilePicsToStorage(storedProfilePicsToSave);
+                    console.log(`[PROFILE PIC FLOW] ⚠️ Base64 conversion failed, saved URL instead`);
+                }
+            } catch (base64Error) {
+                console.error(`[PROFILE PIC FLOW] ❌ Error converting to base64:`, base64Error);
+                // Save URL as fallback - don't let base64 conversion break the search
+                try {
+                    const storedProfilePicsToSave = loadProfilePicsFromStorage();
+                    storedProfilePicsToSave[cleanHandleValue] = profilePic;
+                    storedProfilePicsToSave[handle] = profilePic;
+                    saveProfilePicsToStorage(storedProfilePicsToSave);
+                    console.log(`[PROFILE PIC FLOW] ⚠️ Saved URL as fallback after base64 error`);
+                } catch (saveError) {
+                    console.error(`[PROFILE PIC FLOW] ❌ Error saving URL fallback:`, saveError);
+                }
             }
         } else {
             console.log(`[PROFILE PIC FLOW] ⚠️ No profile picture available for ${cleanHandleValue}`);
@@ -2805,7 +2820,13 @@ async function handleSearchImpl() {
                 searchBtn.textContent = 'Search';
                 
                 // Start the search automatically (pass profile pic if available)
-                await startMissingMoneySearch(firstName, lastName, cleanHandleValue, profilePic);
+                // Wrap in try-catch to handle any errors from startMissingMoneySearch
+                try {
+                    await startMissingMoneySearch(firstName, lastName, cleanHandleValue, profilePic);
+                } catch (searchError) {
+                    console.error('❌ Error in startMissingMoneySearch:', searchError);
+                    throw searchError; // Re-throw to be caught by outer catch
+                }
                 searchInProgress = false;
             } else if (firstName && !lastName && fullName) {
                 // Handle single-word names (e.g., "Naval", "Madonna")
@@ -2815,7 +2836,12 @@ async function handleSearchImpl() {
                 searchBtn.textContent = 'Search';
                 
                 // Use firstName as both first and last name
-                await startMissingMoneySearch(firstName, firstName, cleanHandleValue, profilePic);
+                try {
+                    await startMissingMoneySearch(firstName, firstName, cleanHandleValue, profilePic);
+                } catch (searchError) {
+                    console.error('❌ Error in startMissingMoneySearch:', searchError);
+                    throw searchError; // Re-throw to be caught by outer catch
+                }
                 searchInProgress = false;
             } else {
                 console.log('⚠️ Could not extract name from Instagram');
@@ -2832,7 +2858,12 @@ async function handleSearchImpl() {
                     // Continue with search using handle as name
                     searchBtn.disabled = false;
                     searchBtn.textContent = 'Search';
-                    await startMissingMoneySearch(firstName, lastName, cleanHandleValue, profilePic);
+                    try {
+                        await startMissingMoneySearch(firstName, lastName, cleanHandleValue, profilePic);
+                    } catch (searchError) {
+                        console.error('❌ Error in startMissingMoneySearch (fallback):', searchError);
+                        throw searchError; // Re-throw to be caught by outer catch
+                    }
                     searchInProgress = false;
                     return;
                 }
@@ -2849,7 +2880,12 @@ async function handleSearchImpl() {
                         console.log(`✅ Using split name: "${firstName} ${lastName}"`);
                         searchBtn.disabled = false;
                         searchBtn.textContent = 'Search';
-                        await startMissingMoneySearch(firstName, lastName, cleanHandleValue, profilePic);
+                        try {
+                            await startMissingMoneySearch(firstName, lastName, cleanHandleValue, profilePic);
+                        } catch (searchError) {
+                            console.error('❌ Error in startMissingMoneySearch (split name):', searchError);
+                            throw searchError; // Re-throw to be caught by outer catch
+                        }
                         searchInProgress = false;
                         return;
                     } else if (nameParts.length === 1) {
@@ -2858,7 +2894,12 @@ async function handleSearchImpl() {
                         console.log(`✅ Using single-word name as both first and last: "${firstName}"`);
                         searchBtn.disabled = false;
                         searchBtn.textContent = 'Search';
-                        await startMissingMoneySearch(firstName, firstName, cleanHandleValue, profilePic);
+                        try {
+                            await startMissingMoneySearch(firstName, firstName, cleanHandleValue, profilePic);
+                        } catch (searchError) {
+                            console.error('❌ Error in startMissingMoneySearch (single word):', searchError);
+                            throw searchError; // Re-throw to be caught by outer catch
+                        }
                         searchInProgress = false;
                         return;
                     }
