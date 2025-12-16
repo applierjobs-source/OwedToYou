@@ -773,7 +773,21 @@ async function extractNameFromHTML(html, cleanUsername) {
 // First try local backend server, then fallback to browser methods
 async function getInstagramProfilePicture(username) {
     const cleanUsername = cleanHandle(username);
-    console.log(`[PROFILE PIC] Fetching profile picture for: ${cleanUsername}`);
+    
+    // CRITICAL: Check localStorage FIRST before making any network requests
+    const storedProfilePics = loadProfilePicsFromStorage();
+    const cachedPic = storedProfilePics[username] || 
+                      storedProfilePics[cleanUsername] || 
+                      storedProfilePics[`@${username}`] ||
+                      storedProfilePics[`@${cleanUsername}`] ||
+                      null;
+    
+    if (cachedPic) {
+        console.log(`[PROFILE PIC] ✅ Found cached profile picture for ${cleanUsername}, skipping fetch`);
+        return cachedPic;
+    }
+    
+    console.log(`[PROFILE PIC] Fetching profile picture for: ${cleanUsername} (not in cache)`);
     
     // Try local backend server first (if available)
     try {
@@ -1760,16 +1774,29 @@ async function loadProfilePicturesInBackground(users) {
             return;
         }
         
-        console.log(`[${index}] 🔍 Fetching profile picture for ${user.handle}...`);
-        let profilePic = null;
-        try {
-            profilePic = await getInstagramProfilePicture(user.handle);
-            console.log(`[${index}] ✅ Profile picture result for ${user.handle}:`, profilePic ? `Found: ${profilePic.substring(0, 80)}...` : '❌ Not found');
-        } catch (error) {
-            console.error(`[${index}] ❌ Error fetching profile picture for ${user.handle}:`, error);
-            console.error(`[${index}] Error message:`, error.message);
-            console.error(`[${index}] Error stack:`, error.stack);
-            profilePic = null; // Set to null on error
+        // CRITICAL: Check localStorage FIRST before fetching
+        const storedProfilePics = loadProfilePicsFromStorage();
+        const cleanUserHandle = cleanHandle(user.handle);
+        let profilePic = storedProfilePics[user.handle] || 
+                         storedProfilePics[cleanUserHandle] || 
+                         storedProfilePics[`@${user.handle}`] ||
+                         storedProfilePics[`@${cleanUserHandle}`] ||
+                         null;
+        
+        if (profilePic) {
+            console.log(`[${index}] ✅ Found profile pic in localStorage for ${user.handle}, skipping fetch`);
+            // Use cached profile pic
+        } else {
+            console.log(`[${index}] 🔍 No cached profile pic, fetching for ${user.handle}...`);
+            try {
+                profilePic = await getInstagramProfilePicture(user.handle);
+                console.log(`[${index}] ✅ Profile picture result for ${user.handle}:`, profilePic ? `Found: ${profilePic.substring(0, 80)}...` : '❌ Not found');
+            } catch (error) {
+                console.error(`[${index}] ❌ Error fetching profile picture for ${user.handle}:`, error);
+                console.error(`[${index}] Error message:`, error.message);
+                console.error(`[${index}] Error stack:`, error.stack);
+                profilePic = null; // Set to null on error
+            }
         }
         
         if (profilePic) {
@@ -2684,17 +2711,18 @@ async function handleSearchImpl() {
         console.log(`[PROFILE PIC FLOW] Starting profile picture fetch for handle: ${cleanHandleValue}`);
         console.log(`[PROFILE PIC FLOW] Name extraction result: ${fullName ? `SUCCESS: ${fullName}` : 'FAILED'}`);
         
-        // Check localStorage first as a fallback
+        // Check localStorage first - getInstagramProfilePicture also checks, but check here too to avoid unnecessary call
         const storedProfilePics = loadProfilePicsFromStorage();
         profilePic = storedProfilePics[cleanHandleValue] || storedProfilePics[handle] || null;
         
         if (profilePic) {
-            console.log(`[PROFILE PIC FLOW] ✅ Found cached profile picture for ${cleanHandleValue}: ${profilePic.substring(0, 60)}...`);
+            console.log(`[PROFILE PIC FLOW] ✅ Found cached profile picture for ${cleanHandleValue}`);
         } else {
             console.log(`[PROFILE PIC FLOW] 🔄 No cache found, fetching profile picture for ${cleanHandleValue}...`);
+            // getInstagramProfilePicture will also check localStorage, but fetch if not found
             try {
                 profilePic = await getInstagramProfilePicture(cleanHandleValue);
-                console.log(`[PROFILE PIC FLOW] ✅ Fetch completed for ${cleanHandleValue}: ${profilePic ? `SUCCESS - URL: ${profilePic.substring(0, 60)}...` : 'FAILED - No URL returned'}`);
+                console.log(`[PROFILE PIC FLOW] ✅ Fetch completed for ${cleanHandleValue}: ${profilePic ? 'SUCCESS' : 'FAILED'}`);
             } catch (picError) {
                 console.error(`[PROFILE PIC FLOW] ❌ Error fetching profile picture for ${cleanHandleValue}:`, picError.message);
                 profilePic = null;
