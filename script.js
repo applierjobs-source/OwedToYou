@@ -1187,6 +1187,11 @@ async function convertImageToBase64(imageUrl) {
     }
 }
 
+// CRITICAL: Export for use in inline handlers
+window.getProfilePicBase64 = async function(handle, imageUrl) {
+    return getProfilePicBase64(handle, imageUrl);
+};
+
 // CRITICAL: Get base64 version of profile picture (from cache or convert)
 async function getProfilePicBase64(handle, imageUrl) {
     if (!imageUrl || !imageUrl.startsWith('http')) {
@@ -1683,7 +1688,13 @@ async function loadProfilePicturesInBackground(users) {
                     } else {
                         const apiBase = window.location.origin;
                         img.src = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(displayPic)}`;
-                        // Convert to base64 in background for next time
+                        // CRITICAL: Convert to base64 immediately when image loads
+                        img.onload = function() {
+                            getProfilePicBase64(user.handle, displayPic).catch(err => {
+                                console.error(`Base64 conversion failed:`, err);
+                            });
+                        };
+                        // Also start conversion immediately (don't wait for load)
                         getProfilePicBase64(user.handle, displayPic).catch(err => {
                             console.error(`Background base64 conversion failed:`, err);
                         });
@@ -2334,12 +2345,14 @@ function createEntryHTML(user, rank) {
         const escapedInitials = initials.replace(/'/g, "\\'");
         const escapedHandle = user.handle.replace(/'/g, "\\'");
         
+        // CRITICAL: Enhanced onload handler to convert to base64 immediately when image loads
         // Enhanced onerror handler that triggers immediate retry
         // CRITICAL: Mobile-optimized inline styles + fetchpriority for instant display
-        profilePicHtml = `<img src="${escapedPic}" alt="${escapedName}" loading="eager" decoding="sync" fetchpriority="high" style="width: 100% !important; height: 100% !important; border-radius: 50%; object-fit: cover !important; display: block !important; visibility: visible !important; opacity: 1 !important; position: absolute; top: 0; left: 0; z-index: 2; -webkit-backface-visibility: visible !important; backface-visibility: visible !important; transform: translateZ(0) !important; -webkit-transform: translateZ(0) !important; max-width: 100%; max-height: 100%;" onerror="(function(img,handle){img.onerror=null;img.style.display='none';var parent=img.parentElement;if(parent){parent.innerHTML='${escapedInitials}';parent.style.display='flex';parent.style.alignItems='center';parent.style.justifyContent='center';}if(typeof window.retrySingleProfilePicture==='function'){setTimeout(function(){window.retrySingleProfilePicture('${escapedHandle}');},500);}})(this,'${escapedHandle}');">`;
+        profilePicHtml = `<img src="${escapedPic}" alt="${escapedName}" loading="eager" decoding="sync" fetchpriority="high" style="width: 100% !important; height: 100% !important; border-radius: 50%; object-fit: cover !important; display: block !important; visibility: visible !important; opacity: 1 !important; position: absolute; top: 0; left: 0; z-index: 2; -webkit-backface-visibility: visible !important; backface-visibility: visible !important; transform: translateZ(0) !important; -webkit-transform: translateZ(0) !important; max-width: 100%; max-height: 100%;" onload="(function(img,handle,url){if(!img.src.startsWith('data:')&&typeof window.getProfilePicBase64==='function'){window.getProfilePicBase64(handle,url).catch(function(e){console.error('Base64 conversion failed:',e);});}})(this,'${escapedHandle}','${displayPic.replace(/'/g, "\\'")}');" onerror="(function(img,handle){img.onerror=null;img.style.display='none';var parent=img.parentElement;if(parent){parent.innerHTML='${escapedInitials}';parent.style.display='flex';parent.style.alignItems='center';parent.style.justifyContent='center';}if(typeof window.retrySingleProfilePicture==='function'){setTimeout(function(){window.retrySingleProfilePicture('${escapedHandle}');},500);}})(this,'${escapedHandle}');">`;
         
-        // If using URL (not base64), convert to base64 in background for next time
+        // If using URL (not base64), also start conversion immediately
         if (!isBase64 && displayPic && displayPic.startsWith('http')) {
+            // Start conversion immediately (don't wait)
             getProfilePicBase64(user.handle, displayPic).catch(err => {
                 console.error(`Background base64 conversion failed for ${user.handle}:`, err);
             });
@@ -2420,20 +2433,62 @@ function displayLeaderboard(users) {
     
     leaderboard.classList.remove('hidden');
     
-    // CRITICAL: Preload all profile pictures IMMEDIATELY for instant display
-    const apiBase = window.location.origin;
-    usersWithPics.forEach(user => {
-        if (user.profilePic) {
-            const proxyUrl = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(user.profilePic)}`;
-            // Preload image immediately
-            const link = document.createElement('link');
-            link.rel = 'preload';
-            link.as = 'image';
-            link.href = proxyUrl;
-            link.fetchPriority = 'high';
-            document.head.appendChild(link);
-        }
-    });
+    // CRITICAL: Force load all profile pictures IMMEDIATELY
+    // This ensures images appear even if base64 conversion fails
+    setTimeout(() => {
+        usersWithPics.forEach((user, index) => {
+            if (user.profilePic) {
+                const entry = document.querySelector(`.leaderboard-entry[data-handle="${cleanHandle(user.handle)}"]`);
+                if (entry) {
+                    const profilePictureDiv = entry.querySelector('.profile-picture');
+                    if (profilePictureDiv && !profilePictureDiv.querySelector('img')) {
+                        // Force create and load image immediately
+                        const img = document.createElement('img');
+                        const displayPic = getProfilePicForDisplay(user.handle, user.profilePic);
+                        const isBase64 = displayPic && displayPic.startsWith('data:image');
+                        
+                        if (isBase64) {
+                            img.src = displayPic;
+                        } else {
+                            const apiBase = window.location.origin;
+                            img.src = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(displayPic)}`;
+                            // Convert to base64 when loaded
+                            img.onload = function() {
+                                getProfilePicBase64(user.handle, displayPic).catch(() => {});
+                            };
+                        }
+                        
+                        img.alt = user.name;
+                        img.loading = 'eager';
+                        img.decoding = 'sync';
+                        img.fetchPriority = 'high';
+                        img.style.width = '100%';
+                        img.style.height = '100%';
+                        img.style.borderRadius = '50%';
+                        img.style.objectFit = 'cover';
+                        img.style.display = 'block';
+                        img.style.visibility = 'visible';
+                        img.style.opacity = '1';
+                        img.style.position = 'absolute';
+                        img.style.top = '0';
+                        img.style.left = '0';
+                        img.style.zIndex = '2';
+                        img.onerror = function() {
+                            this.remove();
+                            if (profilePictureDiv) {
+                                profilePictureDiv.innerHTML = getInitials(user.name);
+                                profilePictureDiv.style.display = 'flex';
+                                profilePictureDiv.style.alignItems = 'center';
+                                profilePictureDiv.style.justifyContent = 'center';
+                            }
+                        };
+                        profilePictureDiv.innerHTML = '';
+                        profilePictureDiv.appendChild(img);
+                    }
+                }
+            }
+        });
+    }, 0); // Execute immediately
     
     // CRITICAL: Ensure profile pictures display IMMEDIATELY (no delay)
     ensureMobileProfilePicturesDisplay();
