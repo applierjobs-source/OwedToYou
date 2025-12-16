@@ -164,35 +164,15 @@ async function getInstagramFullName(username) {
                 return fullName;
             } else {
                 const errorMsg = data.error || 'Unknown error';
-                console.log(`⚠️ Backend returned but no name found:`, errorMsg);
-                console.log(`⚠️ Full response data:`, JSON.stringify(data));
+                console.log(`⚠️ Backend Playwright returned but no name found:`, errorMsg);
                 // Return null - no fallback to HTML extraction
-                // Don't throw error - let caller handle null gracefully
                 return null;
             }
         } else {
-            // Try to parse error response
-            let errorText = '';
-            let errorData = null;
-            try {
-                errorText = await response.text();
-                try {
-                    errorData = JSON.parse(errorText);
-                } catch (e) {
-                    // Not JSON, use text
-                }
-            } catch (e) {
-                errorText = 'Failed to read error response';
-            }
-            
-            console.error(`❌ Backend request failed with status: ${response.status}`);
-            console.error(`❌ Error response text: ${errorText.substring(0, 500)}`);
-            if (errorData) {
-                console.error(`❌ Error response data:`, JSON.stringify(errorData));
-            }
-            
+            const errorText = await response.text().catch(() => '');
+            console.log(`⚠️ Backend request failed with status: ${response.status}`);
+            console.log(`⚠️ Error response: ${errorText.substring(0, 200)}`);
             // Return null - no fallback to HTML extraction
-            // Don't throw error - let caller handle null gracefully
             return null;
         }
     } catch (e) {
@@ -2577,6 +2557,11 @@ async function displayLeaderboard(users) {
     ).join('');
     
     leaderboard.classList.remove('hidden');
+    // CRITICAL: Force visibility on mobile
+    leaderboard.style.display = 'block';
+    leaderboard.style.visibility = 'visible';
+    leaderboard.style.opacity = '1';
+    console.log('✅ Leaderboard made visible in displayLeaderboard');
     
     // Convert URLs to base64 in background AFTER rendering (non-blocking)
     usersWithPics.forEach(user => {
@@ -5014,4 +4999,3 @@ async function handleBuyNow(firstName, lastName, amount) {
 }
 
 window.handleBuyNow = handleBuyNow;
-
