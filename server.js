@@ -888,6 +888,12 @@ async function fetchInstagramFullName(username) {
     try {
         console.log(`[INSTAGRAM] Using Apify to extract name for ${username}`);
         
+        // Check if Apify client is initialized
+        if (!apifyClient) {
+            console.error(`[INSTAGRAM] ❌ Apify client not initialized!`);
+            return { success: false, error: 'Instagram API not configured. APIFY_API_TOKEN environment variable is missing.' };
+        }
+        
         // Prepare Apify Actor input
         // Use Instagram Profile Scraper specifically designed for profile data
         // It requires 'usernames' field (just the username, not full URL)
@@ -895,9 +901,13 @@ async function fetchInstagramFullName(username) {
             usernames: [username], // Just the username, not the full URL
         };
         
+        console.log(`[INSTAGRAM] Calling Apify actor with input:`, JSON.stringify(input));
+        
         // Run the Profile Scraper Actor synchronously and get dataset items
         const run = await apifyClient.actor("apify~instagram-profile-scraper").call(input);
+        console.log(`[INSTAGRAM] Apify run completed, fetching dataset items...`);
         const { items } = await apifyClient.dataset(run.defaultDatasetId).listItems();
+        console.log(`[INSTAGRAM] Received ${items ? items.length : 0} items from Apify`);
         
         if (items && items.length > 0) {
             const item = items[0];
@@ -2072,13 +2082,28 @@ const server = http.createServer((req, res) => {
     // Handle Instagram name fetch
     else if (parsedUrl.pathname === '/api/instagram-name' && parsedUrl.query.username) {
         const username = parsedUrl.query.username.replace('@', '').trim();
+        console.log(`[INSTAGRAM NAME API] Request received for username: ${username}`);
+        
+        // Check if Apify is configured
+        if (!process.env.APIFY_API_TOKEN) {
+            console.error('[INSTAGRAM NAME API] ❌ APIFY_API_TOKEN not set!');
+            res.writeHead(500, corsHeaders);
+            res.end(JSON.stringify({ 
+                success: false, 
+                error: 'Instagram API not configured. APIFY_API_TOKEN environment variable is missing.' 
+            }));
+            return;
+        }
         
         fetchInstagramFullName(username)
             .then(result => {
+                console.log(`[INSTAGRAM NAME API] Response for ${username}:`, result.success ? 'SUCCESS' : `FAILED - ${result.error}`);
                 res.writeHead(200, corsHeaders);
                 res.end(JSON.stringify(result));
             })
             .catch(error => {
+                console.error(`[INSTAGRAM NAME API] Error for ${username}:`, error.message);
+                console.error(`[INSTAGRAM NAME API] Error stack:`, error.stack);
                 res.writeHead(500, corsHeaders);
                 res.end(JSON.stringify({ success: false, error: error.message }));
             });
@@ -2181,12 +2206,34 @@ const server = http.createServer((req, res) => {
                 const searchCity = city || '';
                 const searchState = state || '';
                 
-                console.log(`Searching Missing Money for ${firstName} ${lastName}${searchCity ? `, ${searchCity}` : ''}${searchState ? `, ${searchState}` : ''}`);
+                // Remove emojis from names before searching
+                const cleanNameForSearch = (name) => {
+                    if (!name) return '';
+                    let cleaned = name.replace(/[\u{1F600}-\u{1F64F}]/gu, ''); // Emoticons
+                    cleaned = cleaned.replace(/[\u{1F300}-\u{1F5FF}]/gu, ''); // Misc Symbols and Pictographs
+                    cleaned = cleaned.replace(/[\u{1F680}-\u{1F6FF}]/gu, ''); // Transport and Map
+                    cleaned = cleaned.replace(/[\u{1F1E0}-\u{1F1FF}]/gu, ''); // Flags (country flags)
+                    cleaned = cleaned.replace(/[\u{2600}-\u{26FF}]/gu, ''); // Misc symbols
+                    cleaned = cleaned.replace(/[\u{2700}-\u{27BF}]/gu, ''); // Dingbats
+                    cleaned = cleaned.replace(/[\u{FE00}-\u{FE0F}]/gu, ''); // Variation Selectors
+                    cleaned = cleaned.replace(/[\u{200D}]/gu, ''); // Zero Width Joiner
+                    cleaned = cleaned.replace(/[\u{20E3}]/gu, ''); // Combining Enclosing Keycap
+                    return cleaned.trim().replace(/\s+/g, ' ');
+                };
+                
+                const cleanedFirstName = cleanNameForSearch(firstName);
+                const cleanedLastName = cleanNameForSearch(lastName);
+                
+                if (cleanedFirstName !== firstName || cleanedLastName !== lastName) {
+                    console.log(`🧹 Cleaned names in server: "${firstName}" -> "${cleanedFirstName}", "${lastName}" -> "${cleanedLastName}"`);
+                }
+                
+                console.log(`Searching Missing Money for ${cleanedFirstName} ${cleanedLastName}${searchCity ? `, ${searchCity}` : ''}${searchState ? `, ${searchState}` : ''}`);
                 console.log(`2captcha enabled: ${use2Captcha}, API key provided: ${!!captchaApiKey}`);
                 if (captchaApiKey) {
                     console.log(`API key (first 10 chars): ${captchaApiKey.substring(0, 10)}...`);
                 }
-                const result = await searchMissingMoney(firstName, lastName, searchCity, searchState, use2Captcha || false, captchaApiKey || null);
+                const result = await searchMissingMoney(cleanedFirstName, cleanedLastName, searchCity, searchState, use2Captcha || false, captchaApiKey || null);
                 
                 res.writeHead(200, corsHeaders);
                 res.end(JSON.stringify(result));
