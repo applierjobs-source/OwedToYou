@@ -2557,11 +2557,6 @@ async function displayLeaderboard(users) {
     ).join('');
     
     leaderboard.classList.remove('hidden');
-    // CRITICAL: Force visibility on mobile
-    leaderboard.style.display = 'block';
-    leaderboard.style.visibility = 'visible';
-    leaderboard.style.opacity = '1';
-    console.log('✅ Leaderboard made visible in displayLeaderboard');
     
     // Convert URLs to base64 in background AFTER rendering (non-blocking)
     usersWithPics.forEach(user => {

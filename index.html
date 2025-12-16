@@ -23,7 +23,7 @@
                 <input 
                     type="text" 
                     id="instagramHandle" 
-                    placeholder="@OwedToYou.ai" 
+                    placeholder="@username" 
                     class="search-input"
                 >
                 <button id="searchBtn" class="search-button" onclick="if(typeof window.handleSearch==='function'){const fs=window.handleSearch.toString();if(fs.includes('PLACEHOLDER')&&typeof handleSearch==='function'&&!handleSearch.toString().includes('PLACEHOLDER')){window.handleSearch=handleSearch;}window.handleSearch();}else{console.error('handleSearch not available');alert('Search function not loaded. Please refresh the page.');}return false;">Search</button>
