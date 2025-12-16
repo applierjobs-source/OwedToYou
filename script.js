@@ -4064,9 +4064,36 @@ function ensureMobileProfilePicturesDisplay() {
     console.log(`📱 Processed ${profilePics.length} profile pictures on mobile`);
 }
 
+// CRITICAL: Migrate all existing URLs to base64 for instant display
+async function migrateUrlsToBase64() {
+    const storedProfilePics = loadProfilePicsFromStorage();
+    let migrated = 0;
+    
+    for (const handle in storedProfilePics) {
+        const pic = storedProfilePics[handle];
+        if (pic && pic.startsWith('http')) {
+            // This is a URL, convert to base64
+            console.log(`🔄 Migrating URL to base64 for ${handle}...`);
+            const base64 = await getProfilePicBase64(handle, pic);
+            if (base64) {
+                storedProfilePics[handle] = base64;
+                migrated++;
+            }
+        }
+    }
+    
+    if (migrated > 0) {
+        saveProfilePicsToStorage(storedProfilePics);
+        console.log(`✅ Migrated ${migrated} profile pics from URL to base64 - INSTANT DISPLAY READY`);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async function() {
     const searchBtn = document.getElementById('searchBtn');
     const searchInput = document.getElementById('instagramHandle');
+    
+    // CRITICAL: Migrate existing URLs to base64 immediately (non-blocking)
+    migrateUrlsToBase64().catch(() => {});
     
     // CRITICAL: Ensure profile pictures display immediately
     ensureMobileProfilePicturesDisplay();
