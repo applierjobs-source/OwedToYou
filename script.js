@@ -2685,26 +2685,21 @@ async function handleSearchImpl() {
         let nameExtractionError = null;
         let profilePic = null;
         
-        // Extract name first
+        // Extract name first - but don't fail the entire search if it fails
         try {
             fullName = await getInstagramFullName(cleanHandleValue);
             if (fullName) {
                 console.log(`✅ Extracted name: ${fullName}`);
+            } else {
+                console.log(`⚠️ Name extraction returned null for ${cleanHandleValue}`);
             }
         } catch (nameError) {
             console.error('❌ Error extracting Instagram name:', nameError);
             console.error('Error stack:', nameError.stack);
             nameExtractionError = nameError;
-            // If it's a timeout, show user feedback
-            if (nameError.message && nameError.message.includes('timeout')) {
-                // Re-enable button
-                searchBtn.disabled = false;
-                searchBtn.textContent = 'Search';
-                searchInProgress = false;
-                hideProgressModal(); // Hide progress modal on error
-                alert('Instagram request timed out. This can happen if Instagram is slow or blocking requests. Please try again in a moment, or search by name directly using the link below.');
-                return;
-            }
+            // Don't fail the search - continue with handle as fallback
+            console.log(`⚠️ Name extraction failed, will continue search with handle as fallback`);
+            fullName = null;
         }
         
         // ALWAYS fetch profile picture, regardless of whether name extraction succeeded or failed
@@ -2826,24 +2821,19 @@ async function handleSearchImpl() {
                 console.log('⚠️ Could not extract name from Instagram');
                 console.log('⚠️ Attempted extraction but got:', { fullName, firstName, lastName });
                 
-                // If extraction completely failed, show helpful error
+                // If extraction completely failed, use handle as fallback name
                 if (!fullName) {
-                    console.error('❌ Instagram name extraction failed completely');
+                    console.log('⚠️ Instagram name extraction failed, using handle as fallback');
+                    // Use handle as both first and last name to allow search to continue
+                    firstName = cleanHandleValue;
+                    lastName = cleanHandleValue;
+                    console.log(`✅ Using handle "${cleanHandleValue}" as fallback name for search`);
+                    
+                    // Continue with search using handle as name
                     searchBtn.disabled = false;
                     searchBtn.textContent = 'Search';
+                    await startMissingMoneySearch(firstName, lastName, cleanHandleValue, profilePic);
                     searchInProgress = false;
-                    
-                    // Show error if it was a timeout
-                    if (nameExtractionError && nameExtractionError.message && nameExtractionError.message.includes('timeout')) {
-                        hideProgressModal(); // Hide progress modal on error
-                        alert('Instagram request timed out. This can happen if Instagram is slow or blocking requests. Please try again in a moment, or search by name directly using the link below.');
-                        return;
-                    }
-                    
-                    // For other errors, show a helpful message with more details
-                    const errorDetails = nameExtractionError ? ` Error: ${nameExtractionError.message}` : '';
-                    hideProgressModal(); // Hide progress modal on error
-                    alert(`Unable to extract name from Instagram profile.${errorDetails}\n\nThis can happen if:\n- The profile is private\n- The profile doesn't exist\n- Instagram is blocking requests\n\nPlease try searching by name directly using the "Search by Full Name instead" link below.`);
                     return;
                 }
                 
@@ -2887,6 +2877,9 @@ async function handleSearchImpl() {
         console.error('❌ Error in handleSearch:', error);
         console.error('Error stack:', error.stack);
         
+        // CRITICAL: Always reset search state
+        searchInProgress = false;
+        
         // Ensure button is always re-enabled
         try {
             searchBtn.disabled = false;
@@ -2895,12 +2888,24 @@ async function handleSearchImpl() {
             console.error('Error re-enabling button:', btnError);
         }
         
-        // Show user-friendly error message
-        if (error.message && error.message.includes('timeout')) {
-            alert('Request timed out. Instagram may be slow or blocking requests. Please try again in a moment.');
-        } else {
-            alert('An error occurred while searching. Please try again.');
+        // Always hide progress modal on error
+        try {
+            hideProgressModal();
+        } catch (modalError) {
+            console.error('Error hiding modal:', modalError);
         }
+        
+        // Show user-friendly error message in modal instead of alert
+        let errorMessage = 'An error occurred while searching. Please try again.';
+        if (error.message && error.message.includes('timeout')) {
+            errorMessage = 'Request timed out. Instagram may be slow or blocking requests. Please try again in a moment, or search by name directly using the link below.';
+        }
+        
+        // Use error modal instead of alert
+        showErrorModal(errorMessage);
+    } finally {
+        // CRITICAL: Always ensure search state is reset
+        searchInProgress = false;
     }
 }
 console.log('✅✅✅✅✅ handleSearchImpl FUNCTION DEFINITION COMPLETE');
