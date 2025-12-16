@@ -2477,57 +2477,55 @@ async function displayLeaderboard(users) {
             // Check both exact handle and cleaned handle
             const storedPic = storedProfilePics[user.handle] || storedProfilePics[cleanUserHandle];
             if (storedPic) {
-                console.log(`✅ Found profile pic in localStorage for ${user.handle}: ${storedPic.substring(0, 50)}...`);
+                console.log(`✅ Found profile pic in localStorage for ${user.handle}`);
                 return { ...user, profilePic: storedPic };
             } else {
                 console.log(`⚠️ No profile pic in localStorage for ${user.handle}`);
             }
         } else {
-            console.log(`✅ User ${user.handle} already has profilePic: ${user.profilePic.substring(0, 50)}...`);
+            console.log(`✅ User ${user.handle} already has profilePic`);
         }
         return user;
     });
     
     console.log(`📊 Users with profile pics:`, usersWithPics.map(u => `${u.handle}: ${u.profilePic ? 'HAS PIC' : 'NO PIC'}`));
     
-    // CRITICAL: Check for base64 FIRST, but render IMMEDIATELY (don't wait for conversion)
-    // If base64 exists, use it. Otherwise use URL and convert in background.
-    const usersWithDisplayPics = usersWithPics.map(user => {
-        if (user.profilePic && user.profilePic.startsWith('http')) {
-            const base64 = getProfilePicForDisplay(user.handle, user.profilePic);
-            if (base64 && base64.startsWith('data:image')) {
-                // Use base64 for instant display
-                return { ...user, profilePic: base64 };
+    // CRITICAL: Convert ALL URLs to base64 BEFORE rendering for INSTANT display
+    console.log(`🔄 Converting all URLs to base64 BEFORE rendering...`);
+    const usersWithBase64 = await Promise.all(usersWithPics.map(async (user) => {
+        if (user.profilePic) {
+            // If already base64, use it
+            if (user.profilePic.startsWith('data:image')) {
+                return user;
             }
-            // Use URL - will convert to base64 after it loads
+            // If URL, check for cached base64 first
+            if (user.profilePic.startsWith('http')) {
+                const cachedBase64 = getProfilePicForDisplay(user.handle, user.profilePic);
+                if (cachedBase64 && cachedBase64.startsWith('data:image')) {
+                    console.log(`⚡ Using cached base64 for ${user.handle}`);
+                    return { ...user, profilePic: cachedBase64 };
+                }
+                // Convert to base64 NOW (blocking) for instant display
+                console.log(`🔄 Converting ${user.handle} URL to base64 NOW...`);
+                const base64 = await getProfilePicBase64(user.handle, user.profilePic);
+                if (base64) {
+                    // Update localStorage with base64
+                    const storedProfilePics = loadProfilePicsFromStorage();
+                    storedProfilePics[user.handle] = base64;
+                    storedProfilePics[cleanHandle(user.handle)] = base64;
+                    saveProfilePicsToStorage(storedProfilePics);
+                    console.log(`✅ Converted ${user.handle} to base64 - INSTANT DISPLAY`);
+                    return { ...user, profilePic: base64 };
+                }
+            }
         }
         return user;
-    });
+    }));
     
-    // CRITICAL: Preload ALL images BEFORE rendering HTML to eliminate delay
-    const apiBase = window.location.origin;
-    usersWithDisplayPics.forEach(user => {
-        if (user.profilePic) {
-            const displayPic = getProfilePicForDisplay(user.handle, user.profilePic);
-            if (displayPic && !displayPic.startsWith('data:image')) {
-                // Preload via link tag for instant loading
-                const link = document.createElement('link');
-                link.rel = 'preload';
-                link.as = 'image';
-                link.href = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(displayPic)}`;
-                link.fetchPriority = 'high';
-                document.head.appendChild(link);
-                
-                // Also create Image object to start loading immediately
-                const preloadImg = new Image();
-                preloadImg.src = link.href;
-                preloadImg.fetchPriority = 'high';
-            }
-        }
-    });
+    console.log(`✅ All profile pics converted to base64 - rendering INSTANT display`);
     
-    // Generate HTML IMMEDIATELY - images already preloading
-    listContainer.innerHTML = usersWithDisplayPics.map((user, index) => 
+    // Generate HTML with base64 images (INSTANT display, zero delay)
+    listContainer.innerHTML = usersWithBase64.map((user, index) => 
         createEntryHTML(user, index + 1)
     ).join('');
     
