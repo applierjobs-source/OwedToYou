@@ -1629,7 +1629,7 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
                     return {
                         ...entry,
                         profilePic: finalProfilePic,
-                        isPlaceholder: entry.isPlaceholder || false
+                        isPlaceholder: false
                     };
                 });
             
@@ -4297,14 +4297,19 @@ document.addEventListener('DOMContentLoaded', async function() {
     await loadLeaderboard();
     
     // Always show leaderboard if it has entries (on page load)
+    const leaderboard = document.getElementById('leaderboard');
+    if (!leaderboard) {
+        console.error('❌ Leaderboard element not found on page load!');
+        return;
+    }
+    
     if (leaderboardData.length > 0) {
+        console.log(`📊 Page load: Displaying leaderboard with ${leaderboardData.length} entries`);
         displayLeaderboard(leaderboardData);
     } else {
         // Hide leaderboard if empty
-        const leaderboard = document.getElementById('leaderboard');
-        if (leaderboard) {
-            leaderboard.classList.add('hidden');
-        }
+        leaderboard.classList.add('hidden');
+        console.log('⚠️ Leaderboard hidden - no entries');
     }
 });
 
