@@ -2211,16 +2211,25 @@ async function checkAndRetryFailedProfilePictures(users) {
 // Retry loading a profile picture with different methods
 async function retryProfilePicture(failedEntry, users) {
     const { handle, name, entry, profilePictureDiv } = failedEntry;
-    console.log(`🔄 Retrying profile picture for ${handle}...`);
     
-    // Find the user data
-    const user = users.find(u => cleanHandle(u.handle) === cleanHandle(handle));
-    if (!user) {
-        console.log(`⚠️ User data not found for handle: ${handle}`);
+    // CRITICAL: Mark as in-flight to prevent concurrent retries
+    if (inFlightRequests.has(handle)) {
+        console.log(`⏭️ Skipping ${handle} - retry already in progress`);
         return;
     }
+    inFlightRequests.add(handle);
     
-    // Method 1: Try fetching fresh from Instagram API
+    try {
+        console.log(`🔄 Retrying profile picture for ${handle}...`);
+        
+        // Find the user data
+        const user = users.find(u => cleanHandle(u.handle) === cleanHandle(handle));
+        if (!user) {
+            console.log(`⚠️ User data not found for handle: ${handle}`);
+            return;
+        }
+        
+        // Method 1: Try fetching fresh from Instagram API
     console.log(`🔄 Method 1: Fetching fresh from Instagram API for ${handle}...`);
     try {
         const freshProfilePic = await getInstagramProfilePicture(handle);
@@ -2370,10 +2379,6 @@ async function retryProfilePicture(failedEntry, users) {
     }
     
     console.log(`❌ All retry methods failed for ${handle}, keeping initials`);
-    } finally {
-        // CRITICAL: Always clear in-flight flag when done (success or failure)
-        inFlightRequests.delete(handle);
-    }
 }
 
 // Helper function to load a profile picture image
