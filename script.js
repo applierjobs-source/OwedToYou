@@ -2092,6 +2092,10 @@ async function loadProfilePicturesInBackground(users) {
         }
     }).catch(err => {
         console.error('Some profile pictures failed to load:', err);
+        // CRITICAL: Still save what we have
+        setTimeout(() => {
+            saveAllProfilePicsToStorage();
+        }, 2000); // Wait 2 seconds for any pending conversions
         // Still check for failed images even if some promises failed (reduced delays)
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         if (isMobile) {
@@ -2551,22 +2555,12 @@ async function displayLeaderboard(users) {
             const storedPic = storedProfilePics[user.handle] || storedProfilePics[cleanUserHandle];
             if (storedPic) {
                 console.log(`✅ Found profile pic in localStorage for ${user.handle}`);
-                // CRITICAL: Update leaderboardData with the stored pic to ensure persistence
-                const userIndex = leaderboardData.findIndex(e => cleanHandle(e.handle) === cleanHandle(user.handle));
-                if (userIndex >= 0) {
-                    leaderboardData[userIndex].profilePic = storedPic;
-                }
                 return { ...user, profilePic: storedPic };
             } else {
                 console.log(`⚠️ No profile pic in localStorage for ${user.handle}`);
             }
         } else {
             console.log(`✅ User ${user.handle} already has profilePic`);
-            // CRITICAL: Ensure profile pic in leaderboardData matches user object
-            const userIndex = leaderboardData.findIndex(e => cleanHandle(e.handle) === cleanHandle(user.handle));
-            if (userIndex >= 0 && !leaderboardData[userIndex].profilePic && user.profilePic) {
-                leaderboardData[userIndex].profilePic = user.profilePic;
-            }
         }
         return user;
     });
