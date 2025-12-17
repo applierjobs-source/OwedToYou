@@ -2626,6 +2626,11 @@ async function displayLeaderboard(users) {
     // Start loading immediately - no delays
     loadProfilePicturesInBackground(usersWithPics);
     
+    // CRITICAL: Save all profile pics to storage after a short delay (allows time for conversions)
+    setTimeout(() => {
+        saveAllProfilePicsToStorage();
+    }, 5000); // Wait 5 seconds for conversions to complete
+    
     // On mobile, also start continuous monitoring (but don't delay initial load)
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     if (isMobile) {
@@ -2673,9 +2678,6 @@ async function handleSearchImpl() {
     }
     
     searchInProgress = true;
-    
-    // CRITICAL: Log that function is being called (proves it exists)
-    console.log('✅✅✅ handleSearchImpl FUNCTION CALLED - function exists!');
     
     // Show progress modal IMMEDIATELY - before any other operations
     showProgressModal();
