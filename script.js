@@ -2182,6 +2182,71 @@ async function checkAndRetryFailedProfilePictures(users) {
         }
         
         if (isFailed) {
+            // CRITICAL: Before retrying, check if we already have the image in localStorage
+            // If we do, just re-display it instead of fetching again
+            const storedProfilePics = loadProfilePicsFromStorage();
+            const cleanHandleValue = cleanHandle(handle);
+            const cachedPic = storedProfilePics[handle] || 
+                             storedProfilePics[cleanHandleValue] || 
+                             storedProfilePics[`@${handle}`] ||
+                             storedProfilePics[`@${cleanHandleValue}`] ||
+                             null;
+            
+            if (cachedPic) {
+                console.log(`✅ Found cached pic for ${handle}, re-displaying instead of retrying...`);
+                // Re-display the cached image
+                const displayPic = getProfilePicForDisplay(handle, cachedPic);
+                const img = document.createElement('img');
+                const isBase64 = displayPic && displayPic.startsWith('data:image');
+                
+                if (isBase64) {
+                    img.src = displayPic; // Instant display - no network request!
+                } else {
+                    const apiBase = window.location.origin;
+                    img.src = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(displayPic)}`;
+                }
+                
+                img.alt = name;
+                img.loading = 'eager';
+                img.decoding = 'sync';
+                img.fetchPriority = 'high';
+                img.style.width = '100%';
+                img.style.height = '100%';
+                img.style.borderRadius = '50%';
+                img.style.objectFit = 'cover';
+                img.style.display = 'block';
+                img.style.visibility = 'visible';
+                img.style.opacity = '1';
+                img.style.position = 'absolute';
+                img.style.top = '0';
+                img.style.left = '0';
+                img.style.zIndex = '2';
+                img.style.maxWidth = '100%';
+                img.style.maxHeight = '100%';
+                img.style.webkitBackfaceVisibility = 'visible';
+                img.style.backfaceVisibility = 'visible';
+                img.style.transform = 'translateZ(0)';
+                img.style.webkitTransform = 'translateZ(0)';
+                
+                img.onerror = function() {
+                    console.log(`❌ Cached image failed to load for ${handle}, will retry fetch`);
+                    this.onerror = null;
+                    this.remove();
+                    // Only add to retry list if cached image fails to load
+                    checkedHandles.add(handle);
+                    failedEntries.push({
+                        handle: handle,
+                        name: name,
+                        entry: entry,
+                        profilePictureDiv: profilePictureDiv
+                    });
+                };
+                
+                profilePictureDiv.innerHTML = '';
+                profilePictureDiv.appendChild(img);
+                continue; // Skip adding to retry list - we already have it cached
+            }
+            
             checkedHandles.add(handle);
             failedEntries.push({
                 handle: handle,
@@ -2197,7 +2262,7 @@ async function checkAndRetryFailedProfilePictures(users) {
         return;
     }
     
-    console.log(`⚠️ Found ${failedEntries.length} failed profile pictures, attempting to retry...`);
+    console.log(`⚠️ Found ${failedEntries.length} failed profile pictures (not in cache), attempting to retry...`);
     
     // Retry each failed entry with more attempts
     for (const failedEntry of failedEntries) {
@@ -2361,21 +2426,15 @@ async function retryProfilePicture(failedEntry, users) {
             await new Promise(resolve => setTimeout(resolve, 3000));
             const img = profilePictureDiv.querySelector('img');
             if (img && img.complete && img.naturalHeight > 0) {
-                successfullyLoadedHandles.add(cleanHandleValue);
-                inFlightRequests.delete(cleanHandleValue);
                 console.log(`✅✅✅ Successfully loaded profile pic for ${handle} using force reload`);
                 return; // Success
             }
         } catch (error) {
             console.log(`❌ Method 5 failed for ${handle}:`, error.message);
         }
-        }
-        
-        console.log(`❌ All retry methods failed for ${handle}, keeping initials`);
-    } finally {
-        // CRITICAL: Always clear in-flight flag, even on failure
-        inFlightRequests.delete(cleanHandleValue);
     }
+    
+    console.log(`❌ All retry methods failed for ${handle}, keeping initials`);
 }
 
 // Helper function to load a profile picture image
