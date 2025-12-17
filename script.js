@@ -4793,28 +4793,49 @@ async function showShareModal(firstName, lastName, amount, results = []) {
 
 // Share to Instagram
 function shareToInstagram(firstName, lastName, amount, rank) {
-    const rankText = rank ? `Rank #${rank} on Leaderboard! ` : '';
-    const text = `I found $${amount.toLocaleString()} in unclaimed funds! ${rankText}Check yours at OwedToYou.ai`;
+    console.log('📱 Opening Instagram...');
     
-    // Try to use Web Share API if available (mobile)
-    if (navigator.share) {
-        navigator.share({
-            title: 'Unclaimed Funds Found',
-            text: text,
-            url: window.location.origin
-        }).then(() => {
-            console.log('Shared successfully');
-            // Mark as shared and process free claim
-            processFreeClaim(firstName, lastName, amount);
-        }).catch((error) => {
-            console.log('Error sharing:', error);
-            // Fallback to copy link
-            copyShareLink(text, firstName, lastName, amount);
-        });
-    } else {
-        // Fallback: copy text to clipboard
-        copyShareLink(text, firstName, lastName, amount);
+    // Detect if we're on mobile
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    // Ensure the card image is downloaded first (so user can post it)
+    // This will trigger the download if it hasn't been downloaded yet
+    try {
+        downloadShareCard();
+        console.log('✅ Share card image downloaded/ready');
+    } catch (error) {
+        console.warn('⚠️ Could not download card image:', error);
     }
+    
+    if (isMobile) {
+        // On mobile, try to open Instagram app using deep link
+        // If app is installed, it will open; otherwise, user can manually navigate
+        const instagramAppUrl = 'instagram://';
+        
+        // Create a hidden iframe to try opening the app
+        // This won't navigate away from the page if app isn't installed
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = instagramAppUrl;
+        document.body.appendChild(iframe);
+        
+        // After a short delay, also open Instagram web as fallback
+        setTimeout(() => {
+            document.body.removeChild(iframe);
+            window.open('https://www.instagram.com/', '_blank');
+        }, 250);
+        
+        console.log('📱 Attempted to open Instagram app (mobile)');
+    } else {
+        // On desktop, open Instagram website in new tab
+        window.open('https://www.instagram.com/', '_blank');
+        console.log('💻 Opened Instagram website (desktop)');
+    }
+    
+    // Show helpful message to user
+    setTimeout(() => {
+        alert('Instagram is opening! Once there:\n\n1. Create a new post\n2. Upload the card image you just downloaded\n3. Tag @OwedToYou for validation\n4. Post it!\n\nAfter posting, your claim will be processed for free!');
+    }, 500);
 }
 
 // Copy share link to clipboard
