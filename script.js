@@ -2332,10 +2332,6 @@ async function retryProfilePicture(failedEntry, users) {
                 const img = profilePictureDiv.querySelector('img');
                 if (img && img.complete && img.naturalHeight > 0) {
                     console.log(`✅✅✅ Successfully loaded profile pic for ${handle} using proxy retry ${attempt}`);
-                    // CRITICAL: Mark as successful and clear in-flight
-                    successfullyLoadedHandles.add(handle);
-                    retryAttempts.delete(handle);
-                    inFlightRequests.delete(handle);
                     return; // Success
                 }
             } catch (error) {
@@ -2374,6 +2370,10 @@ async function retryProfilePicture(failedEntry, users) {
     }
     
     console.log(`❌ All retry methods failed for ${handle}, keeping initials`);
+    } finally {
+        // CRITICAL: Always clear in-flight flag when done (success or failure)
+        inFlightRequests.delete(handle);
+    }
 }
 
 // Helper function to load a profile picture image
