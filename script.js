@@ -2283,8 +2283,6 @@ async function retryProfilePicture(failedEntry, users) {
             await new Promise(resolve => setTimeout(resolve, 2000));
             const img = profilePictureDiv.querySelector('img');
             if (img && img.complete && img.naturalHeight > 0) {
-                successfullyLoadedHandles.add(cleanHandleValue);
-                inFlightRequests.delete(cleanHandleValue);
                 console.log(`✅✅✅ Successfully loaded profile pic for ${handle} using direct URL`);
                 return; // Success
             }
@@ -2307,8 +2305,6 @@ async function retryProfilePicture(failedEntry, users) {
             await new Promise(resolve => setTimeout(resolve, 2000));
             const img = profilePictureDiv.querySelector('img');
             if (img && img.complete && img.naturalHeight > 0) {
-                successfullyLoadedHandles.add(cleanHandleValue);
-                inFlightRequests.delete(cleanHandleValue);
                 console.log(`✅✅✅ Successfully loaded profile pic for ${handle} using proxy with cache-busting`);
                 return; // Success
             }
@@ -2335,8 +2331,6 @@ async function retryProfilePicture(failedEntry, users) {
                 await new Promise(resolve => setTimeout(resolve, 3000)); // Longer wait on mobile
                 const img = profilePictureDiv.querySelector('img');
                 if (img && img.complete && img.naturalHeight > 0) {
-                    successfullyLoadedHandles.add(cleanHandleValue);
-                    inFlightRequests.delete(cleanHandleValue);
                     console.log(`✅✅✅ Successfully loaded profile pic for ${handle} using proxy retry ${attempt}`);
                     return; // Success
                 }
@@ -2375,13 +2369,11 @@ async function retryProfilePicture(failedEntry, users) {
         } catch (error) {
             console.log(`❌ Method 5 failed for ${handle}:`, error.message);
         }
-    }
-    
-    // CRITICAL: Always clear in-flight flag, even on failure
-    inFlightRequests.delete(cleanHandleValue);
-    console.log(`❌ All retry methods failed for ${handle}, keeping initials`);
+        }
+        
+        console.log(`❌ All retry methods failed for ${handle}, keeping initials`);
     } finally {
-        // CRITICAL: Ensure in-flight flag is always cleared
+        // CRITICAL: Always clear in-flight flag, even on failure
         inFlightRequests.delete(cleanHandleValue);
     }
 }
