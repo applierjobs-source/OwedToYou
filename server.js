@@ -64,6 +64,18 @@ async function initializeDatabase() {
             console.log('[DATABASE] Entities column already exists or error adding:', e.message);
         }
         
+        // CRITICAL: Add profile_pic column if it doesn't exist (for storing profile pictures)
+        try {
+            await pool.query(`
+                ALTER TABLE leaderboard 
+                ADD COLUMN IF NOT EXISTS profile_pic TEXT
+            `);
+            console.log('[DATABASE] Profile_pic column added or already exists');
+        } catch (e) {
+            // Column might already exist, ignore error
+            console.log('[DATABASE] Profile_pic column already exists or error adding:', e.message);
+        }
+        
         // Create index on handle for faster lookups
         await pool.query(`
             CREATE INDEX IF NOT EXISTS idx_leaderboard_handle ON leaderboard(handle)
@@ -2295,6 +2307,7 @@ const server = http.createServer((req, res) => {
                         amount,
                         is_placeholder as "isPlaceholder",
                         entities,
+                        profile_pic as "profilePic",
                         created_at as "createdAt",
                         updated_at as "updatedAt"
                     FROM leaderboard
@@ -2309,6 +2322,7 @@ const server = http.createServer((req, res) => {
                     amount: row.amount,
                     isPlaceholder: row.isPlaceholder,
                     entities: row.entities ? (typeof row.entities === 'string' ? JSON.parse(row.entities) : row.entities) : null,
+                    profilePic: row.profilePic || null,
                     createdAt: row.createdAt,
                     updatedAt: row.updatedAt
                 }));
@@ -2319,6 +2333,106 @@ const server = http.createServer((req, res) => {
                 res.end(JSON.stringify({ success: true, leaderboard: leaderboard }));
             } catch (error) {
                 console.error(`[LEADERBOARD] GET error:`, error);
+                res.writeHead(500, corsHeaders);
+                res.end(JSON.stringify({ success: false, error: error.message }));
+            }
+        })();
+    } else if (parsedUrl.pathname === '/api/migrate-profile-pics' && req.method === 'POST') {
+        // Migrate all existing profile picture URLs to base64
+        (async () => {
+            try {
+                if (!pool) {
+                    res.writeHead(503, corsHeaders);
+                    res.end(JSON.stringify({ success: false, error: 'Database not available' }));
+                    return;
+                }
+                
+                console.log(`[MIGRATION] Starting profile picture migration to base64...`);
+                
+                // Fetch all entries with profile pics that are URLs (not base64)
+                const result = await pool.query(`
+                    SELECT handle, profile_pic
+                    FROM leaderboard
+                    WHERE profile_pic IS NOT NULL 
+                    AND profile_pic != ''
+                    AND profile_pic NOT LIKE 'data:image%'
+                    AND profile_pic LIKE 'http%'
+                `);
+                
+                console.log(`[MIGRATION] Found ${result.rows.length} entries with URL profile pics to convert`);
+                
+                let converted = 0;
+                let failed = 0;
+                
+                // Convert each URL to base64
+                for (const row of result.rows) {
+                    try {
+                        const imageUrl = row.profile_pic;
+                        const handle = row.handle;
+                        
+                        console.log(`[MIGRATION] Converting ${handle}...`);
+                        
+                        // Download image
+                        const https = require('https');
+                        const http = require('http');
+                        const urlObj = new URL(imageUrl);
+                        const client = urlObj.protocol === 'https:' ? https : http;
+                        
+                        const imageBuffer = await new Promise((resolve, reject) => {
+                            const request = client.get(imageUrl, (response) => {
+                                if (response.statusCode !== 200) {
+                                    reject(new Error(`Failed to fetch image: ${response.statusCode}`));
+                                    return;
+                                }
+                                
+                                const chunks = [];
+                                response.on('data', chunk => chunks.push(chunk));
+                                response.on('end', () => resolve(Buffer.concat(chunks)));
+                                response.on('error', reject);
+                            });
+                            request.on('error', reject);
+                            request.setTimeout(10000, () => {
+                                request.destroy();
+                                reject(new Error('Request timeout'));
+                            });
+                        });
+                        
+                        // Determine content type
+                        let contentType = 'image/jpeg';
+                        if (imageUrl.includes('.png')) contentType = 'image/png';
+                        else if (imageUrl.includes('.webp')) contentType = 'image/webp';
+                        else if (imageUrl.includes('.gif')) contentType = 'image/gif';
+                        
+                        // Convert to base64
+                        const base64Data = imageBuffer.toString('base64');
+                        const base64DataUrl = `data:${contentType};base64,${base64Data}`;
+                        
+                        // Update database
+                        await pool.query(
+                            `UPDATE leaderboard SET profile_pic = $1 WHERE handle = $2`,
+                            [base64DataUrl, handle]
+                        );
+                        
+                        converted++;
+                        console.log(`[MIGRATION] ✅ Converted ${handle} to base64 (${base64DataUrl.substring(0, 50)}...)`);
+                    } catch (error) {
+                        failed++;
+                        console.error(`[MIGRATION] ❌ Failed to convert ${row.handle}:`, error.message);
+                    }
+                }
+                
+                console.log(`[MIGRATION] Complete: ${converted} converted, ${failed} failed`);
+                
+                res.writeHead(200, corsHeaders);
+                res.end(JSON.stringify({ 
+                    success: true, 
+                    converted: converted,
+                    failed: failed,
+                    total: result.rows.length,
+                    message: `Migrated ${converted} profile pictures to base64`
+                }));
+            } catch (error) {
+                console.error(`[MIGRATION] Error:`, error);
                 res.writeHead(500, corsHeaders);
                 res.end(JSON.stringify({ success: false, error: error.message }));
             }
@@ -2439,7 +2553,8 @@ const server = http.createServer((req, res) => {
                     handle: entry.handle,
                     name: entry.name,
                     amount: entry.amount,
-                    isPlaceholder: entry.isPlaceholder || false
+                    isPlaceholder: entry.isPlaceholder || false,
+                    hasProfilePic: !!entry.profilePic
                 });
                 
                 if (!pool) {
@@ -2468,25 +2583,42 @@ const server = http.createServer((req, res) => {
                     });
                     
                     // UPDATE existing entry - this prevents duplicates
+                    // CRITICAL: Include profile_pic in UPDATE
                     await pool.query(
                         `UPDATE leaderboard 
-                         SET name = $1, amount = $2, is_placeholder = $3, entities = $4, updated_at = CURRENT_TIMESTAMP
-                         WHERE handle = $5`,
-                        [entry.name, entry.amount, entry.isPlaceholder || false, entry.entities ? JSON.stringify(entry.entities) : null, entry.handle]
+                         SET name = $1, amount = $2, is_placeholder = $3, entities = $4, profile_pic = $5, updated_at = CURRENT_TIMESTAMP
+                         WHERE handle = $6`,
+                        [
+                            entry.name, 
+                            entry.amount, 
+                            entry.isPlaceholder || false, 
+                            entry.entities ? JSON.stringify(entry.entities) : null,
+                            entry.profilePic || null,
+                            entry.handle
+                        ]
                     );
                     console.log(`[LEADERBOARD] Updated existing entry for handle: ${entry.handle} (duplicate prevented)`);
                 } else {
                     // Insert new entry (only if it doesn't exist)
+                    // CRITICAL: Include profile_pic in INSERT
                     await pool.query(
-                        `INSERT INTO leaderboard (name, handle, amount, is_placeholder, entities)
-                         VALUES ($1, $2, $3, $4, $5)`,
-                        [entry.name, entry.handle, entry.amount, entry.isPlaceholder || false, entry.entities ? JSON.stringify(entry.entities) : null]
+                        `INSERT INTO leaderboard (name, handle, amount, is_placeholder, entities, profile_pic)
+                         VALUES ($1, $2, $3, $4, $5, $6)`,
+                        [
+                            entry.name, 
+                            entry.handle, 
+                            entry.amount, 
+                            entry.isPlaceholder || false, 
+                            entry.entities ? JSON.stringify(entry.entities) : null,
+                            entry.profilePic || null
+                        ]
                     );
                     console.log(`[LEADERBOARD] Added new entry for handle: ${entry.handle}`);
                 }
                 
                 // Fetch updated leaderboard - deduplicate by handle (case-insensitive)
                 // Use DISTINCT ON to ensure only one entry per handle
+                // CRITICAL: Include profile_pic in SELECT
                 const result = await pool.query(`
                     SELECT DISTINCT ON (LOWER(handle))
                         name,
@@ -2494,6 +2626,7 @@ const server = http.createServer((req, res) => {
                         amount,
                         is_placeholder as "isPlaceholder",
                         entities,
+                        profile_pic as "profilePic",
                         created_at as "createdAt",
                         updated_at as "updatedAt"
                     FROM leaderboard
@@ -2510,6 +2643,7 @@ const server = http.createServer((req, res) => {
                     amount: row.amount,
                     isPlaceholder: row.isPlaceholder,
                     entities: row.entities ? (typeof row.entities === 'string' ? JSON.parse(row.entities) : row.entities) : null,
+                    profilePic: row.profilePic || null,
                     createdAt: row.createdAt,
                     updatedAt: row.updatedAt
                 }));
