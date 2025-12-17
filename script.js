@@ -1534,30 +1534,34 @@ async function loadLeaderboard() {
                 })
                 .map(entry => {
                     const cleanEntryHandle = cleanHandle(entry.handle);
-                    // CRITICAL: Use database profilePic FIRST, then fallback to localStorage
-                    // If database has null, still check localStorage (existing entries may have pics in localStorage)
-                    let profilePic = entry.profilePic || databaseProfilePics.get(cleanEntryHandle) || null;
                     
-                    // CRITICAL: ALWAYS check localStorage as fallback (even if database has something)
-                    // This ensures existing entries with localStorage pics are displayed
-                    if (!profilePic || profilePic === null || profilePic === 'null' || profilePic === '') {
-                        // Try ALL possible handle formats
-                        const storedPic = storedProfilePics[entry.handle] || 
-                                         storedProfilePics[cleanEntryHandle] ||
-                                         storedProfilePics[`@${entry.handle}`] ||
-                                         storedProfilePics[`@${cleanEntryHandle}`] ||
-                                         storedProfilePics[entry.handle.toLowerCase()] ||
-                                         storedProfilePics[cleanEntryHandle.toLowerCase()] ||
-                                         null;
-                        if (storedPic) {
-                            profilePic = storedPic;
-                            console.log(`📦✅ Found profile pic in localStorage for ${entry.handle} (database had null/empty)`);
+                    // CRITICAL: ALWAYS check localStorage FIRST (most reliable for existing entries)
+                    // Then fallback to database if localStorage doesn't have it
+                    // Try ALL possible handle formats to ensure we find it
+                    let profilePic = storedProfilePics[entry.handle] || 
+                                    storedProfilePics[cleanEntryHandle] ||
+                                    storedProfilePics[`@${entry.handle}`] ||
+                                    storedProfilePics[`@${cleanEntryHandle}`] ||
+                                    storedProfilePics[entry.handle.toLowerCase()] ||
+                                    storedProfilePics[cleanEntryHandle.toLowerCase()] ||
+                                    null;
+                    
+                    if (profilePic) {
+                        console.log(`📦✅ Found profile pic in localStorage for ${entry.handle} (using localStorage)`);
+                    } else {
+                        // Fallback to database if localStorage doesn't have it
+                        profilePic = entry.profilePic || null;
+                        if (profilePic && (profilePic === 'null' || profilePic === '')) {
+                            profilePic = null;
+                        }
+                        if (profilePic) {
+                            console.log(`✅✅✅ Found profile pic in DATABASE for ${entry.handle}: ${profilePic.substring(0, 50)}...`);
                         } else {
-                            console.log(`⚠️ No profile pic found for ${entry.handle} in localStorage (checked: ${entry.handle}, ${cleanEntryHandle}, @${entry.handle}, @${cleanEntryHandle})`);
+                            console.log(`⚠️ No profile pic found for ${entry.handle} (checked localStorage and database)`);
                         }
                     }
                     
-                    // CRITICAL: If database has URL (not base64), check localStorage for cached base64
+                    // CRITICAL: If we have a URL (not base64), check localStorage for cached base64
                     // This ensures instant loading on mobile
                     if (profilePic && profilePic.startsWith('http')) {
                         const cachedBase64 = getProfilePicForDisplay(entry.handle, profilePic);
@@ -1577,7 +1581,7 @@ async function loadLeaderboard() {
                     
                     return {
                         ...entry,
-                        profilePic: profilePic, // Use database profile pic, localStorage fallback, or cached base64
+                        profilePic: profilePic, // Use localStorage first, then database, then cached base64
                         isPlaceholder: false
                     };
                 });
@@ -2555,30 +2559,37 @@ function createEntryHTML(user, rank) {
     const formattedAmount = user.isPlaceholder ? '$500+' : `$${user.amount}`;
     const escapedName = user.name.replace(/'/g, "\\'");
     
-    // CRITICAL: Prioritize database profile pic FIRST (user.profilePic from database loads immediately on mobile)
-    // Only fallback to localStorage if database doesn't have it
+    // CRITICAL: Use profilePic from user object FIRST (already checked localStorage + database in loadLeaderboard)
+    // Only check localStorage again if profilePic is missing (shouldn't happen, but safety check)
     let profilePic = user.profilePic;
     const cleanUserHandle = cleanHandle(user.handle);
     
+    // Normalize null/empty values
+    if (profilePic === 'null' || profilePic === '') {
+        profilePic = null;
+    }
+    
     if (!profilePic || profilePic.length === 0) {
-        // Fallback to localStorage only if database doesn't have profilePic
+        // Safety fallback: Check localStorage one more time (shouldn't be needed, but ensures we don't miss anything)
         const storedProfilePics = loadProfilePicsFromStorage();
-        // Try multiple handle formats
+        // Try ALL possible handle formats
         profilePic = storedProfilePics[user.handle] || 
                      storedProfilePics[cleanUserHandle] || 
                      storedProfilePics[`@${user.handle}`] ||
                      storedProfilePics[`@${cleanUserHandle}`] ||
+                     storedProfilePics[user.handle.toLowerCase()] ||
+                     storedProfilePics[cleanUserHandle.toLowerCase()] ||
                      null;
         if (profilePic) {
             const isBase64 = profilePic.startsWith('data:image');
-            console.log(`📦 createEntryHTML: Found profilePic in localStorage for ${user.handle} (database didn't have it): ${isBase64 ? 'BASE64 (INSTANT)' : 'URL'}`);
+            console.log(`📦 createEntryHTML: Safety fallback - Found profilePic in localStorage for ${user.handle}: ${isBase64 ? 'BASE64 (INSTANT)' : 'URL'}`);
         } else {
-            console.log(`⚠️ createEntryHTML: No profilePic found (neither database nor localStorage) for ${user.handle}`);
+            console.log(`⚠️ createEntryHTML: No profilePic found for ${user.handle} (checked user.profilePic and localStorage)`);
         }
     } else {
-        // Database profile pic found - use it immediately
+        // Profile pic found - use it immediately
         const isBase64 = profilePic.startsWith('data:image');
-        console.log(`✅✅✅ createEntryHTML: Using profilePic from DATABASE for ${user.handle}: ${isBase64 ? 'BASE64 (INSTANT)' : 'URL'}`);
+        console.log(`✅✅✅ createEntryHTML: Using profilePic for ${user.handle}: ${isBase64 ? 'BASE64 (INSTANT)' : 'URL'} (${profilePic.substring(0, 50)}...)`);
     }
     
     // CRITICAL: If we have a URL, check for base64 cache first
@@ -2657,26 +2668,32 @@ async function displayLeaderboard(users) {
     
     console.log(`📊 Sorted ${sortedUsers.length} users by amount (descending)`);
     
-    // CRITICAL: Prioritize database profile pics FIRST (they load immediately on mobile)
-    // Only fallback to localStorage if database doesn't have it
+    // CRITICAL: Use profilePic from loadLeaderboard() FIRST (it already checked localStorage + database)
+    // Only check localStorage again if profilePic is missing (shouldn't happen, but safety check)
     const usersWithPics = sortedUsers.map(user => {
-        // If user already has profilePic from database, use it immediately
-        if (user.profilePic) {
+        // If user already has profilePic from loadLeaderboard(), use it immediately
+        if (user.profilePic && user.profilePic !== 'null' && user.profilePic !== '') {
             const isBase64 = user.profilePic.startsWith('data:image');
-            console.log(`✅✅✅ User ${user.handle} has profilePic from DATABASE: ${isBase64 ? 'BASE64 (INSTANT)' : 'URL'}`);
+            console.log(`✅✅✅ User ${user.handle} has profilePic from loadLeaderboard(): ${isBase64 ? 'BASE64 (INSTANT)' : 'URL'}`);
             return user;
         }
         
-        // Fallback to localStorage only if database doesn't have it
+        // Safety fallback: Check localStorage one more time (shouldn't be needed, but ensures we don't miss anything)
         const storedProfilePics = loadProfilePicsFromStorage();
         const cleanUserHandle = cleanHandle(user.handle);
-        // Check both exact handle and cleaned handle
-        const storedPic = storedProfilePics[user.handle] || storedProfilePics[cleanUserHandle];
+        // Try ALL possible handle formats
+        const storedPic = storedProfilePics[user.handle] || 
+                          storedProfilePics[cleanUserHandle] ||
+                          storedProfilePics[`@${user.handle}`] ||
+                          storedProfilePics[`@${cleanUserHandle}`] ||
+                          storedProfilePics[user.handle.toLowerCase()] ||
+                          storedProfilePics[cleanUserHandle.toLowerCase()] ||
+                          null;
         if (storedPic) {
-            console.log(`📦 Found profile pic in localStorage for ${user.handle} (database didn't have it)`);
+            console.log(`📦 Safety fallback: Found profile pic in localStorage for ${user.handle}`);
             return { ...user, profilePic: storedPic };
         } else {
-            console.log(`⚠️ No profile pic found (neither database nor localStorage) for ${user.handle}`);
+            console.log(`⚠️ No profile pic found for ${user.handle} (checked loadLeaderboard data and localStorage)`);
         }
         return user;
     });
