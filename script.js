@@ -1204,20 +1204,55 @@ function loadProfilePicsFromStorage() {
 }
 
 // Save profile pictures to localStorage
+// CRITICAL: Enhanced error handling for mobile Safari quota issues
 function saveProfilePicsToStorage(profilePics) {
     try {
-        localStorage.setItem('leaderboardProfilePics', JSON.stringify(profilePics));
-        console.log(`💾 Saved ${Object.keys(profilePics).length} profile pictures to localStorage`);
+        const jsonString = JSON.stringify(profilePics);
+        localStorage.setItem('leaderboardProfilePics', jsonString);
+        
+        // CRITICAL: Verify save succeeded (mobile Safari can fail silently)
+        const verify = localStorage.getItem('leaderboardProfilePics');
+        if (verify === jsonString) {
+            console.log(`💾✅ Verified saved ${Object.keys(profilePics).length} profile pictures to localStorage`);
+        } else {
+            console.error(`❌❌❌ Save verification FAILED - data mismatch`);
+            throw new Error('Save verification failed');
+        }
     } catch (e) {
-        console.error('Error saving profile pics to storage:', e);
-        // If storage is full, try to clear old entries
-        try {
-            console.log('⚠️ Storage may be full, attempting to clear and retry...');
-            localStorage.removeItem('leaderboardProfilePics');
-            localStorage.setItem('leaderboardProfilePics', JSON.stringify(profilePics));
-            console.log('✅ Successfully saved after clearing storage');
-        } catch (e2) {
-            console.error('❌ Failed to save even after clearing:', e2);
+        console.error('❌ Error saving profile pics to storage:', e);
+        console.error('Error name:', e.name);
+        console.error('Error code:', e.code);
+        console.error('Error message:', e.message);
+        
+        // If storage is full (QuotaExceededError), try to clear old entries
+        if (e.name === 'QuotaExceededError' || e.code === 22) {
+            try {
+                console.log('⚠️ Storage quota exceeded, attempting to clear old entries and retry...');
+                // Clear old entries but keep base64 (more important)
+                const base64Cache = localStorage.getItem('leaderboardProfilePicsBase64');
+                localStorage.clear();
+                if (base64Cache) {
+                    localStorage.setItem('leaderboardProfilePicsBase64', base64Cache);
+                }
+                // Now try saving again
+                localStorage.setItem('leaderboardProfilePics', JSON.stringify(profilePics));
+                console.log('✅ Successfully saved after clearing storage');
+            } catch (e2) {
+                console.error('❌ Failed to save even after clearing:', e2);
+                // Last resort: try saving only base64 entries
+                try {
+                    const base64Only = {};
+                    Object.keys(profilePics).forEach(key => {
+                        if (profilePics[key] && profilePics[key].startsWith('data:image')) {
+                            base64Only[key] = profilePics[key];
+                        }
+                    });
+                    localStorage.setItem('leaderboardProfilePics', JSON.stringify(base64Only));
+                    console.log(`✅ Saved ${Object.keys(base64Only).length} base64-only entries`);
+                } catch (e3) {
+                    console.error('❌ Failed to save even base64-only entries:', e3);
+                }
+            }
         }
     }
 }
@@ -2561,79 +2596,56 @@ async function displayLeaderboard(users) {
         return user;
     });
     
-    console.log(`📊 Users with profile pics:`, usersWithPics.map(u => `${u.handle}: ${u.profilePic ? (u.profilePic.startsWith('data:image') ? 'BASE64' : 'URL') : 'NO PIC'}`));
+    console.log(`📊 Users with profile pics:`, usersWithPics.map(u => `${u.handle}: ${u.profilePic ? 'HAS PIC' : 'NO PIC'}`));
     
-    // CRITICAL: Render IMMEDIATELY with cached base64 (ZERO BLOCKING on mobile)
-    // DO NOT wait for any conversions - render NOW with whatever we have
-    console.log(`⚡⚡⚡ Rendering IMMEDIATELY - NO BLOCKING CONVERSIONS`);
-    const usersForDisplay = usersWithPics.map(user => {
+    // CRITICAL: Convert ALL URLs to base64 BEFORE rendering for INSTANT display
+    console.log(`🔄 Converting all URLs to base64 BEFORE rendering...`);
+    const usersWithBase64 = await Promise.all(usersWithPics.map(async (user) => {
         if (user.profilePic) {
             // If already base64, use it
             if (user.profilePic.startsWith('data:image')) {
-                console.log(`⚡ ${user.handle}: Already base64 - INSTANT`);
                 return user;
             }
-            // If URL, check for cached base64 (synchronous check only)
+            // If URL, check for cached base64 first
             if (user.profilePic.startsWith('http')) {
                 const cachedBase64 = getProfilePicForDisplay(user.handle, user.profilePic);
                 if (cachedBase64 && cachedBase64.startsWith('data:image')) {
-                    console.log(`⚡⚡⚡ ${user.handle}: Found cached base64 - INSTANT`);
+                    console.log(`⚡ Using cached base64 for ${user.handle}`);
                     return { ...user, profilePic: cachedBase64 };
                 }
-                // No cached base64 - use URL (will convert in background)
-                console.log(`📡 ${user.handle}: No cache - using URL (will convert in background)`);
-                return user;
+                // Convert to base64 NOW (blocking) for instant display
+                console.log(`🔄 Converting ${user.handle} URL to base64 NOW...`);
+                const base64 = await getProfilePicBase64(user.handle, user.profilePic);
+                if (base64) {
+                    // Update localStorage with base64
+                    const storedProfilePics = loadProfilePicsFromStorage();
+                    storedProfilePics[user.handle] = base64;
+                    storedProfilePics[cleanHandle(user.handle)] = base64;
+                    saveProfilePicsToStorage(storedProfilePics);
+                    console.log(`✅ Converted ${user.handle} to base64 - INSTANT DISPLAY`);
+                    return { ...user, profilePic: base64 };
+                }
             }
         }
         return user;
-    });
+    }));
     
-    // Render IMMEDIATELY - no waiting
-    console.log(`⚡⚡⚡ Rendering NOW with ${usersForDisplay.filter(u => u.profilePic && u.profilePic.startsWith('data:image')).length} base64 images`);
-    listContainer.innerHTML = usersForDisplay.map((user, index) => 
+    console.log(`✅ All profile pics converted to base64 - rendering INSTANT display`);
+    
+    // Generate HTML with base64 images (INSTANT display, zero delay)
+    listContainer.innerHTML = usersWithBase64.map((user, index) => 
         createEntryHTML(user, index + 1)
     ).join('');
     
     leaderboard.classList.remove('hidden');
     
-    // CRITICAL: Convert URLs to base64 in background AFTER rendering (completely non-blocking)
-    // This ensures instant display while optimizing for future loads
+    // Convert URLs to base64 in background AFTER rendering (non-blocking)
     usersWithPics.forEach(user => {
         if (user.profilePic && user.profilePic.startsWith('http')) {
-            const cachedBase64 = getProfilePicForDisplay(user.handle, user.profilePic);
-            // Only convert if we don't have cached base64
-            if (!cachedBase64 || !cachedBase64.startsWith('data:image')) {
-                // Start conversion in background (non-blocking - doesn't delay rendering)
-                console.log(`🔄 Background conversion for ${user.handle}...`);
-                getProfilePicBase64(user.handle, user.profilePic).then(base64 => {
-                    if (base64) {
-                        // Update localStorage with base64 for future instant loads
-                        const storedProfilePics = loadProfilePicsFromStorage();
-                        storedProfilePics[user.handle] = base64;
-                        storedProfilePics[cleanHandle(user.handle)] = base64;
-                        saveProfilePicsToStorage(storedProfilePics);
-                        
-                        // Also save to base64 cache
-                        const base64Cache = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
-                        const cleanHandleValue = cleanHandle(user.handle);
-                        base64Cache[`${cleanHandleValue}_base64`] = base64;
-                        base64Cache[`${cleanHandleValue}_url`] = user.profilePic;
-                        base64Cache[`${user.handle}_base64`] = base64;
-                        base64Cache[`${user.handle}_url`] = user.profilePic;
-                        localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(base64Cache));
-                        
-                        console.log(`✅ Converted ${user.handle} to base64 - cached for next time`);
-                        
-                        // Update the displayed image if still visible
-                        const entry = document.querySelector(`.leaderboard-entry[data-handle="${user.handle}"]`);
-                        if (entry) {
-                            const img = entry.querySelector('img');
-                            if (img && img.src !== base64 && !img.src.startsWith('data:image')) {
-                                img.src = base64;
-                            }
-                        }
-                    }
-                }).catch(() => {});
+            const base64 = getProfilePicForDisplay(user.handle, user.profilePic);
+            if (!base64 || !base64.startsWith('data:image')) {
+                // Start conversion immediately (non-blocking)
+                getProfilePicBase64(user.handle, user.profilePic).catch(() => {});
             }
         }
     });
