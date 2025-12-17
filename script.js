@@ -1210,51 +1210,14 @@ function saveProfilePicsToStorage(profilePics) {
         console.log(`💾 Saved ${Object.keys(profilePics).length} profile pictures to localStorage`);
     } catch (e) {
         console.error('Error saving profile pics to storage:', e);
-        // If storage is full (QuotaExceededError), try to free up space intelligently
-        if (e.name === 'QuotaExceededError' || e.code === 22) {
-            try {
-                console.log('⚠️ Storage is full, attempting to free space...');
-                // Try to remove only base64 cache (larger) and keep URLs
-                try {
-                    localStorage.removeItem('leaderboardProfilePicsBase64');
-                    console.log('✅ Removed base64 cache to free space');
-                } catch (e3) {
-                    // If that doesn't work, try clearing old entries from regular storage
-                    // Keep only entries that are in current leaderboardData
-                    const currentHandles = new Set();
-                    leaderboardData.forEach(entry => {
-                        if (entry.handle) {
-                            currentHandles.add(entry.handle);
-                            currentHandles.add(cleanHandle(entry.handle));
-                        }
-                    });
-                    
-                    const filteredPics = {};
-                    Object.keys(profilePics).forEach(key => {
-                        // Keep if it's in current leaderboard OR if it's a base64 (smaller key format)
-                        if (currentHandles.has(key) || key.includes('_base64') || key.includes('_url')) {
-                            // Check if base64 key corresponds to current handle
-                            const handleFromKey = key.replace('_base64', '').replace('_url', '');
-                            if (currentHandles.has(handleFromKey) || currentHandles.has(cleanHandle(handleFromKey))) {
-                                filteredPics[key] = profilePics[key];
-                            }
-                        }
-                    });
-                    
-                    // Try saving filtered version
-                    localStorage.setItem('leaderboardProfilePics', JSON.stringify(filteredPics));
-                    console.log(`✅ Freed space by removing ${Object.keys(profilePics).length - Object.keys(filteredPics).length} old entries`);
-                }
-                
-                // Retry saving the new data
-                localStorage.setItem('leaderboardProfilePics', JSON.stringify(profilePics));
-                console.log('✅ Successfully saved after freeing space');
-            } catch (e2) {
-                console.error('❌ Failed to save even after freeing space:', e2);
-                console.error('⚠️ Some profile pics may not be saved due to storage limits');
-            }
-        } else {
-            console.error('❌ Unexpected error saving profile pics:', e);
+        // If storage is full, try to clear old entries
+        try {
+            console.log('⚠️ Storage may be full, attempting to clear and retry...');
+            localStorage.removeItem('leaderboardProfilePics');
+            localStorage.setItem('leaderboardProfilePics', JSON.stringify(profilePics));
+            console.log('✅ Successfully saved after clearing storage');
+        } catch (e2) {
+            console.error('❌ Failed to save even after clearing:', e2);
         }
     }
 }
@@ -2320,6 +2283,8 @@ async function retryProfilePicture(failedEntry, users) {
             await new Promise(resolve => setTimeout(resolve, 2000));
             const img = profilePictureDiv.querySelector('img');
             if (img && img.complete && img.naturalHeight > 0) {
+                successfullyLoadedHandles.add(cleanHandleValue);
+                inFlightRequests.delete(cleanHandleValue);
                 console.log(`✅✅✅ Successfully loaded profile pic for ${handle} using direct URL`);
                 return; // Success
             }
@@ -2342,6 +2307,8 @@ async function retryProfilePicture(failedEntry, users) {
             await new Promise(resolve => setTimeout(resolve, 2000));
             const img = profilePictureDiv.querySelector('img');
             if (img && img.complete && img.naturalHeight > 0) {
+                successfullyLoadedHandles.add(cleanHandleValue);
+                inFlightRequests.delete(cleanHandleValue);
                 console.log(`✅✅✅ Successfully loaded profile pic for ${handle} using proxy with cache-busting`);
                 return; // Success
             }
@@ -2368,6 +2335,8 @@ async function retryProfilePicture(failedEntry, users) {
                 await new Promise(resolve => setTimeout(resolve, 3000)); // Longer wait on mobile
                 const img = profilePictureDiv.querySelector('img');
                 if (img && img.complete && img.naturalHeight > 0) {
+                    successfullyLoadedHandles.add(cleanHandleValue);
+                    inFlightRequests.delete(cleanHandleValue);
                     console.log(`✅✅✅ Successfully loaded profile pic for ${handle} using proxy retry ${attempt}`);
                     return; // Success
                 }
@@ -2398,6 +2367,8 @@ async function retryProfilePicture(failedEntry, users) {
             await new Promise(resolve => setTimeout(resolve, 3000));
             const img = profilePictureDiv.querySelector('img');
             if (img && img.complete && img.naturalHeight > 0) {
+                successfullyLoadedHandles.add(cleanHandleValue);
+                inFlightRequests.delete(cleanHandleValue);
                 console.log(`✅✅✅ Successfully loaded profile pic for ${handle} using force reload`);
                 return; // Success
             }
@@ -2406,7 +2377,13 @@ async function retryProfilePicture(failedEntry, users) {
         }
     }
     
+    // CRITICAL: Always clear in-flight flag, even on failure
+    inFlightRequests.delete(cleanHandleValue);
     console.log(`❌ All retry methods failed for ${handle}, keeping initials`);
+    } finally {
+        // CRITICAL: Ensure in-flight flag is always cleared
+        inFlightRequests.delete(cleanHandleValue);
+    }
 }
 
 // Helper function to load a profile picture image
