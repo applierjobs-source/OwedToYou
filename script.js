@@ -1139,36 +1139,7 @@ async function getInstagramProfilePicture(username) {
     })();
     
     // Race between fetch and timeout
-    const fetchedUrl = await Promise.race([fetchPromise, timeoutPromise]);
-    
-    // CRITICAL: If we fetched a URL, convert to base64 IMMEDIATELY and save FOREVER
-    // This is the ONLY place conversion should happen - immediately after fetch
-    if (fetchedUrl && fetchedUrl.startsWith('http')) {
-        console.log(`[PROFILE PIC] 🔄 Converting freshly fetched image to base64 for ${cleanUsername}...`);
-        const base64 = await convertImageToBase64(fetchedUrl);
-        if (base64) {
-            // CRITICAL: Save base64 to storage FOREVER - instant display FOREVER
-            const storedProfilePics = loadProfilePicsFromStorage();
-            storedProfilePics[username] = base64;
-            storedProfilePics[cleanUsername] = base64;
-            storedProfilePics[`@${username}`] = base64;
-            storedProfilePics[`@${cleanUsername}`] = base64;
-            saveProfilePicsToStorage(storedProfilePics);
-            
-            // Also save to base64 cache
-            const base64Cache = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
-            base64Cache[`${cleanUsername}_base64`] = base64;
-            base64Cache[`${cleanUsername}_url`] = fetchedUrl;
-            base64Cache[`${username}_base64`] = base64;
-            base64Cache[`${username}_url`] = fetchedUrl;
-            localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(base64Cache));
-            
-            console.log(`[PROFILE PIC] ✅✅✅✅✅ Converted and saved BASE64 for ${cleanUsername} - INSTANT FOREVER`);
-            return base64;
-        }
-    }
-    
-    return null;
+    return Promise.race([fetchPromise, timeoutPromise]);
 }
 
 // Load profile pictures from localStorage
@@ -4269,9 +4240,9 @@ async function migrateUrlsToBase64() {
     for (const handle in storedProfilePics) {
         const pic = storedProfilePics[handle];
         if (pic && pic.startsWith('http')) {
-            // This is a URL, convert to base64
+            // This is a URL, convert to base64 (one-time migration)
             console.log(`🔄 Migrating URL to base64 for ${handle}...`);
-            const base64 = await getProfilePicBase64(handle, pic);
+            const base64 = await convertImageToBase64(pic);
             if (base64) {
                 storedProfilePics[handle] = base64;
                 migrated++;
