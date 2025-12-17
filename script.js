@@ -1386,6 +1386,11 @@ async function loadLeaderboard() {
         const data = await response.json();
         
         console.log('Leaderboard response:', data);
+        console.log(`📊 Raw leaderboard entries from API: ${data.leaderboard ? data.leaderboard.length : 0}`);
+        if (data.leaderboard && data.leaderboard.length > 0) {
+            console.log(`📊 Sample entry:`, data.leaderboard[0]);
+            console.log(`📊 Placeholders in data:`, data.leaderboard.filter(e => e.isPlaceholder).length);
+        }
         
         if (data.success && data.leaderboard && Array.isArray(data.leaderboard)) {
             // Preserve existing profile pictures from memory
@@ -4297,19 +4302,14 @@ document.addEventListener('DOMContentLoaded', async function() {
     await loadLeaderboard();
     
     // Always show leaderboard if it has entries (on page load)
-    const leaderboard = document.getElementById('leaderboard');
-    if (!leaderboard) {
-        console.error('❌ Leaderboard element not found on page load!');
-        return;
-    }
-    
     if (leaderboardData.length > 0) {
-        console.log(`📊 Page load: Displaying leaderboard with ${leaderboardData.length} entries`);
         displayLeaderboard(leaderboardData);
     } else {
         // Hide leaderboard if empty
-        leaderboard.classList.add('hidden');
-        console.log('⚠️ Leaderboard hidden - no entries');
+        const leaderboard = document.getElementById('leaderboard');
+        if (leaderboard) {
+            leaderboard.classList.add('hidden');
+        }
     }
 });
 
