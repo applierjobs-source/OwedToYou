@@ -1139,7 +1139,69 @@ async function getInstagramProfilePicture(username) {
     })();
     
     // Race between fetch and timeout
-    return Promise.race([fetchPromise, timeoutPromise]);
+    const fetchedUrl = await Promise.race([fetchPromise, timeoutPromise]);
+    
+    // CRITICAL: If we fetched a URL, convert to base64 and save IMMEDIATELY
+    if (fetchedUrl && fetchedUrl.startsWith('http')) {
+        console.log(`[PROFILE PIC] 🔄 Converting fetched URL to base64 for ${cleanUsername}...`);
+        const base64 = await convertImageToBase64(fetchedUrl);
+        if (base64) {
+            // CRITICAL: Save base64 to storage immediately - NEVER FETCH AGAIN
+            const storedProfilePics = loadProfilePicsFromStorage();
+            storedProfilePics[username] = base64;
+            storedProfilePics[cleanUsername] = base64;
+            storedProfilePics[`@${username}`] = base64;
+            storedProfilePics[`@${cleanUsername}`] = base64;
+            saveProfilePicsToStorage(storedProfilePics);
+            
+            // Also save to base64 cache
+            const base64Cache = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
+            base64Cache[`${cleanUsername}_base64`] = base64;
+            base64Cache[`${cleanUsername}_url`] = fetchedUrl;
+            base64Cache[`${username}_base64`] = base64;
+            base64Cache[`${username}_url`] = fetchedUrl;
+            localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(base64Cache));
+            
+            console.log(`[PROFILE PIC] ✅✅✅✅✅ Converted and saved BASE64 for ${cleanUsername} - NEVER FETCH AGAIN`);
+            return base64;
+        } else {
+            // If conversion fails, save URL as fallback (but we'll try to convert again later)
+            console.log(`[PROFILE PIC] ⚠️ Base64 conversion failed for ${cleanUsername}, saving URL as fallback`);
+            const storedProfilePics = loadProfilePicsFromStorage();
+            storedProfilePics[username] = fetchedUrl;
+            storedProfilePics[cleanUsername] = fetchedUrl;
+            saveProfilePicsToStorage(storedProfilePics);
+            return fetchedUrl;
+        }
+    }
+    
+    // If we got imageUrl from backend but fetchPromise didn't return anything, convert it
+    if (imageUrl && imageUrl.startsWith('http')) {
+        console.log(`[PROFILE PIC] 🔄 Converting backend URL to base64 for ${cleanUsername}...`);
+        const base64 = await convertImageToBase64(imageUrl);
+        if (base64) {
+            // CRITICAL: Save base64 to storage immediately
+            const storedProfilePics = loadProfilePicsFromStorage();
+            storedProfilePics[username] = base64;
+            storedProfilePics[cleanUsername] = base64;
+            storedProfilePics[`@${username}`] = base64;
+            storedProfilePics[`@${cleanUsername}`] = base64;
+            saveProfilePicsToStorage(storedProfilePics);
+            
+            // Also save to base64 cache
+            const base64Cache = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
+            base64Cache[`${cleanUsername}_base64`] = base64;
+            base64Cache[`${cleanUsername}_url`] = imageUrl;
+            base64Cache[`${username}_base64`] = base64;
+            base64Cache[`${username}_url`] = imageUrl;
+            localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(base64Cache));
+            
+            console.log(`[PROFILE PIC] ✅✅✅✅✅ Converted and saved BASE64 for ${cleanUsername} - NEVER FETCH AGAIN`);
+            return base64;
+        }
+    }
+    
+    return null;
 }
 
 // Load profile pictures from localStorage
@@ -1206,39 +1268,8 @@ function loadProfilePicsFromStorage() {
 // Save profile pictures to localStorage
 function saveProfilePicsToStorage(profilePics) {
     try {
-        // CRITICAL: Clean proxy URLs - extract base64 if present, or remove proxy URLs
-        const cleanedPics = {};
-        Object.keys(profilePics).forEach(key => {
-            const pic = profilePics[key];
-            // If it's a proxy URL containing base64, extract the base64
-            if (pic && pic.includes('/api/profile-pic-proxy?url=')) {
-                const extractedBase64 = extractBase64FromProxyUrl(pic);
-                if (extractedBase64) {
-                    cleanedPics[key] = extractedBase64;
-                    console.log(`✅ Extracted base64 from proxy URL for key: ${key}`);
-                } else {
-                    // If it's a proxy URL but not base64, try to extract the original URL
-                    try {
-                        const urlMatch = pic.match(/url=([^&]+)/);
-                        if (urlMatch) {
-                            const decodedUrl = decodeURIComponent(urlMatch[1]);
-                            // Only save if it's a real HTTP URL, not another proxy URL
-                            if (decodedUrl.startsWith('http') && !decodedUrl.includes('/api/profile-pic-proxy')) {
-                                cleanedPics[key] = decodedUrl;
-                            }
-                        }
-                    } catch (e) {
-                        // Skip invalid proxy URLs
-                    }
-                }
-            } else {
-                // Not a proxy URL, save as-is
-                cleanedPics[key] = pic;
-            }
-        });
-        
-        localStorage.setItem('leaderboardProfilePics', JSON.stringify(cleanedPics));
-        console.log(`💾 Saved ${Object.keys(cleanedPics).length} profile pictures to localStorage`);
+        localStorage.setItem('leaderboardProfilePics', JSON.stringify(profilePics));
+        console.log(`💾 Saved ${Object.keys(profilePics).length} profile pictures to localStorage`);
     } catch (e) {
         console.error('Error saving profile pics to storage:', e);
         // If storage is full, try to clear old entries
