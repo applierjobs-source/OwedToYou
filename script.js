@@ -1538,17 +1538,22 @@ async function loadLeaderboard() {
                     // If database has null, still check localStorage (existing entries may have pics in localStorage)
                     let profilePic = entry.profilePic || databaseProfilePics.get(cleanEntryHandle) || null;
                     
-                    // CRITICAL: If database doesn't have profilePic (null), check localStorage
-                    // This is important for existing entries that have profile pics in localStorage but not in database
-                    if (!profilePic || profilePic === null) {
+                    // CRITICAL: ALWAYS check localStorage as fallback (even if database has something)
+                    // This ensures existing entries with localStorage pics are displayed
+                    if (!profilePic || profilePic === null || profilePic === 'null' || profilePic === '') {
+                        // Try ALL possible handle formats
                         const storedPic = storedProfilePics[entry.handle] || 
                                          storedProfilePics[cleanEntryHandle] ||
                                          storedProfilePics[`@${entry.handle}`] ||
                                          storedProfilePics[`@${cleanEntryHandle}`] ||
+                                         storedProfilePics[entry.handle.toLowerCase()] ||
+                                         storedProfilePics[cleanEntryHandle.toLowerCase()] ||
                                          null;
                         if (storedPic) {
                             profilePic = storedPic;
-                            console.log(`📦 Found profile pic in localStorage for ${entry.handle} (database had null)`);
+                            console.log(`📦✅ Found profile pic in localStorage for ${entry.handle} (database had null/empty)`);
+                        } else {
+                            console.log(`⚠️ No profile pic found for ${entry.handle} in localStorage (checked: ${entry.handle}, ${cleanEntryHandle}, @${entry.handle}, @${cleanEntryHandle})`);
                         }
                     }
                     
@@ -1560,6 +1565,14 @@ async function loadLeaderboard() {
                             console.log(`⚡⚡⚡ Found cached base64 for ${entry.handle} - using for instant display`);
                             profilePic = cachedBase64;
                         }
+                    }
+                    
+                    // Log final state
+                    if (profilePic) {
+                        const isBase64 = profilePic.startsWith('data:image');
+                        console.log(`✅ Entry ${entry.handle}: profilePic=${isBase64 ? 'BASE64' : 'URL'} (${profilePic.substring(0, 50)}...)`);
+                    } else {
+                        console.log(`❌ Entry ${entry.handle}: NO profilePic`);
                     }
                     
                     return {
