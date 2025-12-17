@@ -1206,8 +1206,39 @@ function loadProfilePicsFromStorage() {
 // Save profile pictures to localStorage
 function saveProfilePicsToStorage(profilePics) {
     try {
-        localStorage.setItem('leaderboardProfilePics', JSON.stringify(profilePics));
-        console.log(`💾 Saved ${Object.keys(profilePics).length} profile pictures to localStorage`);
+        // CRITICAL: Clean proxy URLs - extract base64 if present, or remove proxy URLs
+        const cleanedPics = {};
+        Object.keys(profilePics).forEach(key => {
+            const pic = profilePics[key];
+            // If it's a proxy URL containing base64, extract the base64
+            if (pic && pic.includes('/api/profile-pic-proxy?url=')) {
+                const extractedBase64 = extractBase64FromProxyUrl(pic);
+                if (extractedBase64) {
+                    cleanedPics[key] = extractedBase64;
+                    console.log(`✅ Extracted base64 from proxy URL for key: ${key}`);
+                } else {
+                    // If it's a proxy URL but not base64, try to extract the original URL
+                    try {
+                        const urlMatch = pic.match(/url=([^&]+)/);
+                        if (urlMatch) {
+                            const decodedUrl = decodeURIComponent(urlMatch[1]);
+                            // Only save if it's a real HTTP URL, not another proxy URL
+                            if (decodedUrl.startsWith('http') && !decodedUrl.includes('/api/profile-pic-proxy')) {
+                                cleanedPics[key] = decodedUrl;
+                            }
+                        }
+                    } catch (e) {
+                        // Skip invalid proxy URLs
+                    }
+                }
+            } else {
+                // Not a proxy URL, save as-is
+                cleanedPics[key] = pic;
+            }
+        });
+        
+        localStorage.setItem('leaderboardProfilePics', JSON.stringify(cleanedPics));
+        console.log(`💾 Saved ${Object.keys(cleanedPics).length} profile pictures to localStorage`);
     } catch (e) {
         console.error('Error saving profile pics to storage:', e);
         // If storage is full, try to clear old entries
@@ -3015,12 +3046,6 @@ async function handleSearchImpl() {
     }
 }
 console.log('✅✅✅✅✅ handleSearchImpl FUNCTION DEFINITION COMPLETE');
-console.log('🔍🔍🔍 handleSearchImpl type after definition:', typeof handleSearchImpl);
-console.log('🔍🔍🔍 handleSearchImpl is function:', typeof handleSearchImpl === 'function');
-console.log('🔍🔍🔍 handleSearchImpl value:', handleSearchImpl);
-if (typeof handleSearchImpl === 'function') {
-    console.log('🔍🔍🔍 handleSearchImpl function string (first 200 chars):', handleSearchImpl.toString().substring(0, 200));
-}
 
 // CRITICAL: Export handleSearchImpl to window.handleSearch IMMEDIATELY after function definition
 // This replaces the placeholder with the real function as soon as script loads
@@ -3037,9 +3062,6 @@ if (typeof window.handleSearch === 'function') {
 // CRITICAL FIX: Export the function using its actual name (handleSearchImpl)
 // This avoids identifier resolution conflicts - handleSearchImpl can never resolve to window.handleSearch
 try {
-    console.log('🔍🔍🔍 About to check handleSearchImpl in export block...');
-    console.log('🔍🔍🔍 typeof window:', typeof window);
-    console.log('🔍🔍🔍 typeof handleSearchImpl:', typeof handleSearchImpl);
     if (typeof window !== 'undefined' && typeof handleSearchImpl === 'function') {
         // Verify it's the real function (contains 'searchInProgress' which is unique to the real function)
         const funcStr = handleSearchImpl.toString();
