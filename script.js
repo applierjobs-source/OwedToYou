@@ -1201,11 +1201,6 @@ async function convertImageToBase64(imageUrl) {
     }
 }
 
-// CRITICAL: Export for use in inline handlers
-window.getProfilePicBase64 = async function(handle, imageUrl) {
-    return getProfilePicBase64(handle, imageUrl);
-};
-
 // CRITICAL: Get base64 version of profile picture (from cache or convert)
 async function getProfilePicBase64(handle, imageUrl) {
     if (!imageUrl || !imageUrl.startsWith('http')) {
@@ -1251,9 +1246,6 @@ async function getProfilePicBase64(handle, imageUrl) {
     
     return base64;
 }
-
-// CRITICAL: Export for use in inline handlers (AFTER function definition to prevent recursion)
-window.getProfilePicBase64 = getProfilePicBase64;
 
 // CRITICAL: Get profile picture (base64 if available, otherwise URL)
 function getProfilePicForDisplay(handle, imageUrl) {
