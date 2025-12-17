@@ -1386,11 +1386,6 @@ async function loadLeaderboard() {
         const data = await response.json();
         
         console.log('Leaderboard response:', data);
-        console.log(`📊 Raw leaderboard entries from API: ${data.leaderboard ? data.leaderboard.length : 0}`);
-        if (data.leaderboard && data.leaderboard.length > 0) {
-            console.log(`📊 Sample entry:`, data.leaderboard[0]);
-            console.log(`📊 Placeholders in data:`, data.leaderboard.filter(e => e.isPlaceholder).length);
-        }
         
         if (data.success && data.leaderboard && Array.isArray(data.leaderboard)) {
             // Preserve existing profile pictures from memory
