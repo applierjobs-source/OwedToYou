@@ -2551,12 +2551,22 @@ async function displayLeaderboard(users) {
             const storedPic = storedProfilePics[user.handle] || storedProfilePics[cleanUserHandle];
             if (storedPic) {
                 console.log(`✅ Found profile pic in localStorage for ${user.handle}`);
+                // CRITICAL: Update leaderboardData with the stored pic to ensure persistence
+                const userIndex = leaderboardData.findIndex(e => cleanHandle(e.handle) === cleanHandle(user.handle));
+                if (userIndex >= 0) {
+                    leaderboardData[userIndex].profilePic = storedPic;
+                }
                 return { ...user, profilePic: storedPic };
             } else {
                 console.log(`⚠️ No profile pic in localStorage for ${user.handle}`);
             }
         } else {
             console.log(`✅ User ${user.handle} already has profilePic`);
+            // CRITICAL: Ensure profile pic in leaderboardData matches user object
+            const userIndex = leaderboardData.findIndex(e => cleanHandle(e.handle) === cleanHandle(user.handle));
+            if (userIndex >= 0 && !leaderboardData[userIndex].profilePic && user.profilePic) {
+                leaderboardData[userIndex].profilePic = user.profilePic;
+            }
         }
         return user;
     });
@@ -2625,11 +2635,6 @@ async function displayLeaderboard(users) {
     console.log(`🖼️ Starting to load profile pictures for ${usersWithPics.length} users IMMEDIATELY...`);
     // Start loading immediately - no delays
     loadProfilePicturesInBackground(usersWithPics);
-    
-    // CRITICAL: Save all profile pics to storage after a short delay (allows time for conversions)
-    setTimeout(() => {
-        saveAllProfilePicsToStorage();
-    }, 5000); // Wait 5 seconds for conversions to complete
     
     // On mobile, also start continuous monitoring (but don't delay initial load)
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
