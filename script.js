@@ -1201,11 +1201,6 @@ async function convertImageToBase64(imageUrl) {
     }
 }
 
-// CRITICAL: Export for use in inline handlers
-window.getProfilePicBase64 = async function(handle, imageUrl) {
-    return getProfilePicBase64(handle, imageUrl);
-};
-
 // CRITICAL: Get base64 version of profile picture (from cache or convert)
 async function getProfilePicBase64(handle, imageUrl) {
     if (!imageUrl || !imageUrl.startsWith('http')) {
@@ -1251,6 +1246,21 @@ async function getProfilePicBase64(handle, imageUrl) {
     
     return base64;
 }
+
+// CRITICAL: Export for use in inline handlers (AFTER function definition to prevent recursion)
+// Use IIFE to capture function reference and prevent Chrome recursion issues
+(function() {
+    const internalGetProfilePicBase64 = getProfilePicBase64;
+    window.getProfilePicBase64 = async function(handle, imageUrl) {
+        // CRITICAL: Use captured reference to avoid recursion
+        try {
+            return await internalGetProfilePicBase64(handle, imageUrl);
+        } catch (error) {
+            console.error('Error in getProfilePicBase64:', error);
+            return null;
+        }
+    };
+})();
 
 // CRITICAL: Get profile picture (base64 if available, otherwise URL)
 function getProfilePicForDisplay(handle, imageUrl) {
@@ -2480,16 +2490,6 @@ function createEntryHTML(user, rank) {
 async function displayLeaderboard(users) {
     const leaderboard = document.getElementById('leaderboard');
     const listContainer = document.getElementById('leaderboardList');
-    
-    // CRITICAL: Ensure elements exist (Chrome fix)
-    if (!leaderboard) {
-        console.error('❌ Leaderboard element not found!');
-        return;
-    }
-    if (!listContainer) {
-        console.error('❌ Leaderboard list container not found!');
-        return;
-    }
     
     console.log(`📊 displayLeaderboard called with ${users.length} users`);
     console.log(`📊 First user profilePic check:`, users[0] ? { handle: users[0].handle, hasPic: !!users[0].profilePic, pic: users[0].profilePic ? users[0].profilePic.substring(0, 50) + '...' : 'none' } : 'no users');
