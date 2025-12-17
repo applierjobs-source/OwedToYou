@@ -2166,11 +2166,16 @@ async function checkAndRetryFailedProfilePictures(users) {
             console.log(`🔍 Detected failed pic for ${handle}: showing initials "${textContent}"`);
         } else if (hasImage) {
             const img = hasImage;
-            // Check if image actually loaded
-            if (!img.complete || img.naturalHeight === 0 || img.naturalWidth === 0) {
+            // Check if image actually loaded successfully
+            if (img.complete && img.naturalHeight > 0 && img.naturalWidth > 0 && img.src && (img.src.startsWith('data:image') || img.src.startsWith('http'))) {
+                // Successfully loaded image - mark as successful
+                successfullyLoadedHandles.add(handle);
+                console.log(`✅✅✅ Marking ${handle} as successfully loaded (image loaded successfully)`);
+                return; // Don't retry successful loads
+            } else if (!img.complete || img.naturalHeight === 0 || img.naturalWidth === 0) {
                 isFailed = true;
                 console.log(`🔍 Detected failed pic for ${handle}: image not loaded (complete=${img.complete}, height=${img.naturalHeight})`);
-            } else if (!img.src || img.src.includes('data:') || img.src.length < 10) {
+            } else if (!img.src || img.src.length < 10) {
                 // Image has invalid src
                 isFailed = true;
                 console.log(`🔍 Detected failed pic for ${handle}: invalid src`);
@@ -2183,12 +2188,15 @@ async function checkAndRetryFailedProfilePictures(users) {
         
         if (isFailed) {
             checkedHandles.add(handle);
+            const attempts = retryAttempts.get(handle) || 0;
+            retryAttempts.set(handle, attempts + 1);
             failedEntries.push({
                 handle: handle,
                 name: name,
                 entry: entry,
                 profilePictureDiv: profilePictureDiv
             });
+            console.log(`🔍 Will retry ${handle} (attempt ${attempts + 1}/${MAX_RETRY_ATTEMPTS})`);
         }
     });
     
@@ -2306,9 +2314,6 @@ async function retryProfilePicture(failedEntry, users) {
             const img = profilePictureDiv.querySelector('img');
             if (img && img.complete && img.naturalHeight > 0) {
                 console.log(`✅✅✅ Successfully loaded profile pic for ${handle} using proxy with cache-busting`);
-                // CRITICAL: Mark as successfully loaded to prevent infinite retries
-                successfullyLoadedHandles.add(handle);
-                retryAttempts.delete(handle); // Clear retry count on success
                 return; // Success
             }
         } catch (error) {
