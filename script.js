@@ -2481,6 +2481,16 @@ async function displayLeaderboard(users) {
     const leaderboard = document.getElementById('leaderboard');
     const listContainer = document.getElementById('leaderboardList');
     
+    // CRITICAL: Ensure elements exist (Chrome fix)
+    if (!leaderboard) {
+        console.error('❌ Leaderboard element not found!');
+        return;
+    }
+    if (!listContainer) {
+        console.error('❌ Leaderboard list container not found!');
+        return;
+    }
+    
     console.log(`📊 displayLeaderboard called with ${users.length} users`);
     console.log(`📊 First user profilePic check:`, users[0] ? { handle: users[0].handle, hasPic: !!users[0].profilePic, pic: users[0].profilePic ? users[0].profilePic.substring(0, 50) + '...' : 'none' } : 'no users');
     
