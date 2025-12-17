@@ -1504,13 +1504,17 @@ async function loadLeaderboard() {
                 }
             });
             
-            // Fallback to localStorage if database doesn't have it
+            // CRITICAL: Load localStorage profile pics for fallback
+            // This is essential for existing entries that have profile pics in localStorage but null in database
             const storedProfilePics = loadProfilePicsFromStorage();
+            console.log(`📦 Loaded ${Object.keys(storedProfilePics).length} profile pics from localStorage`);
+            
+            // Add localStorage pics to databaseProfilePics map if not already there
             Object.keys(storedProfilePics).forEach(handle => {
                 const cleanHandleKey = cleanHandle(handle);
                 if (!databaseProfilePics.has(cleanHandleKey)) {
                     databaseProfilePics.set(cleanHandleKey, storedProfilePics[handle]);
-                    console.log(`📦 Using localStorage profile pic for ${handle} (not in database)`);
+                    console.log(`📦 Added localStorage profile pic for ${handle} to map (not in database)`);
                 }
             });
             
@@ -1530,8 +1534,23 @@ async function loadLeaderboard() {
                 })
                 .map(entry => {
                     const cleanEntryHandle = cleanHandle(entry.handle);
-                    // CRITICAL: Use database profilePic FIRST, then fallback to stored
+                    // CRITICAL: Use database profilePic FIRST, then fallback to localStorage
+                    // If database has null, still check localStorage (existing entries may have pics in localStorage)
                     let profilePic = entry.profilePic || databaseProfilePics.get(cleanEntryHandle) || null;
+                    
+                    // CRITICAL: If database doesn't have profilePic (null), check localStorage
+                    // This is important for existing entries that have profile pics in localStorage but not in database
+                    if (!profilePic || profilePic === null) {
+                        const storedPic = storedProfilePics[entry.handle] || 
+                                         storedProfilePics[cleanEntryHandle] ||
+                                         storedProfilePics[`@${entry.handle}`] ||
+                                         storedProfilePics[`@${cleanEntryHandle}`] ||
+                                         null;
+                        if (storedPic) {
+                            profilePic = storedPic;
+                            console.log(`📦 Found profile pic in localStorage for ${entry.handle} (database had null)`);
+                        }
+                    }
                     
                     // CRITICAL: If database has URL (not base64), check localStorage for cached base64
                     // This ensures instant loading on mobile
@@ -1545,7 +1564,7 @@ async function loadLeaderboard() {
                     
                     return {
                         ...entry,
-                        profilePic: profilePic, // Use database profile pic (or cached base64) immediately
+                        profilePic: profilePic, // Use database profile pic, localStorage fallback, or cached base64
                         isPlaceholder: false
                     };
                 });
