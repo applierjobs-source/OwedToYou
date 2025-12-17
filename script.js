@@ -2563,54 +2563,69 @@ async function displayLeaderboard(users) {
     
     console.log(`📊 Users with profile pics:`, usersWithPics.map(u => `${u.handle}: ${u.profilePic ? 'HAS PIC' : 'NO PIC'}`));
     
-    // CRITICAL: Convert ALL URLs to base64 BEFORE rendering for INSTANT display
-    console.log(`🔄 Converting all URLs to base64 BEFORE rendering...`);
-    const usersWithBase64 = await Promise.all(usersWithPics.map(async (user) => {
+    // CRITICAL: Render IMMEDIATELY with cached base64 (ZERO DELAY on mobile)
+    // Use getProfilePicForDisplay to get best available source (base64 if cached, otherwise URL)
+    console.log(`⚡⚡⚡ Rendering IMMEDIATELY with cached base64 (NON-BLOCKING)...`);
+    const usersForDisplay = usersWithPics.map(user => {
         if (user.profilePic) {
-            // If already base64, use it
-            if (user.profilePic.startsWith('data:image')) {
-                return user;
-            }
-            // If URL, check for cached base64 first
-            if (user.profilePic.startsWith('http')) {
-                const cachedBase64 = getProfilePicForDisplay(user.handle, user.profilePic);
-                if (cachedBase64 && cachedBase64.startsWith('data:image')) {
-                    console.log(`⚡ Using cached base64 for ${user.handle}`);
-                    return { ...user, profilePic: cachedBase64 };
+            // Get best available source (base64 if cached, otherwise URL)
+            const bestPic = getProfilePicForDisplay(user.handle, user.profilePic);
+            if (bestPic) {
+                const isBase64 = bestPic.startsWith('data:image');
+                if (isBase64) {
+                    console.log(`⚡⚡⚡ Using INSTANT cached base64 for ${user.handle}`);
                 }
-                // Convert to base64 NOW (blocking) for instant display
-                console.log(`🔄 Converting ${user.handle} URL to base64 NOW...`);
-                const base64 = await getProfilePicBase64(user.handle, user.profilePic);
-                if (base64) {
-                    // Update localStorage with base64
-                    const storedProfilePics = loadProfilePicsFromStorage();
-                    storedProfilePics[user.handle] = base64;
-                    storedProfilePics[cleanHandle(user.handle)] = base64;
-                    saveProfilePicsToStorage(storedProfilePics);
-                    console.log(`✅ Converted ${user.handle} to base64 - INSTANT DISPLAY`);
-                    return { ...user, profilePic: base64 };
-                }
+                return { ...user, profilePic: bestPic };
             }
         }
         return user;
-    }));
+    });
     
-    console.log(`✅ All profile pics converted to base64 - rendering INSTANT display`);
-    
-    // Generate HTML with base64 images (INSTANT display, zero delay)
-    listContainer.innerHTML = usersWithBase64.map((user, index) => 
+    // Generate HTML and render IMMEDIATELY (ZERO DELAY - no waiting for conversions)
+    listContainer.innerHTML = usersForDisplay.map((user, index) => 
         createEntryHTML(user, index + 1)
     ).join('');
     
     leaderboard.classList.remove('hidden');
     
-    // Convert URLs to base64 in background AFTER rendering (non-blocking)
+    // CRITICAL: Convert remaining URLs to base64 in background AFTER rendering (non-blocking)
+    // This ensures instant display while optimizing for future loads
     usersWithPics.forEach(user => {
         if (user.profilePic && user.profilePic.startsWith('http')) {
-            const base64 = getProfilePicForDisplay(user.handle, user.profilePic);
-            if (!base64 || !base64.startsWith('data:image')) {
-                // Start conversion immediately (non-blocking)
-                getProfilePicBase64(user.handle, user.profilePic).catch(() => {});
+            const cachedBase64 = getProfilePicForDisplay(user.handle, user.profilePic);
+            // Only convert if we don't have cached base64
+            if (!cachedBase64 || !cachedBase64.startsWith('data:image')) {
+                // Start conversion in background (non-blocking)
+                console.log(`🔄 Converting ${user.handle} URL to base64 in background (non-blocking)...`);
+                getProfilePicBase64(user.handle, user.profilePic).then(base64 => {
+                    if (base64) {
+                        // Update localStorage with base64 for future instant loads
+                        const storedProfilePics = loadProfilePicsFromStorage();
+                        storedProfilePics[user.handle] = base64;
+                        storedProfilePics[cleanHandle(user.handle)] = base64;
+                        saveProfilePicsToStorage(storedProfilePics);
+                        
+                        // Also save to base64 cache
+                        const base64Cache = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
+                        const cleanHandleValue = cleanHandle(user.handle);
+                        base64Cache[`${cleanHandleValue}_base64`] = base64;
+                        base64Cache[`${cleanHandleValue}_url`] = user.profilePic;
+                        base64Cache[`${user.handle}_base64`] = base64;
+                        base64Cache[`${user.handle}_url`] = user.profilePic;
+                        localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(base64Cache));
+                        
+                        console.log(`✅ Converted ${user.handle} to base64 - cached for next time`);
+                        
+                        // Update the displayed image if still visible
+                        const entry = document.querySelector(`.leaderboard-entry[data-handle="${user.handle}"]`);
+                        if (entry) {
+                            const img = entry.querySelector('img');
+                            if (img && img.src !== base64 && !img.src.startsWith('data:image')) {
+                                img.src = base64;
+                            }
+                        }
+                    }
+                }).catch(() => {});
             }
         }
     });
