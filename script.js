@@ -1204,55 +1204,20 @@ function loadProfilePicsFromStorage() {
 }
 
 // Save profile pictures to localStorage
-// CRITICAL: Enhanced error handling for mobile Safari quota issues
 function saveProfilePicsToStorage(profilePics) {
     try {
-        const jsonString = JSON.stringify(profilePics);
-        localStorage.setItem('leaderboardProfilePics', jsonString);
-        
-        // CRITICAL: Verify save succeeded (mobile Safari can fail silently)
-        const verify = localStorage.getItem('leaderboardProfilePics');
-        if (verify === jsonString) {
-            console.log(`💾✅ Verified saved ${Object.keys(profilePics).length} profile pictures to localStorage`);
-        } else {
-            console.error(`❌❌❌ Save verification FAILED - data mismatch`);
-            throw new Error('Save verification failed');
-        }
+        localStorage.setItem('leaderboardProfilePics', JSON.stringify(profilePics));
+        console.log(`💾 Saved ${Object.keys(profilePics).length} profile pictures to localStorage`);
     } catch (e) {
-        console.error('❌ Error saving profile pics to storage:', e);
-        console.error('Error name:', e.name);
-        console.error('Error code:', e.code);
-        console.error('Error message:', e.message);
-        
-        // If storage is full (QuotaExceededError), try to clear old entries
-        if (e.name === 'QuotaExceededError' || e.code === 22) {
-            try {
-                console.log('⚠️ Storage quota exceeded, attempting to clear old entries and retry...');
-                // Clear old entries but keep base64 (more important)
-                const base64Cache = localStorage.getItem('leaderboardProfilePicsBase64');
-                localStorage.clear();
-                if (base64Cache) {
-                    localStorage.setItem('leaderboardProfilePicsBase64', base64Cache);
-                }
-                // Now try saving again
-                localStorage.setItem('leaderboardProfilePics', JSON.stringify(profilePics));
-                console.log('✅ Successfully saved after clearing storage');
-            } catch (e2) {
-                console.error('❌ Failed to save even after clearing:', e2);
-                // Last resort: try saving only base64 entries
-                try {
-                    const base64Only = {};
-                    Object.keys(profilePics).forEach(key => {
-                        if (profilePics[key] && profilePics[key].startsWith('data:image')) {
-                            base64Only[key] = profilePics[key];
-                        }
-                    });
-                    localStorage.setItem('leaderboardProfilePics', JSON.stringify(base64Only));
-                    console.log(`✅ Saved ${Object.keys(base64Only).length} base64-only entries`);
-                } catch (e3) {
-                    console.error('❌ Failed to save even base64-only entries:', e3);
-                }
-            }
+        console.error('Error saving profile pics to storage:', e);
+        // If storage is full, try to clear old entries
+        try {
+            console.log('⚠️ Storage may be full, attempting to clear and retry...');
+            localStorage.removeItem('leaderboardProfilePics');
+            localStorage.setItem('leaderboardProfilePics', JSON.stringify(profilePics));
+            console.log('✅ Successfully saved after clearing storage');
+        } catch (e2) {
+            console.error('❌ Failed to save even after clearing:', e2);
         }
     }
 }
@@ -1297,16 +1262,39 @@ async function getProfilePicBase64(handle, imageUrl) {
     const base64Key = `${cleanHandleValue}_base64`;
     const urlKey = `${cleanHandleValue}_url`;
     
-    // Check if we have cached base64
+    // CRITICAL: Check if we have cached base64 (flexible URL matching for mobile)
     try {
         const stored = localStorage.getItem('leaderboardProfilePicsBase64');
         if (stored) {
             const parsed = JSON.parse(stored);
-            // Check if we have base64 for this handle and URL matches
+            // Try cleaned handle with URL match
             if (parsed[base64Key] && parsed[urlKey] === imageUrl) {
-                console.log(`✅ Found cached base64 for ${handle}`);
+                console.log(`✅ Found cached base64 for ${handle} (cleaned handle, URL match)`);
                 return parsed[base64Key];
             }
+            // Try cleaned handle without URL check (URLs can change)
+            if (parsed[base64Key] && parsed[base64Key].startsWith('data:image')) {
+                console.log(`✅ Found cached base64 for ${handle} (cleaned handle, no URL check)`);
+                return parsed[base64Key];
+            }
+            // Try original handle with URL match
+            if (parsed[`${handle}_base64`] && parsed[`${handle}_url`] === imageUrl) {
+                console.log(`✅ Found cached base64 for ${handle} (original handle, URL match)`);
+                return parsed[`${handle}_base64`];
+            }
+            // Try original handle without URL check
+            if (parsed[`${handle}_base64`] && parsed[`${handle}_base64`].startsWith('data:image')) {
+                console.log(`✅ Found cached base64 for ${handle} (original handle, no URL check)`);
+                return parsed[`${handle}_base64`];
+            }
+        }
+        
+        // Also check regular storage
+        const regularStored = loadProfilePicsFromStorage();
+        const pic = regularStored[handle] || regularStored[cleanHandleValue];
+        if (pic && pic.startsWith('data:image')) {
+            console.log(`✅ Found cached base64 for ${handle} (from regular storage)`);
+            return pic;
         }
     } catch (e) {
         console.error('Error loading base64 cache:', e);
