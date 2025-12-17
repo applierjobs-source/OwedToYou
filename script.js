@@ -1867,14 +1867,6 @@ async function loadProfilePicturesInBackground(users) {
                 storedProfilePics[cleanHandle(user.handle)] = base64;
                 saveProfilePicsToStorage(storedProfilePics);
                 
-                // CRITICAL: Verify save to regular storage
-                const verifyRegular = loadProfilePicsFromStorage();
-                if (verifyRegular[user.handle] && verifyRegular[user.handle].startsWith('data:image')) {
-                    console.log(`[${index}] ✅✅✅ VERIFIED base64 saved to leaderboardProfilePics for ${user.handle}`);
-                } else {
-                    console.error(`[${index}] ❌❌❌ FAILED to verify base64 save in leaderboardProfilePics for ${user.handle}`);
-                }
-                
                 // Also save to base64 cache
                 const cleanHandleValue = cleanHandle(user.handle);
                 const base64Cache = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
@@ -1884,14 +1876,6 @@ async function loadProfilePicturesInBackground(users) {
                 base64Cache[`${user.handle}_url`] = profilePic;
                 localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(base64Cache));
                 
-                // CRITICAL: Verify save to base64 cache
-                const verifyBase64 = localStorage.getItem('leaderboardProfilePicsBase64');
-                if (verifyBase64 && verifyBase64.includes(base64.substring(0, 50))) {
-                    console.log(`[${index}] ✅✅✅ VERIFIED base64 saved to leaderboardProfilePicsBase64 for ${user.handle}`);
-                } else {
-                    console.error(`[${index}] ❌❌❌ FAILED to verify base64 save in leaderboardProfilePicsBase64 for ${user.handle}`);
-                }
-                
                 // Update user object with base64
                 const userIndex = leaderboardData.findIndex(e => cleanHandle(e.handle) === cleanHandle(user.handle));
                 if (userIndex >= 0) {
@@ -1900,7 +1884,6 @@ async function loadProfilePicturesInBackground(users) {
                 
                 console.log(`[${index}] ✅✅✅ Saved BASE64 to localStorage for ${user.handle} - INSTANT DISPLAY READY`);
             } else {
-                console.error(`[${index}] ❌❌❌ Base64 conversion returned NULL for ${user.handle}`);
                 // Fallback: save URL if base64 conversion fails
                 const storedProfilePics = loadProfilePicsFromStorage();
                 storedProfilePics[user.handle] = profilePic;
@@ -2323,6 +2306,9 @@ async function retryProfilePicture(failedEntry, users) {
             const img = profilePictureDiv.querySelector('img');
             if (img && img.complete && img.naturalHeight > 0) {
                 console.log(`✅✅✅ Successfully loaded profile pic for ${handle} using proxy with cache-busting`);
+                // CRITICAL: Mark as successfully loaded to prevent infinite retries
+                successfullyLoadedHandles.add(handle);
+                retryAttempts.delete(handle); // Clear retry count on success
                 return; // Success
             }
         } catch (error) {
