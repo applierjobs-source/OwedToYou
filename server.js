@@ -2041,6 +2041,39 @@ const server = http.createServer((req, res) => {
         const imageUrl = decodeURIComponent(parsedUrl.query.url);
         console.log(`[PROFILE PROXY] Proxying image: ${imageUrl.substring(0, 60)}...`);
         
+        // CRITICAL: If it's already a base64 data URL, return it directly (don't try to fetch it)
+        if (imageUrl.startsWith('data:image')) {
+            console.log(`[PROFILE PROXY] Image is already base64, returning directly`);
+            // Extract content type and base64 data
+            const match = imageUrl.match(/^data:image\/([^;]+);base64,(.+)$/);
+            if (match) {
+                const contentType = `image/${match[1]}`;
+                const base64Data = match[2];
+                const imageBuffer = Buffer.from(base64Data, 'base64');
+                
+                const headers = {
+                    'Content-Type': contentType,
+                    'Access-Control-Allow-Origin': '*',
+                    'Cache-Control': 'public, max-age=86400',
+                    'Content-Length': imageBuffer.length.toString()
+                };
+                res.writeHead(200, headers);
+                res.end(imageBuffer);
+            } else {
+                res.writeHead(400, corsHeaders);
+                res.end(JSON.stringify({ success: false, error: 'Invalid data URL format' }));
+            }
+            return;
+        }
+        
+        // Validate URL protocol before attempting to fetch
+        if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+            console.error(`[PROFILE PROXY] Invalid URL protocol: ${imageUrl.substring(0, 60)}...`);
+            res.writeHead(400, corsHeaders);
+            res.end(JSON.stringify({ success: false, error: 'Invalid URL protocol. Expected http:// or https://' }));
+            return;
+        }
+        
         const https = require('https');
         const http = require('http');
         const urlObj = new URL(imageUrl);
