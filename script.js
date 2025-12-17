@@ -1143,18 +1143,64 @@ async function getInstagramProfilePicture(username) {
 }
 
 // Load profile pictures from localStorage
+// CRITICAL: Check BOTH leaderboardProfilePics AND leaderboardProfilePicsBase64
+// Prioritize base64 for instant display on mobile
 function loadProfilePicsFromStorage() {
+    const result = {};
+    
     try {
+        // FIRST: Check base64 storage (instant display)
+        const base64Stored = localStorage.getItem('leaderboardProfilePicsBase64');
+        if (base64Stored) {
+            const base64Parsed = JSON.parse(base64Stored);
+            // Extract base64 values (keys like "handle_base64")
+            Object.keys(base64Parsed).forEach(key => {
+                if (key.endsWith('_base64')) {
+                    const handle = key.replace('_base64', '');
+                    const base64Value = base64Parsed[key];
+                    // Only use if it's actually base64
+                    if (base64Value && base64Value.startsWith('data:image')) {
+                        result[handle] = base64Value;
+                        // Also store with cleaned handle
+                        const cleaned = cleanHandle(handle);
+                        if (cleaned !== handle) {
+                            result[cleaned] = base64Value;
+                        }
+                    }
+                }
+            });
+            console.log(`⚡ Loaded ${Object.keys(result).length} base64 profile pictures from leaderboardProfilePicsBase64`);
+        }
+    } catch (e) {
+        console.error('Error loading base64 profile pics from storage:', e);
+    }
+    
+    try {
+        // SECOND: Check regular storage (may contain URLs or base64)
         const stored = localStorage.getItem('leaderboardProfilePics');
         if (stored) {
             const parsed = JSON.parse(stored);
-            console.log(`📦 Loaded ${Object.keys(parsed).length} profile pictures from localStorage`);
-            return parsed;
+            // Only add if not already in result (base64 takes priority)
+            Object.keys(parsed).forEach(handle => {
+                if (!result[handle] && !result[cleanHandle(handle)]) {
+                    const pic = parsed[handle];
+                    // If it's base64, use it; if URL, only use if we don't have base64
+                    if (pic) {
+                        result[handle] = pic;
+                        const cleaned = cleanHandle(handle);
+                        if (cleaned !== handle) {
+                            result[cleaned] = pic;
+                        }
+                    }
+                }
+            });
+            console.log(`📦 Loaded ${Object.keys(parsed).length} profile pictures from leaderboardProfilePics (${Object.keys(result).length} total after merge)`);
         }
     } catch (e) {
         console.error('Error loading profile pics from storage:', e);
     }
-    return {};
+    
+    return result;
 }
 
 // Save profile pictures to localStorage
