@@ -1262,39 +1262,16 @@ async function getProfilePicBase64(handle, imageUrl) {
     const base64Key = `${cleanHandleValue}_base64`;
     const urlKey = `${cleanHandleValue}_url`;
     
-    // CRITICAL: Check if we have cached base64 (flexible URL matching for mobile)
+    // Check if we have cached base64
     try {
         const stored = localStorage.getItem('leaderboardProfilePicsBase64');
         if (stored) {
             const parsed = JSON.parse(stored);
-            // Try cleaned handle with URL match
+            // Check if we have base64 for this handle and URL matches
             if (parsed[base64Key] && parsed[urlKey] === imageUrl) {
-                console.log(`✅ Found cached base64 for ${handle} (cleaned handle, URL match)`);
+                console.log(`✅ Found cached base64 for ${handle}`);
                 return parsed[base64Key];
             }
-            // Try cleaned handle without URL check (URLs can change)
-            if (parsed[base64Key] && parsed[base64Key].startsWith('data:image')) {
-                console.log(`✅ Found cached base64 for ${handle} (cleaned handle, no URL check)`);
-                return parsed[base64Key];
-            }
-            // Try original handle with URL match
-            if (parsed[`${handle}_base64`] && parsed[`${handle}_url`] === imageUrl) {
-                console.log(`✅ Found cached base64 for ${handle} (original handle, URL match)`);
-                return parsed[`${handle}_base64`];
-            }
-            // Try original handle without URL check
-            if (parsed[`${handle}_base64`] && parsed[`${handle}_base64`].startsWith('data:image')) {
-                console.log(`✅ Found cached base64 for ${handle} (original handle, no URL check)`);
-                return parsed[`${handle}_base64`];
-            }
-        }
-        
-        // Also check regular storage
-        const regularStored = loadProfilePicsFromStorage();
-        const pic = regularStored[handle] || regularStored[cleanHandleValue];
-        if (pic && pic.startsWith('data:image')) {
-            console.log(`✅ Found cached base64 for ${handle} (from regular storage)`);
-            return pic;
         }
     } catch (e) {
         console.error('Error loading base64 cache:', e);
@@ -4280,6 +4257,36 @@ async function migrateUrlsToBase64() {
 }
 
 document.addEventListener('DOMContentLoaded', async function() {
+    // CRITICAL: Debug localStorage on page load to see what's persisted
+    try {
+        const base64Storage = localStorage.getItem('leaderboardProfilePicsBase64');
+        const regularStorage = localStorage.getItem('leaderboardProfilePics');
+        
+        if (base64Storage) {
+            const parsed = JSON.parse(base64Storage);
+            const base64Keys = Object.keys(parsed).filter(k => k.endsWith('_base64'));
+            console.log(`📦📦📦 PAGE LOAD: Found ${base64Keys.length} base64 entries in leaderboardProfilePicsBase64`);
+            base64Keys.forEach(key => {
+                const handle = key.replace('_base64', '');
+                const base64 = parsed[key];
+                const isBase64 = base64 && base64.startsWith('data:image');
+                console.log(`  - ${handle}: ${isBase64 ? '✅ BASE64' : '❌ NOT BASE64'} (${base64 ? base64.substring(0, 50) + '...' : 'NULL'})`);
+            });
+        } else {
+            console.log(`📦📦📦 PAGE LOAD: NO base64 storage found`);
+        }
+        
+        if (regularStorage) {
+            const parsed = JSON.parse(regularStorage);
+            const base64Count = Object.values(parsed).filter(v => v && v.startsWith('data:image')).length;
+            console.log(`📦📦📦 PAGE LOAD: Found ${Object.keys(parsed).length} entries in leaderboardProfilePics (${base64Count} are base64)`);
+        } else {
+            console.log(`📦📦📦 PAGE LOAD: NO regular storage found`);
+        }
+    } catch (e) {
+        console.error('❌ Error checking localStorage on page load:', e);
+    }
+    
     const searchBtn = document.getElementById('searchBtn');
     const searchInput = document.getElementById('instagramHandle');
     
