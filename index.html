@@ -387,9 +387,12 @@
     </script>
     <!-- Mobile Console Logger - Shows logs on screen for mobile debugging -->
     <div id="mobileConsole" style="position: fixed; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.9); color: #0f0; font-family: monospace; font-size: 10px; padding: 10px; max-height: 200px; overflow-y: auto; z-index: 99999; display: none; border-top: 2px solid #0f0;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; gap: 5px;">
             <strong style="color: #0f0;">📱 Mobile Console</strong>
-            <button onclick="document.getElementById('mobileConsole').style.display='none'" style="background: #f00; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px;">Hide</button>
+            <div style="display: flex; gap: 5px;">
+                <button id="copyLogsBtn" onclick="copyMobileLogs()" style="background: #0f0; color: black; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px; font-weight: bold;">📋 Copy</button>
+                <button onclick="document.getElementById('mobileConsole').style.display='none'" style="background: #f00; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px;">Hide</button>
+            </div>
         </div>
         <div id="mobileConsoleLogs" style="line-height: 1.4;"></div>
     </div>
@@ -456,6 +459,54 @@
                 consoleDiv.style.display = consoleDiv.style.display === 'none' ? 'block' : 'none';
             };
             document.body.appendChild(toggleBtn);
+            
+            // Copy logs function
+            window.copyMobileLogs = function() {
+                const logs = Array.from(logsDiv.children).map(child => child.textContent).join('\n');
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(logs).then(function() {
+                        const btn = document.getElementById('copyLogsBtn');
+                        const originalText = btn.textContent;
+                        btn.textContent = '✅ Copied!';
+                        btn.style.background = '#0f0';
+                        setTimeout(function() {
+                            btn.textContent = originalText;
+                            btn.style.background = '#0f0';
+                        }, 2000);
+                    }).catch(function(err) {
+                        console.error('Failed to copy:', err);
+                        // Fallback for older browsers
+                        fallbackCopy(logs);
+                    });
+                } else {
+                    // Fallback for older browsers
+                    fallbackCopy(logs);
+                }
+            };
+            
+            function fallbackCopy(text) {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    const btn = document.getElementById('copyLogsBtn');
+                    const originalText = btn.textContent;
+                    btn.textContent = '✅ Copied!';
+                    btn.style.background = '#0f0';
+                    setTimeout(function() {
+                        btn.textContent = originalText;
+                        btn.style.background = '#0f0';
+                    }, 2000);
+                } catch (err) {
+                    console.error('Fallback copy failed:', err);
+                    alert('Copy failed. Please select and copy manually.');
+                }
+                document.body.removeChild(textarea);
+            }
         })();
     </script>
     <script src="script.js"></script>
