@@ -1867,6 +1867,14 @@ async function loadProfilePicturesInBackground(users) {
                 storedProfilePics[cleanHandle(user.handle)] = base64;
                 saveProfilePicsToStorage(storedProfilePics);
                 
+                // CRITICAL: Verify save to regular storage
+                const verifyRegular = loadProfilePicsFromStorage();
+                if (verifyRegular[user.handle] && verifyRegular[user.handle].startsWith('data:image')) {
+                    console.log(`[${index}] ✅✅✅ VERIFIED base64 saved to leaderboardProfilePics for ${user.handle}`);
+                } else {
+                    console.error(`[${index}] ❌❌❌ FAILED to verify base64 save in leaderboardProfilePics for ${user.handle}`);
+                }
+                
                 // Also save to base64 cache
                 const cleanHandleValue = cleanHandle(user.handle);
                 const base64Cache = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
@@ -1876,6 +1884,14 @@ async function loadProfilePicturesInBackground(users) {
                 base64Cache[`${user.handle}_url`] = profilePic;
                 localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(base64Cache));
                 
+                // CRITICAL: Verify save to base64 cache
+                const verifyBase64 = localStorage.getItem('leaderboardProfilePicsBase64');
+                if (verifyBase64 && verifyBase64.includes(base64.substring(0, 50))) {
+                    console.log(`[${index}] ✅✅✅ VERIFIED base64 saved to leaderboardProfilePicsBase64 for ${user.handle}`);
+                } else {
+                    console.error(`[${index}] ❌❌❌ FAILED to verify base64 save in leaderboardProfilePicsBase64 for ${user.handle}`);
+                }
+                
                 // Update user object with base64
                 const userIndex = leaderboardData.findIndex(e => cleanHandle(e.handle) === cleanHandle(user.handle));
                 if (userIndex >= 0) {
@@ -1884,6 +1900,7 @@ async function loadProfilePicturesInBackground(users) {
                 
                 console.log(`[${index}] ✅✅✅ Saved BASE64 to localStorage for ${user.handle} - INSTANT DISPLAY READY`);
             } else {
+                console.error(`[${index}] ❌❌❌ Base64 conversion returned NULL for ${user.handle}`);
                 // Fallback: save URL if base64 conversion fails
                 const storedProfilePics = loadProfilePicsFromStorage();
                 storedProfilePics[user.handle] = profilePic;
@@ -4257,36 +4274,6 @@ async function migrateUrlsToBase64() {
 }
 
 document.addEventListener('DOMContentLoaded', async function() {
-    // CRITICAL: Debug localStorage on page load to see what's persisted
-    try {
-        const base64Storage = localStorage.getItem('leaderboardProfilePicsBase64');
-        const regularStorage = localStorage.getItem('leaderboardProfilePics');
-        
-        if (base64Storage) {
-            const parsed = JSON.parse(base64Storage);
-            const base64Keys = Object.keys(parsed).filter(k => k.endsWith('_base64'));
-            console.log(`📦📦📦 PAGE LOAD: Found ${base64Keys.length} base64 entries in leaderboardProfilePicsBase64`);
-            base64Keys.forEach(key => {
-                const handle = key.replace('_base64', '');
-                const base64 = parsed[key];
-                const isBase64 = base64 && base64.startsWith('data:image');
-                console.log(`  - ${handle}: ${isBase64 ? '✅ BASE64' : '❌ NOT BASE64'} (${base64 ? base64.substring(0, 50) + '...' : 'NULL'})`);
-            });
-        } else {
-            console.log(`📦📦📦 PAGE LOAD: NO base64 storage found`);
-        }
-        
-        if (regularStorage) {
-            const parsed = JSON.parse(regularStorage);
-            const base64Count = Object.values(parsed).filter(v => v && v.startsWith('data:image')).length;
-            console.log(`📦📦📦 PAGE LOAD: Found ${Object.keys(parsed).length} entries in leaderboardProfilePics (${base64Count} are base64)`);
-        } else {
-            console.log(`📦📦📦 PAGE LOAD: NO regular storage found`);
-        }
-    } catch (e) {
-        console.error('❌ Error checking localStorage on page load:', e);
-    }
-    
     const searchBtn = document.getElementById('searchBtn');
     const searchInput = document.getElementById('instagramHandle');
     
