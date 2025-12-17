@@ -1252,10 +1252,6 @@ async function getProfilePicBase64(handle, imageUrl) {
     return base64;
 }
 
-// CRITICAL: Export for use in inline handlers (AFTER function definition)
-// Direct assignment prevents Chrome recursion issues
-window.getProfilePicBase64 = getProfilePicBase64;
-
 // CRITICAL: Get profile picture (base64 if available, otherwise URL)
 function getProfilePicForDisplay(handle, imageUrl) {
     // If already base64, return immediately
@@ -2560,7 +2556,12 @@ async function displayLeaderboard(users) {
         createEntryHTML(user, index + 1)
     ).join('');
     
+    // CRITICAL: Remove hidden class AND force display with inline styles (Chrome fix)
     leaderboard.classList.remove('hidden');
+    // Force display with inline styles to ensure Chrome shows it
+    leaderboard.style.display = 'block';
+    leaderboard.style.visibility = 'visible';
+    leaderboard.style.opacity = '1';
     
     // Convert URLs to base64 in background AFTER rendering (non-blocking)
     usersWithPics.forEach(user => {
