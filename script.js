@@ -4469,6 +4469,36 @@ document.addEventListener('DOMContentLoaded', async function() {
     const searchBtn = document.getElementById('searchBtn');
     const searchInput = document.getElementById('instagramHandle');
     
+    // CRITICAL: Check if user is returning from Stripe checkout success
+    // If session_id is present in URL, automatically show mailing address modal
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session_id');
+    if (sessionId) {
+        console.log('✅ Stripe checkout successful! Session ID:', sessionId);
+        console.log('📧 Showing mailing address modal for user to enter their address...');
+        
+        // Clean up URL by removing the session_id parameter
+        const newUrl = window.location.pathname + (window.location.search.replace(/[?&]session_id=[^&]*/, '').replace(/^&/, '?') || '');
+        window.history.replaceState({}, '', newUrl);
+        
+        // Show mailing address modal after a short delay to ensure page is fully loaded
+        setTimeout(() => {
+            if (typeof showMailingAddressModal === 'function') {
+                showMailingAddressModal();
+            } else {
+                console.error('⚠️ showMailingAddressModal function not available yet, retrying...');
+                // Retry after a longer delay if function isn't available
+                setTimeout(() => {
+                    if (typeof showMailingAddressModal === 'function') {
+                        showMailingAddressModal();
+                    } else {
+                        console.error('❌ Failed to show mailing address modal - function not available');
+                    }
+                }, 1000);
+            }
+        }, 500);
+    }
+    
     // CRITICAL: Migrate existing database profile pic URLs to base64 automatically
     // This ensures all existing entries have base64 profile pics for instant mobile loading
     // Run in background (non-blocking) - won't delay page load
