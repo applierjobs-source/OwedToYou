@@ -1139,69 +1139,7 @@ async function getInstagramProfilePicture(username) {
     })();
     
     // Race between fetch and timeout
-    const fetchedUrl = await Promise.race([fetchPromise, timeoutPromise]);
-    
-    // CRITICAL: If we fetched a URL, convert to base64 and save IMMEDIATELY
-    if (fetchedUrl && fetchedUrl.startsWith('http')) {
-        console.log(`[PROFILE PIC] 🔄 Converting fetched URL to base64 for ${cleanUsername}...`);
-        const base64 = await convertImageToBase64(fetchedUrl);
-        if (base64) {
-            // CRITICAL: Save base64 to storage immediately - NEVER FETCH AGAIN
-            const storedProfilePics = loadProfilePicsFromStorage();
-            storedProfilePics[username] = base64;
-            storedProfilePics[cleanUsername] = base64;
-            storedProfilePics[`@${username}`] = base64;
-            storedProfilePics[`@${cleanUsername}`] = base64;
-            saveProfilePicsToStorage(storedProfilePics);
-            
-            // Also save to base64 cache
-            const base64Cache = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
-            base64Cache[`${cleanUsername}_base64`] = base64;
-            base64Cache[`${cleanUsername}_url`] = fetchedUrl;
-            base64Cache[`${username}_base64`] = base64;
-            base64Cache[`${username}_url`] = fetchedUrl;
-            localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(base64Cache));
-            
-            console.log(`[PROFILE PIC] ✅✅✅✅✅ Converted and saved BASE64 for ${cleanUsername} - NEVER FETCH AGAIN`);
-            return base64;
-        } else {
-            // If conversion fails, save URL as fallback (but we'll try to convert again later)
-            console.log(`[PROFILE PIC] ⚠️ Base64 conversion failed for ${cleanUsername}, saving URL as fallback`);
-            const storedProfilePics = loadProfilePicsFromStorage();
-            storedProfilePics[username] = fetchedUrl;
-            storedProfilePics[cleanUsername] = fetchedUrl;
-            saveProfilePicsToStorage(storedProfilePics);
-            return fetchedUrl;
-        }
-    }
-    
-    // If we got imageUrl from backend but fetchPromise didn't return anything, convert it
-    if (imageUrl && imageUrl.startsWith('http')) {
-        console.log(`[PROFILE PIC] 🔄 Converting backend URL to base64 for ${cleanUsername}...`);
-        const base64 = await convertImageToBase64(imageUrl);
-        if (base64) {
-            // CRITICAL: Save base64 to storage immediately
-            const storedProfilePics = loadProfilePicsFromStorage();
-            storedProfilePics[username] = base64;
-            storedProfilePics[cleanUsername] = base64;
-            storedProfilePics[`@${username}`] = base64;
-            storedProfilePics[`@${cleanUsername}`] = base64;
-            saveProfilePicsToStorage(storedProfilePics);
-            
-            // Also save to base64 cache
-            const base64Cache = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
-            base64Cache[`${cleanUsername}_base64`] = base64;
-            base64Cache[`${cleanUsername}_url`] = imageUrl;
-            base64Cache[`${username}_base64`] = base64;
-            base64Cache[`${username}_url`] = imageUrl;
-            localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(base64Cache));
-            
-            console.log(`[PROFILE PIC] ✅✅✅✅✅ Converted and saved BASE64 for ${cleanUsername} - NEVER FETCH AGAIN`);
-            return base64;
-        }
-    }
-    
-    return null;
+    return Promise.race([fetchPromise, timeoutPromise]);
 }
 
 // Load profile pictures from localStorage
@@ -2043,6 +1981,42 @@ async function loadProfilePicturesInBackground(users) {
                         // Force reflow on mobile to ensure image displays
                         profilePictureDiv.offsetHeight;
                         console.log(`[${index}] ✅✅✅ DOM UPDATED: Profile picture displayed for ${user.handle}`);
+                        
+                        // CRITICAL: Convert to base64 in background AFTER displaying (non-blocking)
+                        // This ensures instant display on next page load
+                        if (profilePic && profilePic.startsWith('http')) {
+                            getProfilePicBase64(user.handle, profilePic).then(base64 => {
+                                if (base64) {
+                                    // Save BASE64 to localStorage for instant future loads
+                                    const storedProfilePics = loadProfilePicsFromStorage();
+                                    storedProfilePics[user.handle] = base64;
+                                    storedProfilePics[cleanHandle(user.handle)] = base64;
+                                    saveProfilePicsToStorage(storedProfilePics);
+                                    
+                                    // Also save to base64 cache
+                                    const base64Cache = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
+                                    const cleanHandleValue = cleanHandle(user.handle);
+                                    base64Cache[`${cleanHandleValue}_base64`] = base64;
+                                    base64Cache[`${cleanHandleValue}_url`] = profilePic;
+                                    base64Cache[`${user.handle}_base64`] = base64;
+                                    base64Cache[`${user.handle}_url`] = profilePic;
+                                    localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(base64Cache));
+                                    
+                                    // Update image src to base64 for instant future loads
+                                    img.src = base64;
+                                    
+                                    // Update leaderboardData
+                                    const userIndex = leaderboardData.findIndex(e => cleanHandle(e.handle) === cleanHandle(user.handle));
+                                    if (userIndex >= 0) {
+                                        leaderboardData[userIndex].profilePic = base64;
+                                    }
+                                    
+                                    console.log(`[${index}] ✅✅✅ Converted and saved BASE64 for ${user.handle} - INSTANT FUTURE LOADS`);
+                                }
+                            }).catch(err => {
+                                console.error(`[${index}] Error converting to base64:`, err);
+                            });
+                        }
                     };
                     
                     img.onerror = function() {
