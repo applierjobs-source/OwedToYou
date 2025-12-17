@@ -1201,11 +1201,6 @@ async function convertImageToBase64(imageUrl) {
     }
 }
 
-// CRITICAL: Export for use in inline handlers
-window.getProfilePicBase64 = async function(handle, imageUrl) {
-    return getProfilePicBase64(handle, imageUrl);
-};
-
 // CRITICAL: Get base64 version of profile picture (from cache or convert)
 async function getProfilePicBase64(handle, imageUrl) {
     if (!imageUrl || !imageUrl.startsWith('http')) {
@@ -1251,6 +1246,21 @@ async function getProfilePicBase64(handle, imageUrl) {
     
     return base64;
 }
+
+// CRITICAL: Export for use in inline handlers (AFTER function definition to prevent recursion)
+// Use a closure to capture the function reference before assigning to window
+(function() {
+    const internalGetProfilePicBase64 = getProfilePicBase64;
+    window.getProfilePicBase64 = async function(handle, imageUrl) {
+        // CRITICAL: Use captured reference to avoid any recursion
+        try {
+            return await internalGetProfilePicBase64(handle, imageUrl);
+        } catch (error) {
+            console.error('Error in getProfilePicBase64:', error);
+            return null;
+        }
+    };
+})();
 
 // CRITICAL: Get profile picture (base64 if available, otherwise URL)
 function getProfilePicForDisplay(handle, imageUrl) {
@@ -2556,12 +2566,7 @@ async function displayLeaderboard(users) {
         createEntryHTML(user, index + 1)
     ).join('');
     
-    // CRITICAL: Remove hidden class AND force display with inline styles (Chrome fix)
     leaderboard.classList.remove('hidden');
-    // Force display with inline styles to ensure Chrome shows it
-    leaderboard.style.display = 'block';
-    leaderboard.style.visibility = 'visible';
-    leaderboard.style.opacity = '1';
     
     // Convert URLs to base64 in background AFTER rendering (non-blocking)
     usersWithPics.forEach(user => {
