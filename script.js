@@ -1201,6 +1201,11 @@ async function convertImageToBase64(imageUrl) {
     }
 }
 
+// CRITICAL: Export for use in inline handlers
+window.getProfilePicBase64 = async function(handle, imageUrl) {
+    return getProfilePicBase64(handle, imageUrl);
+};
+
 // CRITICAL: Get base64 version of profile picture (from cache or convert)
 async function getProfilePicBase64(handle, imageUrl) {
     if (!imageUrl || !imageUrl.startsWith('http')) {
@@ -2512,39 +2517,30 @@ async function displayLeaderboard(users) {
     
     console.log(`📊 Users with profile pics:`, usersWithPics.map(u => `${u.handle}: ${u.profilePic ? 'HAS PIC' : 'NO PIC'}`));
     
-    // CRITICAL: Convert ALL URLs to base64 BEFORE rendering for INSTANT display
-    console.log(`🔄 Converting all URLs to base64 BEFORE rendering...`);
-    const usersWithBase64 = await Promise.all(usersWithPics.map(async (user) => {
+    // CRITICAL: Use cached base64 immediately, render WITHOUT waiting for conversions
+    // This ensures INSTANT display on mobile - no blocking delays
+    console.log(`⚡ Rendering INSTANTLY with cached base64 (no blocking conversions)...`);
+    const usersWithBase64 = usersWithPics.map((user) => {
         if (user.profilePic) {
             // If already base64, use it
             if (user.profilePic.startsWith('data:image')) {
                 return user;
             }
-            // If URL, check for cached base64 first
+            // If URL, check for cached base64 first (instant lookup, no network)
             if (user.profilePic.startsWith('http')) {
                 const cachedBase64 = getProfilePicForDisplay(user.handle, user.profilePic);
                 if (cachedBase64 && cachedBase64.startsWith('data:image')) {
-                    console.log(`⚡ Using cached base64 for ${user.handle}`);
+                    console.log(`⚡ Using cached base64 for ${user.handle} - INSTANT`);
                     return { ...user, profilePic: cachedBase64 };
                 }
-                // Convert to base64 NOW (blocking) for instant display
-                console.log(`🔄 Converting ${user.handle} URL to base64 NOW...`);
-                const base64 = await getProfilePicBase64(user.handle, user.profilePic);
-                if (base64) {
-                    // Update localStorage with base64
-                    const storedProfilePics = loadProfilePicsFromStorage();
-                    storedProfilePics[user.handle] = base64;
-                    storedProfilePics[cleanHandle(user.handle)] = base64;
-                    saveProfilePicsToStorage(storedProfilePics);
-                    console.log(`✅ Converted ${user.handle} to base64 - INSTANT DISPLAY`);
-                    return { ...user, profilePic: base64 };
-                }
+                // No cached base64? Use URL - convert in background AFTER rendering
+                console.log(`📡 Using URL for ${user.handle} - will convert in background`);
             }
         }
         return user;
-    }));
+    });
     
-    console.log(`✅ All profile pics converted to base64 - rendering INSTANT display`);
+    console.log(`✅ Rendering INSTANT display (conversions happen in background)`);
     
     // Generate HTML with base64 images (INSTANT display, zero delay)
     listContainer.innerHTML = usersWithBase64.map((user, index) => 
