@@ -295,11 +295,24 @@ function expandNameWithAliases(name) {
 
 async function searchMissingMoney(firstName, lastName, city, state, use2Captcha = false, captchaApiKey = null) {
     // Remove emojis from names before searching (safety measure)
-    const cleanedFirstName = cleanNameForSearch(firstName);
-    const cleanedLastName = cleanNameForSearch(lastName);
+    let cleanedFirstName = cleanNameForSearch(firstName);
+    let cleanedLastName = cleanNameForSearch(lastName);
     
     if (cleanedFirstName !== firstName || cleanedLastName !== lastName) {
         console.log(`🧹 Cleaned names: "${firstName}" -> "${cleanedFirstName}", "${lastName}" -> "${cleanedLastName}"`);
+    }
+    
+    // CRITICAL FIX: Expand common nicknames to full names for better matching
+    // missingmoney.com often has full names (e.g., "Benjamin") even if Instagram has nickname (e.g., "Ben")
+    const firstNameAliases = expandNameWithAliases(cleanedFirstName);
+    // Prefer full names over nicknames (e.g., "benjamin" over "ben")
+    // Full names are typically longer, so sort by length descending
+    const sortedAliases = firstNameAliases.sort((a, b) => b.length - a.length);
+    if (sortedAliases.length > 0 && sortedAliases[0] !== cleanedFirstName.toLowerCase()) {
+        // Use the longest alias (usually the full name) for the search
+        const preferredFirstName = sortedAliases[0];
+        console.log(`🔄 Expanding first name "${cleanedFirstName}" to "${preferredFirstName}" for better matching`);
+        cleanedFirstName = preferredFirstName.charAt(0).toUpperCase() + preferredFirstName.slice(1);
     }
     
     // Convert state abbreviation to full name
