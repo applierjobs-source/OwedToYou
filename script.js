@@ -1722,15 +1722,28 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
         console.log(`📝 addToLeaderboard called with profilePic: ${profilePic ? 'provided' : 'not provided'}`);
         
         // CRITICAL: Convert profilePic to base64 BEFORE saving to database for instant loading on mobile
+        // BUT: Don't block on this - if conversion fails, save URL and convert in background
         let profilePicToSave = profilePic;
         if (profilePic && profilePic.startsWith('http')) {
-            console.log(`🔄 Converting profilePic URL to base64 BEFORE saving to database for ${handle}...`);
-            const base64 = await getProfilePicBase64(handle, profilePic);
-            if (base64) {
-                profilePicToSave = base64; // Save base64 to database, not URL
-                console.log(`✅✅✅ Converted to base64 - will save base64 to database for instant loading`);
-            } else {
-                console.log(`⚠️ Base64 conversion failed, will save URL to database`);
+            console.log(`🔄 Attempting to convert profilePic URL to base64 BEFORE saving to database for ${handle}...`);
+            try {
+                // Use a timeout to prevent infinite recursion
+                const base64Promise = getProfilePicBase64(handle, profilePic);
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Base64 conversion timeout')), 5000)
+                );
+                const base64 = await Promise.race([base64Promise, timeoutPromise]);
+                if (base64 && base64.startsWith('data:image')) {
+                    profilePicToSave = base64; // Save base64 to database, not URL
+                    console.log(`✅✅✅ Converted to base64 - will save base64 to database for instant loading`);
+                } else {
+                    console.log(`⚠️ Base64 conversion returned invalid result, will save URL to database`);
+                }
+            } catch (error) {
+                console.error(`⚠️ Base64 conversion failed (non-blocking):`, error.message);
+                console.log(`⚠️ Will save URL to database - conversion will happen in background`);
+                // Save URL instead - conversion can happen in background later
+                profilePicToSave = profilePic;
             }
         }
         
