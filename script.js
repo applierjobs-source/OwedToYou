@@ -3258,9 +3258,16 @@ async function handleSearchImpl() {
         if (fullName) {
             // Remove special characters that aren't part of the actual name
             // Remove: | (pipe), ® (registered trademark), ™ (trademark), © (copyright), etc.
+            // CRITICAL: Also remove pronouns (they/them, he/him, etc.) which can appear in Instagram names
             let cleanedFullName = fullName
                 .replace(/\s*\|\s*/g, ' ') // Remove pipes and surrounding spaces
                 .replace(/[®™©]/g, '') // Remove trademark symbols
+                // Remove pronouns in parentheses: (they/them), (he/him), etc.
+                .replace(/\([^)]*(?:they|them|he|him|she|her|ze|hir|xe|xem|it|its)[^)]*\)/gi, '')
+                // Remove pronouns in brackets: [they/them], etc.
+                .replace(/\[[^\]]*(?:they|them|he|him|she|her|ze|hir|xe|xem|it|its)[^\]]*\]/gi, '')
+                // Remove standalone pronouns: they/them, he/him, etc.
+                .replace(/\b(?:they|them|he|him|she|her|ze|hir|xe|xem|it|its)\s*\/\s*(?:they|them|he|him|she|her|ze|hir|xe|xem|it|its)\b/gi, '')
                 .replace(/\s+/g, ' ') // Normalize spaces
                 .trim();
             
