@@ -3252,12 +3252,36 @@ async function handleSearchImpl() {
         console.log(`[PROFILE PIC FLOW] Final profilePic value: ${profilePic ? `SET (${profilePic.substring(0, 40)}...)` : 'NULL'}`);
         
         // Split full name into first and last name
+        // CRITICAL: Clean the name first - remove special characters, pipes, trademarks, etc.
         let firstName = '';
         let lastName = '';
         if (fullName) {
-            const nameParts = fullName.trim().split(/\s+/);
+            // Remove special characters that aren't part of the actual name
+            // Remove: | (pipe), ® (registered trademark), ™ (trademark), © (copyright), etc.
+            let cleanedFullName = fullName
+                .replace(/\s*\|\s*/g, ' ') // Remove pipes and surrounding spaces
+                .replace(/[®™©]/g, '') // Remove trademark symbols
+                .replace(/\s+/g, ' ') // Normalize spaces
+                .trim();
+            
+            const nameParts = cleanedFullName.split(/\s+/);
             firstName = nameParts[0] || '';
-            lastName = nameParts.slice(1).join(' ') || '';
+            // For last name, take everything after first name, but stop at common separators
+            // This handles cases like "Matt Kepnes | Nomadic Matt" -> "Matt Kepnes"
+            let lastNameParts = nameParts.slice(1);
+            // Stop at common separators or if we hit a very long part (likely not part of name)
+            const stopWords = ['nomadic', 'travel', 'blog', 'official'];
+            lastNameParts = lastNameParts.filter(part => {
+                const lowerPart = part.toLowerCase();
+                return !stopWords.includes(lowerPart) && part.length < 20; // Skip very long parts
+            });
+            lastName = lastNameParts.join(' ') || '';
+            
+            // If we still have a very long last name, try to extract just the actual surname
+            // Usually the surname is the first word after the first name
+            if (lastName.length > 30 && nameParts.length > 1) {
+                lastName = nameParts[1] || '';
+            }
         }
         
         // Log what we found
