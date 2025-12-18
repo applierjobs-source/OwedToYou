@@ -1871,21 +1871,39 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
             if (refreshDisplay) {
                 console.log(`🔄 Reloading leaderboard from database to show newly added entry...`);
                 try {
-                    await loadLeaderboard();
-                    console.log(`✅ Leaderboard reloaded, now has ${leaderboardData.length} entries`);
+                    const reloadedData = await loadLeaderboard();
+                    console.log(`✅ Leaderboard reloaded, now has ${reloadedData.length} entries`);
+                    console.log(`📊 Reloaded entries:`, reloadedData.map(e => `${e.handle}: $${e.amount}`));
                     
-                    // Always refresh display - don't check if hidden (leaderboard might be hidden but we still want to update the data)
-                    console.log(`🔄 Refreshing leaderboard display with ${leaderboardData.length} entries`);
-                    displayLeaderboard(leaderboardData);
+                    // CRITICAL: Use the returned data, not the global variable (which might not be updated yet)
+                    if (reloadedData && reloadedData.length > 0) {
+                        console.log(`🔄 Refreshing leaderboard display with ${reloadedData.length} entries`);
+                        displayLeaderboard(reloadedData);
+                    } else {
+                        console.error(`❌ Reloaded data is empty! Expected to have entries.`);
+                        // Still try to display with global variable as fallback
+                        displayLeaderboard(leaderboardData);
+                    }
                     
-                    // Also ensure leaderboard section is visible if we just added an entry
+                    // CRITICAL: Always ensure leaderboard section is visible after adding an entry
                     const leaderboardSection = document.getElementById('leaderboard');
-                    if (leaderboardSection && leaderboardSection.classList.contains('hidden')) {
-                        console.log(`👁️ Making leaderboard visible since we just added an entry`);
-                        leaderboardSection.classList.remove('hidden');
+                    if (leaderboardSection) {
+                        if (leaderboardSection.classList.contains('hidden')) {
+                            console.log(`👁️ Making leaderboard visible since we just added an entry`);
+                            leaderboardSection.classList.remove('hidden');
+                        }
+                        console.log(`✅ Leaderboard section is now visible`);
+                    } else {
+                        console.error(`❌ CRITICAL: Leaderboard element not found!`);
                     }
                 } catch (reloadError) {
                     console.error('❌ Failed to reload leaderboard:', reloadError);
+                    // Still try to display current leaderboardData as fallback
+                    displayLeaderboard(leaderboardData);
+                    const leaderboardSection = document.getElementById('leaderboard');
+                    if (leaderboardSection) {
+                        leaderboardSection.classList.remove('hidden');
+                    }
                 }
             } else {
                 console.error(`❌ API response missing leaderboard data:`, data);
@@ -1893,10 +1911,11 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
                 if (refreshDisplay) {
                     console.log(`🔄 Attempting to reload leaderboard despite missing data in response...`);
                     try {
-                        await loadLeaderboard();
-                        displayLeaderboard(leaderboardData);
+                        const reloadedData = await loadLeaderboard();
+                        console.log(`✅ Reloaded ${reloadedData.length} entries despite missing response data`);
+                        displayLeaderboard(reloadedData);
                         const leaderboardSection = document.getElementById('leaderboard');
-                        if (leaderboardSection && leaderboardSection.classList.contains('hidden')) {
+                        if (leaderboardSection) {
                             leaderboardSection.classList.remove('hidden');
                         }
                     } catch (reloadError) {
@@ -1910,10 +1929,11 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
             if (refreshDisplay) {
                 console.log(`🔄 Attempting to reload leaderboard despite error response...`);
                 try {
-                    await loadLeaderboard();
-                    displayLeaderboard(leaderboardData);
+                    const reloadedData = await loadLeaderboard();
+                    console.log(`✅ Reloaded ${reloadedData.length} entries despite error response`);
+                    displayLeaderboard(reloadedData);
                     const leaderboardSection = document.getElementById('leaderboard');
-                    if (leaderboardSection && leaderboardSection.classList.contains('hidden')) {
+                    if (leaderboardSection) {
                         leaderboardSection.classList.remove('hidden');
                     }
                 } catch (reloadError) {
@@ -1932,9 +1952,12 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
         if (refreshDisplay) {
             console.log(`🔄 Attempting to reload leaderboard despite error...`);
             try {
-                await loadLeaderboard();
-                if (!document.getElementById('leaderboard').classList.contains('hidden')) {
-                    displayLeaderboard(leaderboardData);
+                const reloadedData = await loadLeaderboard();
+                console.log(`✅ Reloaded ${reloadedData.length} entries despite error`);
+                displayLeaderboard(reloadedData);
+                const leaderboardSection = document.getElementById('leaderboard');
+                if (leaderboardSection) {
+                    leaderboardSection.classList.remove('hidden');
                 }
             } catch (reloadError) {
                 console.error('❌ Failed to reload leaderboard:', reloadError);
