@@ -2212,6 +2212,13 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                     if (match) {
                         amountStr = match[1];
                     }
+                } else if (amountStr.includes('UNDER')) {
+                    // For "UNDER $50", use half the upper bound as estimate (e.g., $25 for UNDER $50)
+                    const match = amountStr.match(/\$?([\d,]+)/);
+                    if (match) {
+                        const upperBound = parseFloat(match[1].replace(/,/g, ''));
+                        amountStr = Math.floor(upperBound / 2).toString(); // Use half as estimate
+                    }
                 } else if (amountStr.includes('TO')) {
                     // For "$25 TO $50", use the first amount
                     const match = amountStr.match(/\$?([\d,]+)/);
@@ -2342,6 +2349,13 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                     if (amountStr.includes('OVER')) {
                         const match = amountStr.match(/\$?([\d,]+)/);
                         if (match) amountStr = match[1];
+                    } else if (amountStr.includes('UNDER')) {
+                        // For "UNDER $50", use half the upper bound as estimate (e.g., $25 for UNDER $50)
+                        const match = amountStr.match(/\$?([\d,]+)/);
+                        if (match) {
+                            const upperBound = parseFloat(match[1].replace(/,/g, ''));
+                            amountStr = Math.floor(upperBound / 2).toString(); // Use half as estimate
+                        }
                     } else if (amountStr.includes('TO')) {
                         const match = amountStr.match(/\$?([\d,]+)/);
                         if (match) amountStr = match[1];
@@ -2383,6 +2397,13 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                     const match = amountStr.match(/\$?([\d,]+)/);
                     if (match) {
                         amountStr = match[1];
+                    }
+                } else if (amountStr.includes('UNDER')) {
+                    // For "UNDER $50", use half the upper bound as estimate (e.g., $25 for UNDER $50)
+                    const match = amountStr.match(/\$?([\d,]+)/);
+                    if (match) {
+                        const upperBound = parseFloat(match[1].replace(/,/g, ''));
+                        amountStr = Math.floor(upperBound / 2).toString(); // Use half as estimate
                     }
                 } else if (amountStr.includes('TO')) {
                     // For "$25 TO $50", use the first amount
