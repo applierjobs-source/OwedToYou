@@ -1724,6 +1724,16 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
         }
         
         const apiBase = window.location.origin;
+        console.log(`📤 Sending POST request to ${apiBase}/api/leaderboard with:`, {
+            name: name,
+            handle: cleanHandle(handle),
+            amount: Math.round(amount),
+            isPlaceholder: isPlaceholder,
+            hasEntities: !!entities,
+            entitiesCount: entities ? entities.length : 0,
+            hasProfilePic: !!profilePicToSave
+        });
+        
         const response = await fetch(`${apiBase}/api/leaderboard`, {
             method: 'POST',
             headers: {
@@ -1740,6 +1750,24 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
         });
         
         const data = await response.json();
+        console.log(`📊 addToLeaderboard API response:`, {
+            success: data.success,
+            hasLeaderboard: !!data.leaderboard,
+            leaderboardLength: data.leaderboard ? data.leaderboard.length : 0,
+            error: data.error || null,
+            status: response.status
+        });
+        
+        if (!response.ok) {
+            console.error(`❌ API request failed with status ${response.status}:`, data);
+            throw new Error(data.error || `API request failed with status ${response.status}`);
+        }
+        
+        if (!data.success) {
+            console.error(`❌ API returned success=false:`, data);
+            throw new Error(data.error || 'API request failed');
+        }
+        
         if (data.success && data.leaderboard) {
             // Preserve existing profile pictures from memory
             const existingProfilePics = new Map();
@@ -1842,19 +1870,48 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
             // CRITICAL: Reload from database to ensure we have the latest data including the newly added entry
             if (refreshDisplay) {
                 console.log(`🔄 Reloading leaderboard from database to show newly added entry...`);
-                await loadLeaderboard();
-                
-                // Refresh display if leaderboard is visible
-                if (!document.getElementById('leaderboard').classList.contains('hidden')) {
+                try {
+                    await loadLeaderboard();
+                    console.log(`✅ Leaderboard reloaded, now has ${leaderboardData.length} entries`);
+                    
+                    // Always refresh display - don't check if hidden (leaderboard might be hidden but we still want to update the data)
                     console.log(`🔄 Refreshing leaderboard display with ${leaderboardData.length} entries`);
                     displayLeaderboard(leaderboardData);
-                } else {
-                    console.log(`ℹ️ Leaderboard is hidden, skipping display refresh`);
+                    
+                    // Also ensure leaderboard section is visible if we just added an entry
+                    const leaderboardSection = document.getElementById('leaderboard');
+                    if (leaderboardSection && leaderboardSection.classList.contains('hidden')) {
+                        console.log(`👁️ Making leaderboard visible since we just added an entry`);
+                        leaderboardSection.classList.remove('hidden');
+                    }
+                } catch (reloadError) {
+                    console.error('❌ Failed to reload leaderboard:', reloadError);
                 }
+            } else {
+                console.error(`❌ API response missing leaderboard data:`, data);
             }
+        } else {
+            console.error(`❌ API response indicates failure:`, data);
         }
     } catch (error) {
-        console.error('Error adding to leaderboard:', error);
+        console.error('❌❌❌ CRITICAL ERROR adding to leaderboard:', error);
+        console.error('Error details:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        });
+        // Still try to reload leaderboard even if add failed (in case it was added but response was malformed)
+        if (refreshDisplay) {
+            console.log(`🔄 Attempting to reload leaderboard despite error...`);
+            try {
+                await loadLeaderboard();
+                if (!document.getElementById('leaderboard').classList.contains('hidden')) {
+                    displayLeaderboard(leaderboardData);
+                }
+            } catch (reloadError) {
+                console.error('❌ Failed to reload leaderboard:', reloadError);
+            }
+        }
     }
 }
 
