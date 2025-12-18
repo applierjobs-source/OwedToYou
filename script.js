@@ -3926,6 +3926,7 @@ function cleanNameForSearch(name) {
 
 // Start missing money search directly with first and last name
 async function startMissingMoneySearch(firstName, lastName, handle, profilePic = null) {
+    console.log(`🚀🚀🚀🚀🚀 startMissingMoneySearch CALLED 🚀🚀🚀🚀🚀`);
     console.log(`🚀 startMissingMoneySearch called with: firstName="${firstName}", lastName="${lastName}", handle="${handle}"`);
     console.log(`[PROFILE PIC FLOW] startMissingMoneySearch received profilePic: ${profilePic ? `YES (${profilePic.substring(0, 40)}...)` : 'NO (null/undefined)'}`);
     
