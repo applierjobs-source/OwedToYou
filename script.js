@@ -1262,54 +1262,58 @@ async function getProfilePicBase64(handle, imageUrl) {
     base64ConversionInProgress.add(conversionKey);
     
     try {
-    // CRITICAL: If already base64, return it immediately (don't try to convert base64 to base64)
-    if (imageUrl && imageUrl.startsWith('data:image')) {
-        console.log(`✅ Already base64 for ${handle}, returning as-is`);
-        return imageUrl;
-    }
-    
-    if (!imageUrl || !imageUrl.startsWith('http')) {
-        return null;
-    }
-    
-    const cleanHandleValue = cleanHandle(handle);
-    const base64Key = `${cleanHandleValue}_base64`;
-    const urlKey = `${cleanHandleValue}_url`;
-    
-    // Check if we have cached base64
-    try {
-        const stored = localStorage.getItem('leaderboardProfilePicsBase64');
-        if (stored) {
-            const parsed = JSON.parse(stored);
-            // Check if we have base64 for this handle and URL matches
-            if (parsed[base64Key] && parsed[urlKey] === imageUrl) {
-                console.log(`✅ Found cached base64 for ${handle}`);
-                return parsed[base64Key];
+        // CRITICAL: If already base64, return it immediately (don't try to convert base64 to base64)
+        if (imageUrl && imageUrl.startsWith('data:image')) {
+            console.log(`✅ Already base64 for ${handle}, returning as-is`);
+            return imageUrl;
+        }
+        
+        if (!imageUrl || !imageUrl.startsWith('http')) {
+            return null;
+        }
+        
+        const cleanHandleValue = cleanHandle(handle);
+        const base64Key = `${cleanHandleValue}_base64`;
+        const urlKey = `${cleanHandleValue}_url`;
+        
+        // Check if we have cached base64
+        try {
+            const stored = localStorage.getItem('leaderboardProfilePicsBase64');
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                // Check if we have base64 for this handle and URL matches
+                if (parsed[base64Key] && parsed[urlKey] === imageUrl) {
+                    console.log(`✅ Found cached base64 for ${handle}`);
+                    return parsed[base64Key];
+                }
+            }
+        } catch (e) {
+            console.error('Error loading base64 cache:', e);
+        }
+        
+        // Convert to base64 and cache it
+        console.log(`🔄 Converting image to base64 for ${handle}...`);
+        const base64 = await convertImageToBase64(imageUrl);
+        if (base64) {
+            try {
+                const stored = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
+                stored[base64Key] = base64;
+                stored[urlKey] = imageUrl;
+                // Also store with original handle
+                stored[`${handle}_base64`] = base64;
+                stored[`${handle}_url`] = imageUrl;
+                localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(stored));
+                console.log(`✅ Cached base64 for ${handle}`);
+            } catch (e) {
+                console.error('Error saving base64 cache:', e);
             }
         }
-    } catch (e) {
-        console.error('Error loading base64 cache:', e);
+        
+        return base64;
+    } finally {
+        // Always remove from in-progress set
+        base64ConversionInProgress.delete(conversionKey);
     }
-    
-    // Convert to base64 and cache it
-    console.log(`🔄 Converting image to base64 for ${handle}...`);
-    const base64 = await convertImageToBase64(imageUrl);
-    if (base64) {
-        try {
-            const stored = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
-            stored[base64Key] = base64;
-            stored[urlKey] = imageUrl;
-            // Also store with original handle
-            stored[`${handle}_base64`] = base64;
-            stored[`${handle}_url`] = imageUrl;
-            localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(stored));
-            console.log(`✅ Cached base64 for ${handle}`);
-        } catch (e) {
-            console.error('Error saving base64 cache:', e);
-        }
-    }
-    
-    return base64;
 }
 
 // CRITICAL: Get profile picture (base64 if available, otherwise URL)
