@@ -3349,15 +3349,46 @@ async function handleSearchImpl() {
                 console.log('⚠️ Could not extract name from Instagram');
                 console.log('⚠️ Attempted extraction but got:', { fullName, firstName, lastName });
                 
-                // If extraction completely failed, use handle as fallback name
+                // If extraction completely failed, try to intelligently split the handle
                 if (!fullName) {
-                    console.log('⚠️ Instagram name extraction failed, using handle as fallback');
-                    // Use handle as both first and last name to allow search to continue
-                    firstName = cleanHandleValue;
-                    lastName = cleanHandleValue;
-                    console.log(`✅ Using handle "${cleanHandleValue}" as fallback name for search`);
+                    console.log('⚠️ Instagram name extraction failed, attempting to split handle intelligently');
                     
-                    // Continue with search using handle as name
+                    // Try to split handle by common separators (dot, underscore, hyphen)
+                    // e.g., "rocket.thrall" -> "Rocket" "Thrall"
+                    // e.g., "john_smith" -> "John" "Smith"
+                    let splitHandle = cleanHandleValue;
+                    if (splitHandle.includes('.')) {
+                        const parts = splitHandle.split('.');
+                        if (parts.length >= 2) {
+                            firstName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+                            lastName = parts.slice(1).join(' ').charAt(0).toUpperCase() + parts.slice(1).join(' ').slice(1);
+                            console.log(`✅ Split handle "${cleanHandleValue}" by dot: "${firstName}" "${lastName}"`);
+                        }
+                    } else if (splitHandle.includes('_')) {
+                        const parts = splitHandle.split('_');
+                        if (parts.length >= 2) {
+                            firstName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+                            lastName = parts.slice(1).join(' ').charAt(0).toUpperCase() + parts.slice(1).join(' ').slice(1);
+                            console.log(`✅ Split handle "${cleanHandleValue}" by underscore: "${firstName}" "${lastName}"`);
+                        }
+                    } else if (splitHandle.includes('-')) {
+                        const parts = splitHandle.split('-');
+                        if (parts.length >= 2) {
+                            firstName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+                            lastName = parts.slice(1).join(' ').charAt(0).toUpperCase() + parts.slice(1).join(' ').slice(1);
+                            console.log(`✅ Split handle "${cleanHandleValue}" by hyphen: "${firstName}" "${lastName}"`);
+                        }
+                    }
+                    
+                    // If we couldn't split it, use handle as both first and last name (last resort)
+                    if (!firstName || !lastName) {
+                        console.log('⚠️ Could not split handle intelligently, using handle as fallback');
+                        firstName = cleanHandleValue;
+                        lastName = cleanHandleValue;
+                        console.log(`✅ Using handle "${cleanHandleValue}" as both first and last name (last resort)`);
+                    }
+                    
+                    // Continue with search using extracted/split name
                     searchBtn.disabled = false;
                     searchBtn.textContent = 'Search';
                     try {
