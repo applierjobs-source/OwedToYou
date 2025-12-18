@@ -1247,13 +1247,21 @@ async function convertImageToBase64(imageUrl) {
     }
 }
 
-// CRITICAL: Export for use in inline handlers
-window.getProfilePicBase64 = async function(handle, imageUrl) {
-    return getProfilePicBase64(handle, imageUrl);
-};
-
 // CRITICAL: Get base64 version of profile picture (from cache or convert)
+// Track in-progress conversions to prevent infinite recursion
+const base64ConversionInProgress = new Set();
+
 async function getProfilePicBase64(handle, imageUrl) {
+    // CRITICAL: Prevent infinite recursion - if already converting this handle+URL, return null
+    const conversionKey = `${handle}:${imageUrl}`;
+    if (base64ConversionInProgress.has(conversionKey)) {
+        console.error(`❌ Recursion detected for ${handle}, skipping conversion`);
+        return null;
+    }
+    
+    base64ConversionInProgress.add(conversionKey);
+    
+    try {
     // CRITICAL: If already base64, return it immediately (don't try to convert base64 to base64)
     if (imageUrl && imageUrl.startsWith('data:image')) {
         console.log(`✅ Already base64 for ${handle}, returning as-is`);
