@@ -1948,7 +1948,7 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
                     }
                 }
             }
-        } else {
+        } else if (!data.success) {
             console.error(`❌ API response indicates failure:`, data);
             // Still try to reload leaderboard in case entry was added despite error response
             if (refreshDisplay) {
