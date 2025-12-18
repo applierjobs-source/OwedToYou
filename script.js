@@ -1929,7 +1929,8 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
                 }
             }
             
-            console.log(`✅✅✅ addToLeaderboard COMPLETED successfully`); else {
+            console.log(`✅✅✅ addToLeaderboard COMPLETED successfully`);
+        } else {
                 console.error(`❌ API response missing leaderboard data:`, data);
                 // Still try to reload leaderboard in case entry was added but response was malformed
                 if (refreshDisplay) {
