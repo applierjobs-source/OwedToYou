@@ -3385,6 +3385,29 @@ async function handleSearchImpl() {
                             lastName = parts.slice(1).join(' ').charAt(0).toUpperCase() + parts.slice(1).join(' ').slice(1);
                             console.log(`✅ Split handle "${cleanHandleValue}" by hyphen: "${firstName}" "${lastName}"`);
                         }
+                    } else {
+                        // Try to split camelCase or all-lowercase handles into words
+                        // e.g., "shaynecoplan" -> "Shayne Coplan"
+                        // e.g., "johnSmith" -> "John Smith"
+                        // Common patterns: name + name (e.g., shayne + coplan)
+                        
+                        // Try common name patterns - split at common name boundaries
+                        // Look for common first names followed by a surname
+                        const commonFirstNames = ['john', 'jane', 'matt', 'mike', 'dave', 'bob', 'tom', 'dan', 'sam', 'joe', 'ben', 'chris', 'nick', 'jake', 'luke', 'mark', 'paul', 'peter', 'steve', 'tim', 'will', 'alex', 'andy', 'brian', 'charlie', 'david', 'ed', 'frank', 'greg', 'harry', 'jack', 'james', 'jeff', 'ken', 'larry', 'matt', 'nate', 'ray', 'rick', 'ron', 'sean', 'ted', 'tony', 'vince', 'zach', 'shayne', 'ryan', 'kyle', 'tyler', 'brandon', 'jordan', 'justin', 'austin', 'cameron', 'connor', 'ethan', 'jacob', 'logan', 'mason', 'noah', 'owen'];
+                        
+                        const lowerHandle = splitHandle.toLowerCase();
+                        for (const firstNamePattern of commonFirstNames) {
+                            if (lowerHandle.startsWith(firstNamePattern) && lowerHandle.length > firstNamePattern.length) {
+                                // Found a potential first name match
+                                const remaining = splitHandle.substring(firstNamePattern.length);
+                                if (remaining.length >= 3) { // Surname should be at least 3 chars
+                                    firstName = firstNamePattern.charAt(0).toUpperCase() + firstNamePattern.slice(1);
+                                    lastName = remaining.charAt(0).toUpperCase() + remaining.slice(1);
+                                    console.log(`✅ Split handle "${cleanHandleValue}" by common name pattern: "${firstName}" "${lastName}"`);
+                                    break;
+                                }
+                            }
+                        }
                     }
                     
                     // If we couldn't split it, use handle as both first and last name (last resort)
