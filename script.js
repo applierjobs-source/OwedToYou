@@ -4140,8 +4140,18 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
             return;
         } else {
             console.log('✅ Cached search completed successfully but no results found');
-            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 0, false, true, [], claimData.profilePic);
-            showNoResultsModal(claimData);
+            // Show $100 undisclosed instead of $0
+            const undisclosedResult = [{
+                entity: 'Undisclosed Property',
+                amount: 'UNDISCLOSED',
+                details: 'Amount undisclosed - funds may be available'
+            }];
+            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 100, false, true, undisclosedResult, claimData.profilePic);
+            showResultsModal(claimData, {
+                success: true,
+                results: undisclosedResult,
+                totalAmount: 100
+            });
             return;
         }
     }
