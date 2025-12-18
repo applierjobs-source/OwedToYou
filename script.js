@@ -4281,16 +4281,24 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
             // Show results modal
             showResultsModal(claimData, result);
         } else if (result.success) {
-            // Search completed successfully but no results found - still save to leaderboard with $0
+            // Search completed successfully but no results found - show $100 undisclosed instead of $0
             console.log('✅ Search completed successfully but no results found');
-            console.log('💾 Saving claim to leaderboard with $0 amount');
+            console.log('💾 Saving claim to leaderboard with $100 undisclosed amount');
+            
+            // Create an "undisclosed" result entry
+            const undisclosedResult = [{
+                entity: 'Undisclosed Property',
+                amount: 'UNDISCLOSED',
+                details: 'Amount undisclosed - funds may be available'
+            }];
             
             // CRITICAL: Add to leaderboard FIRST and WAIT for it to complete
-            console.log('🚀🚀🚀 ADDING TO LEADERBOARD NOW (no results) 🚀🚀🚀');
+            console.log('🚀🚀🚀 ADDING TO LEADERBOARD NOW (no results - showing $100 undisclosed) 🚀🚀🚀');
             console.log('Entry details:', {
                 name: claimData.firstName + ' ' + claimData.lastName,
                 handle: claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''),
-                amount: 0,
+                amount: 100,
+                entitiesCount: 1,
                 hasProfilePic: !!claimData.profilePic
             });
             
@@ -4298,20 +4306,24 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
                 await addToLeaderboard(
                     claimData.firstName + ' ' + claimData.lastName, 
                     claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 
-                    0, 
+                    100, // Show $100 instead of $0
                     false, 
                     true, 
-                    [], 
+                    undisclosedResult, // Include undisclosed entity
                     claimData.profilePic
                 );
-                console.log('✅✅✅ addToLeaderboard COMPLETED successfully (no results)');
+                console.log('✅✅✅ addToLeaderboard COMPLETED successfully (no results - $100 undisclosed)');
             } catch (addError) {
                 console.error('❌❌❌ CRITICAL: addToLeaderboard FAILED (no results):', addError);
                 // Still show modal even if add failed
             }
             
-            // Show "no results" modal
-            showNoResultsModal(claimData);
+            // Show results modal with undisclosed amount instead of "no results" modal
+            showResultsModal(claimData, {
+                success: true,
+                results: undisclosedResult,
+                totalAmount: 100
+            });
         } else {
             console.log('❌ Search failed. Result:', result);
             console.log('⚠️ Showing "no results" modal instead');
