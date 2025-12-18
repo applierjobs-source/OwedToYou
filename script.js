@@ -3295,10 +3295,37 @@ async function handleSearchImpl() {
                     }
                 }
                 
-                // If splitting failed, fall through to normal processing
-                if (!firstName || !lastName) {
-                    firstName = nameParts[0] || '';
-                    lastName = nameParts[1] || '';
+                // If splitting failed, try to use the handle to extract the last name
+                if (!firstName || !lastName || firstName === lastName) {
+                    // If we couldn't split the duplicated name, try using the handle
+                    // e.g., if name is "shayne shayne" and handle is "shaynecoplan", split handle
+                    const handleParts = cleanHandleValue.split(/[._-]/);
+                    if (handleParts.length >= 2) {
+                        // Handle has separators - use them
+                        firstName = handleParts[0].charAt(0).toUpperCase() + handleParts[0].slice(1);
+                        lastName = handleParts.slice(1).join(' ').charAt(0).toUpperCase() + handleParts.slice(1).join(' ').slice(1);
+                        console.log(`✅ Split handle "${cleanHandleValue}" to fix duplicated name: "${firstName}" "${lastName}"`);
+                    } else {
+                        // Try common first name pattern on handle
+                        const lowerHandle = cleanHandleValue.toLowerCase();
+                        for (const firstNamePattern of commonFirstNames) {
+                            if (lowerHandle.startsWith(firstNamePattern) && lowerHandle.length > firstNamePattern.length) {
+                                const remaining = cleanHandleValue.substring(firstNamePattern.length);
+                                if (remaining.length >= 3) {
+                                    firstName = firstNamePattern.charAt(0).toUpperCase() + firstNamePattern.slice(1);
+                                    lastName = remaining.charAt(0).toUpperCase() + remaining.slice(1);
+                                    console.log(`✅ Split handle "${cleanHandleValue}" using pattern to fix duplicated name: "${firstName}" "${lastName}"`);
+                                    break;
+                                }
+                            }
+                        }
+                        // If still no luck, use the first part as first name and try to guess last name
+                        if (!firstName || !lastName || firstName === lastName) {
+                            firstName = nameParts[0] || '';
+                            lastName = nameParts[1] || '';
+                            console.log(`⚠️ Could not split duplicated name intelligently, using: "${firstName}" "${lastName}"`);
+                        }
+                    }
                 }
             } else {
                 // Normal name processing
