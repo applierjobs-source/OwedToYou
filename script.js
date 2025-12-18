@@ -1839,10 +1839,18 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
                 console.error(`❌❌❌ Entry NOT FOUND in leaderboardData for handle: ${handle}`);
             }
             
-            // Only refresh display if explicitly requested (e.g., after a claim submission)
-            if (refreshDisplay && !document.getElementById('leaderboard').classList.contains('hidden')) {
-                console.log(`🔄 Refreshing leaderboard display with ${leaderboardData.length} entries`);
-                displayLeaderboard(leaderboardData);
+            // CRITICAL: Reload from database to ensure we have the latest data including the newly added entry
+            if (refreshDisplay) {
+                console.log(`🔄 Reloading leaderboard from database to show newly added entry...`);
+                await loadLeaderboard();
+                
+                // Refresh display if leaderboard is visible
+                if (!document.getElementById('leaderboard').classList.contains('hidden')) {
+                    console.log(`🔄 Refreshing leaderboard display with ${leaderboardData.length} entries`);
+                    displayLeaderboard(leaderboardData);
+                } else {
+                    console.log(`ℹ️ Leaderboard is hidden, skipping display refresh`);
+                }
             }
         }
     } catch (error) {
