@@ -1931,31 +1931,14 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
             
             console.log(`✅✅✅ addToLeaderboard COMPLETED successfully`);
         } else {
-                console.error(`❌ API response missing leaderboard data:`, data);
-                // Still try to reload leaderboard in case entry was added but response was malformed
-                if (refreshDisplay) {
-                    console.log(`🔄 Attempting to reload leaderboard despite missing data in response...`);
-                    try {
-                        const reloadedData = await loadLeaderboard();
-                        console.log(`✅ Reloaded ${reloadedData.length} entries despite missing response data`);
-                        displayLeaderboard(reloadedData);
-                        const leaderboardSection = document.getElementById('leaderboard');
-                        if (leaderboardSection) {
-                            leaderboardSection.classList.remove('hidden');
-                        }
-                    } catch (reloadError) {
-                        console.error('❌ Failed to reload leaderboard:', reloadError);
-                    }
-                }
-            }
-        } else if (!data.success) {
-            console.error(`❌ API response indicates failure:`, data);
-            // Still try to reload leaderboard in case entry was added despite error response
+            // data.success is true but data.leaderboard is missing
+            console.error(`❌ API response missing leaderboard data:`, data);
+            // Still try to reload leaderboard in case entry was added but response was malformed
             if (refreshDisplay) {
-                console.log(`🔄 Attempting to reload leaderboard despite error response...`);
+                console.log(`🔄 Attempting to reload leaderboard despite missing data in response...`);
                 try {
                     const reloadedData = await loadLeaderboard();
-                    console.log(`✅ Reloaded ${reloadedData.length} entries despite error response`);
+                    console.log(`✅ Reloaded ${reloadedData.length} entries despite missing response data`);
                     displayLeaderboard(reloadedData);
                     const leaderboardSection = document.getElementById('leaderboard');
                     if (leaderboardSection) {
