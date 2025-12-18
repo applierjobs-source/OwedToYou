@@ -1889,9 +1889,37 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
                 }
             } else {
                 console.error(`❌ API response missing leaderboard data:`, data);
+                // Still try to reload leaderboard in case entry was added but response was malformed
+                if (refreshDisplay) {
+                    console.log(`🔄 Attempting to reload leaderboard despite missing data in response...`);
+                    try {
+                        await loadLeaderboard();
+                        displayLeaderboard(leaderboardData);
+                        const leaderboardSection = document.getElementById('leaderboard');
+                        if (leaderboardSection && leaderboardSection.classList.contains('hidden')) {
+                            leaderboardSection.classList.remove('hidden');
+                        }
+                    } catch (reloadError) {
+                        console.error('❌ Failed to reload leaderboard:', reloadError);
+                    }
+                }
             }
         } else {
             console.error(`❌ API response indicates failure:`, data);
+            // Still try to reload leaderboard in case entry was added despite error response
+            if (refreshDisplay) {
+                console.log(`🔄 Attempting to reload leaderboard despite error response...`);
+                try {
+                    await loadLeaderboard();
+                    displayLeaderboard(leaderboardData);
+                    const leaderboardSection = document.getElementById('leaderboard');
+                    if (leaderboardSection && leaderboardSection.classList.contains('hidden')) {
+                        leaderboardSection.classList.remove('hidden');
+                    }
+                } catch (reloadError) {
+                    console.error('❌ Failed to reload leaderboard:', reloadError);
+                }
+            }
         }
     } catch (error) {
         console.error('❌❌❌ CRITICAL ERROR adding to leaderboard:', error);
