@@ -3999,6 +3999,15 @@ function cleanNameForSearch(name) {
     cleaned = cleaned.replace(/[\u{FE00}-\u{FE0F}]/gu, ''); // Variation Selectors
     cleaned = cleaned.replace(/[\u{200D}]/gu, ''); // Zero Width Joiner
     cleaned = cleaned.replace(/[\u{20E3}]/gu, ''); // Combining Enclosing Keycap
+    
+    // CRITICAL: Remove pronouns and other non-name text
+    // Remove common pronoun formats: (they/them), [they/them], they/them, (he/him), etc.
+    cleaned = cleaned.replace(/\([^)]*(?:they|them|he|him|she|her|ze|hir|xe|xem|it|its)[^)]*\)/gi, '');
+    cleaned = cleaned.replace(/\[[^\]]*(?:they|them|he|him|she|her|ze|hir|xe|xem|it|its)[^\]]*\]/gi, '');
+    cleaned = cleaned.replace(/\{[^\}]*(?:they|them|he|him|she|her|ze|hir|xe|xem|it|its)[^\}]*\}/gi, '');
+    // Remove standalone pronouns: they/them, he/him, she/her, etc.
+    cleaned = cleaned.replace(/\b(?:they|them|he|him|she|her|ze|hir|xe|xem|it|its)\s*\/\s*(?:they|them|he|him|she|her|ze|hir|xe|xem|it|its)\b/gi, '');
+    
     // Clean up extra spaces
     cleaned = cleaned.trim().replace(/\s+/g, ' ');
     return cleaned;
