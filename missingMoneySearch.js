@@ -2352,14 +2352,18 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             };
         }
         
-        // If we truly have no results at all, return empty
+        // If we truly have no results at all, return $100 undisclosed instead of $0
         if (uniqueResults.length === 0) {
-            console.log('❌❌❌ NO RESULTS FOUND AT ALL ❌❌❌');
+            console.log('❌❌❌ NO RESULTS FOUND AT ALL - Returning $100 undisclosed ❌❌❌');
             return {
                 success: true,
-                results: [],
-                totalAmount: 0,
-                message: 'No unclaimed funds found'
+                results: [{
+                    entity: 'Undisclosed Property',
+                    amount: 'UNDISCLOSED',
+                    details: 'Amount undisclosed - funds may be available'
+                }],
+                totalAmount: 100, // Show $100 instead of $0
+                message: 'No unclaimed funds found - showing $100 undisclosed'
             };
         }
         
