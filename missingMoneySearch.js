@@ -2101,24 +2101,12 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         }
         
         // Clean up results and remove duplicates
-        // IMPORTANT: Only include results where entity name contains both first and last name
+        // CRITICAL: NO NAME FILTERING - Include ALL results returned by missingmoney.com
+        // missingmoney.com already matched results to the person we searched for
+        // People have aliases, so filtering by name would exclude valid results
         let uniqueResults = [];
         const seen = new Set();
         let filteredCount = 0;
-        
-        // Normalize names for matching (case-insensitive, remove extra spaces)
-        // Use cleaned names (without emojis) for matching
-        const normalizedFirstName = cleanedFirstName.trim().toLowerCase();
-        const normalizedLastName = cleanedLastName.trim().toLowerCase();
-        const normalizedFullName = `${normalizedFirstName} ${normalizedLastName}`;
-        
-        // Expand names with aliases (e.g., "Matt" -> ["matt", "matthew"])
-        const firstNameAliases = expandNameWithAliases(cleanedFirstName);
-        const lastNameAliases = expandNameWithAliases(cleanedLastName);
-        
-        console.log(`🔍 Filtering results to only include entities containing: "${normalizedFullName}"`);
-        console.log(`🔍 First name aliases: ${firstNameAliases.join(', ')}`);
-        console.log(`🔍 Last name aliases: ${lastNameAliases.join(', ')}`);
         
         results.forEach(r => {
             // Clean entity name one more time to remove any remaining button text
@@ -2150,6 +2138,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             }
             
             // Only filter if entity is completely empty or just whitespace
+            // NO NAME FILTERING - include all valid entities regardless of name matching
             if (!cleanEntity || cleanEntity.length < 1) {
                 filteredCount++;
                 if (filteredCount <= 5) {
@@ -2168,32 +2157,8 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 return;
             }
             
-            // CRITICAL FIX: Entity is now the business name (Reporting Business), NOT the person's name
-            // We should NOT filter based on whether the business name contains the person's name
-            // The fact that results appear means missingmoney.com already matched them to the person we searched for
-            // We only need to ensure the entity (business name) is valid and not empty
-            
-            // Optional: Validate that details contain the person's name (for extra safety)
-            // But don't filter out results just because business name doesn't contain person's name
-            const detailsText = (r.details || '').toLowerCase();
-            const normalizedDetails = detailsText
-                .replace(/[.,;:!?]/g, ' ')
-                .replace(/\s+/g, ' ')
-                .trim();
-            
-            // Check if details contain the person's name (this is optional validation)
-            // If details are available and don't contain the name, log but don't filter
-            const detailsHasName = normalizedDetails.includes(normalizedFullName) ||
-                                 normalizedDetails.includes(`${normalizedLastName} ${normalizedFirstName}`) ||
-                                 normalizedDetails.includes(`${normalizedLastName}, ${normalizedFirstName}`);
-            
-            if (!detailsHasName && r.details && r.details.length > 10) {
-                // Log for debugging but don't filter - business names won't contain person's name
-                if (filteredCount < 3) {
-                    console.log(`ℹ️ Entity "${cleanEntity}" details don't explicitly contain "${normalizedFullName}", but including anyway (entity is business name)`);
-                }
-            }
-            
+            // Include ALL results - missingmoney.com already matched them to the person
+            // No name filtering - people have aliases and business names won't contain person's name
             const key = `${cleanEntity}-${cleanAmount}`;
             if (!seen.has(key)) {
                 seen.add(key);
