@@ -3271,23 +3271,54 @@ async function handleSearchImpl() {
                 .replace(/\s+/g, ' ') // Normalize spaces
                 .trim();
             
+            // CRITICAL: Check if name is duplicated (e.g., "shaynecoplan shaynecoplan")
+            // This happens when Instagram name extraction fails and falls back to handle
             const nameParts = cleanedFullName.split(/\s+/);
-            firstName = nameParts[0] || '';
-            // For last name, take everything after first name, but stop at common separators
-            // This handles cases like "Matt Kepnes | Nomadic Matt" -> "Matt Kepnes"
-            let lastNameParts = nameParts.slice(1);
-            // Stop at common separators or if we hit a very long part (likely not part of name)
-            const stopWords = ['nomadic', 'travel', 'blog', 'official'];
-            lastNameParts = lastNameParts.filter(part => {
-                const lowerPart = part.toLowerCase();
-                return !stopWords.includes(lowerPart) && part.length < 20; // Skip very long parts
-            });
-            lastName = lastNameParts.join(' ') || '';
-            
-            // If we still have a very long last name, try to extract just the actual surname
-            // Usually the surname is the first word after the first name
-            if (lastName.length > 30 && nameParts.length > 1) {
-                lastName = nameParts[1] || '';
+            if (nameParts.length === 2 && nameParts[0].toLowerCase() === nameParts[1].toLowerCase()) {
+                // Name is duplicated - try to split the first part intelligently
+                console.log(`⚠️ Detected duplicated name: "${cleanedFullName}", attempting intelligent split`);
+                const singleName = nameParts[0];
+                
+                // Try common first name patterns
+                const commonFirstNames = ['john', 'jane', 'matt', 'mike', 'dave', 'bob', 'tom', 'dan', 'sam', 'joe', 'ben', 'chris', 'nick', 'jake', 'luke', 'mark', 'paul', 'peter', 'steve', 'tim', 'will', 'alex', 'andy', 'brian', 'charlie', 'david', 'ed', 'frank', 'greg', 'harry', 'jack', 'james', 'jeff', 'ken', 'larry', 'matt', 'nate', 'ray', 'rick', 'ron', 'sean', 'ted', 'tony', 'vince', 'zach', 'shayne', 'ryan', 'kyle', 'tyler', 'brandon', 'jordan', 'justin', 'austin', 'cameron', 'connor', 'ethan', 'jacob', 'logan', 'mason', 'noah', 'owen'];
+                
+                const lowerName = singleName.toLowerCase();
+                for (const firstNamePattern of commonFirstNames) {
+                    if (lowerName.startsWith(firstNamePattern) && lowerName.length > firstNamePattern.length) {
+                        const remaining = singleName.substring(firstNamePattern.length);
+                        if (remaining.length >= 3) {
+                            firstName = firstNamePattern.charAt(0).toUpperCase() + firstNamePattern.slice(1);
+                            lastName = remaining.charAt(0).toUpperCase() + remaining.slice(1);
+                            console.log(`✅ Split duplicated name "${cleanedFullName}" to: "${firstName}" "${lastName}"`);
+                            break;
+                        }
+                    }
+                }
+                
+                // If splitting failed, fall through to normal processing
+                if (!firstName || !lastName) {
+                    firstName = nameParts[0] || '';
+                    lastName = nameParts[1] || '';
+                }
+            } else {
+                // Normal name processing
+                firstName = nameParts[0] || '';
+                // For last name, take everything after first name, but stop at common separators
+                // This handles cases like "Matt Kepnes | Nomadic Matt" -> "Matt Kepnes"
+                let lastNameParts = nameParts.slice(1);
+                // Stop at common separators or if we hit a very long part (likely not part of name)
+                const stopWords = ['nomadic', 'travel', 'blog', 'official'];
+                lastNameParts = lastNameParts.filter(part => {
+                    const lowerPart = part.toLowerCase();
+                    return !stopWords.includes(lowerPart) && part.length < 20; // Skip very long parts
+                });
+                lastName = lastNameParts.join(' ') || '';
+                
+                // If we still have a very long last name, try to extract just the actual surname
+                // Usually the surname is the first word after the first name
+                if (lastName.length > 30 && nameParts.length > 1) {
+                    lastName = nameParts[1] || '';
+                }
             }
         }
         
