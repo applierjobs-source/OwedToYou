@@ -1254,6 +1254,12 @@ window.getProfilePicBase64 = async function(handle, imageUrl) {
 
 // CRITICAL: Get base64 version of profile picture (from cache or convert)
 async function getProfilePicBase64(handle, imageUrl) {
+    // CRITICAL: If already base64, return it immediately (don't try to convert base64 to base64)
+    if (imageUrl && imageUrl.startsWith('data:image')) {
+        console.log(`✅ Already base64 for ${handle}, returning as-is`);
+        return imageUrl;
+    }
+    
     if (!imageUrl || !imageUrl.startsWith('http')) {
         return null;
     }
@@ -2233,9 +2239,41 @@ window.retrySingleProfilePicture = function(handle) {
         const name = nameElement ? nameElement.textContent.trim() : '';
         
         if (profilePictureDiv && handle) {
+            // CRITICAL: Check if image is already base64 - if so, DON'T retry (it's already loaded correctly)
+            const img = profilePictureDiv.querySelector('img');
+            if (img && img.src && img.src.startsWith('data:image')) {
+                console.log(`✅ Image for ${handle} is already base64 - skipping retry`);
+                return; // Don't retry base64 images
+            }
+            
             // Get current users from leaderboardData
             const user = leaderboardData.find(u => cleanHandle(u.handle) === cleanHandle(handle));
             if (user) {
+                // CRITICAL: Also check if user.profilePic is base64 - if so, use it directly
+                if (user.profilePic && user.profilePic.startsWith('data:image')) {
+                    console.log(`✅ User ${handle} has base64 profilePic - using directly`);
+                    const base64Img = document.createElement('img');
+                    base64Img.src = user.profilePic;
+                    base64Img.alt = name;
+                    base64Img.loading = 'eager';
+                    base64Img.decoding = 'sync';
+                    base64Img.fetchPriority = 'high';
+                    base64Img.style.width = '100%';
+                    base64Img.style.height = '100%';
+                    base64Img.style.borderRadius = '50%';
+                    base64Img.style.objectFit = 'cover';
+                    base64Img.style.display = 'block';
+                    base64Img.style.visibility = 'visible';
+                    base64Img.style.opacity = '1';
+                    base64Img.style.position = 'absolute';
+                    base64Img.style.top = '0';
+                    base64Img.style.left = '0';
+                    base64Img.style.zIndex = '2';
+                    profilePictureDiv.innerHTML = '';
+                    profilePictureDiv.appendChild(base64Img);
+                    return; // Don't retry - base64 loads instantly
+                }
+                
                 retryProfilePicture({
                     handle: handle,
                     name: name,
@@ -2282,14 +2320,23 @@ async function checkAndRetryFailedProfilePictures(users) {
             console.log(`🔍 Detected failed pic for ${handle}: showing initials "${textContent}"`);
         } else if (hasImage) {
             const img = hasImage;
-            // Check if image actually loaded
-            if (!img.complete || img.naturalHeight === 0 || img.naturalWidth === 0) {
+            // CRITICAL: If image is base64, it's already loaded correctly - DON'T mark as failed
+            if (img.src && img.src.startsWith('data:image')) {
+                // Base64 image - this is GOOD, not failed
+                console.log(`✅ Image for ${handle} is base64 (already loaded correctly)`);
+                isFailed = false;
+            } else if (!img.complete || img.naturalHeight === 0 || img.naturalWidth === 0) {
+                // Only mark as failed if it's NOT base64 and hasn't loaded
                 isFailed = true;
                 console.log(`🔍 Detected failed pic for ${handle}: image not loaded (complete=${img.complete}, height=${img.naturalHeight})`);
-            } else if (!img.src || img.src.includes('data:') || img.src.length < 10) {
-                // Image has invalid src
+            } else if (!img.src || img.src.length < 10) {
+                // Image has invalid src (but NOT base64)
                 isFailed = true;
                 console.log(`🔍 Detected failed pic for ${handle}: invalid src`);
+            } else {
+                // Image has valid src and loaded - NOT failed
+                console.log(`✅ Image for ${handle} loaded successfully`);
+                isFailed = false;
             }
         } else {
             // No image and no text - empty div, should have something
@@ -2351,35 +2398,33 @@ async function retryProfilePicture(failedEntry, users) {
                 console.log(`✅✅✅ Successfully loaded profile pic for ${handle} using fresh API fetch`);
                 // Update localStorage and leaderboardData
                 const storedProfilePics = loadProfilePicsFromStorage();
-                // CRITICAL: Convert to base64 IMMEDIATELY and save base64 (not URL)
-                console.log(`🔄 Converting fresh profile pic to base64 IMMEDIATELY for ${handle}...`);
-                const base64 = await getProfilePicBase64(handle, freshProfilePic);
-                if (base64) {
-                    storedProfilePics[handle] = base64; // Save base64, not URL
-                    storedProfilePics[cleanHandle(handle)] = base64;
-                    saveProfilePicsToStorage(storedProfilePics);
-                    
-                    // Also save to base64 cache
-                    const base64Cache = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
-                    const cleanHandleValue = cleanHandle(handle);
-                    base64Cache[`${cleanHandleValue}_base64`] = base64;
-                    base64Cache[`${cleanHandleValue}_url`] = freshProfilePic;
-                    base64Cache[`${handle}_base64`] = base64;
-                    base64Cache[`${handle}_url`] = freshProfilePic;
-                    localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(base64Cache));
-                    
-                    console.log(`✅✅✅ Saved BASE64 for ${handle} - INSTANT DISPLAY READY`);
-                } else {
-                    // Fallback: save URL if base64 conversion fails
-                    storedProfilePics[handle] = freshProfilePic;
-                    storedProfilePics[cleanHandle(handle)] = freshProfilePic;
-                    saveProfilePicsToStorage(storedProfilePics);
-                }
-                
+                // CRITICAL: Only convert to base64 if it's NOT already base64 (prevent infinite recursion)
+                // Don't convert immediately - let it load first, then convert in background
                 const userIndex = leaderboardData.findIndex(e => cleanHandle(e.handle) === cleanHandle(handle));
                 if (userIndex >= 0) {
                     leaderboardData[userIndex].profilePic = freshProfilePic;
                 }
+                
+                // Save URL to localStorage (conversion to base64 happens in background, not blocking)
+                storedProfilePics[handle] = freshProfilePic;
+                storedProfilePics[cleanHandle(handle)] = freshProfilePic;
+                saveProfilePicsToStorage(storedProfilePics);
+                
+                // Convert to base64 in background (non-blocking) - don't wait for it
+                if (freshProfilePic && freshProfilePic.startsWith('http')) {
+                    getProfilePicBase64(handle, freshProfilePic).then(base64 => {
+                        if (base64) {
+                            const stored = loadProfilePicsFromStorage();
+                            stored[handle] = base64;
+                            stored[cleanHandle(handle)] = base64;
+                            saveProfilePicsToStorage(stored);
+                            console.log(`✅✅✅ Converted to BASE64 in background for ${handle}`);
+                        }
+                    }).catch(err => {
+                        console.warn(`⚠️ Background base64 conversion failed for ${handle}:`, err);
+                    });
+                }
+                
                 return; // Success, no need to try other methods
             }
         }
@@ -2387,9 +2432,38 @@ async function retryProfilePicture(failedEntry, users) {
         console.log(`❌ Method 1 failed for ${handle}:`, error.message);
     }
     
-    // Method 2: Try direct URL (if we have a cached URL)
+    // CRITICAL: Check if we already have a base64 image - if so, use it directly and DON'T retry
     const storedProfilePics = loadProfilePicsFromStorage();
     const cachedUrl = storedProfilePics[handle] || storedProfilePics[cleanHandle(handle)] || user.profilePic;
+    
+    // CRITICAL: If cached URL is already base64, use it directly - DON'T retry or convert
+    if (cachedUrl && cachedUrl.startsWith('data:image')) {
+        console.log(`✅ Found base64 profile pic for ${handle}, using directly (no retry needed)`);
+        const img = document.createElement('img');
+        img.src = cachedUrl;
+        img.alt = name;
+        img.loading = 'eager';
+        img.decoding = 'sync';
+        img.fetchPriority = 'high';
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.borderRadius = '50%';
+        img.style.objectFit = 'cover';
+        img.style.display = 'block';
+        img.style.visibility = 'visible';
+        img.style.opacity = '1';
+        img.style.position = 'absolute';
+        img.style.top = '0';
+        img.style.left = '0';
+        img.style.zIndex = '2';
+        img.style.maxWidth = '100%';
+        img.style.maxHeight = '100%';
+        profilePictureDiv.innerHTML = '';
+        profilePictureDiv.appendChild(img);
+        return; // Success - base64 loads instantly
+    }
+    
+    // Method 2: Try direct URL (if we have a cached URL that's NOT base64)
     if (cachedUrl && cachedUrl.startsWith('http')) {
         console.log(`🔄 Method 2: Trying direct URL for ${handle}...`);
         try {
@@ -2407,8 +2481,8 @@ async function retryProfilePicture(failedEntry, users) {
         }
     }
     
-    // Method 3: Try proxy with cache-busting parameter
-    if (cachedUrl) {
+    // Method 3: Try proxy with cache-busting parameter (ONLY for HTTP URLs, NOT base64)
+    if (cachedUrl && cachedUrl.startsWith('http')) {
         console.log(`🔄 Method 3: Trying proxy with cache-busting for ${handle}...`);
         const apiBase = window.location.origin;
         const cacheBuster = `&_cb=${Date.now()}`;
@@ -2429,9 +2503,9 @@ async function retryProfilePicture(failedEntry, users) {
         }
     }
     
-    // Method 4: Try proxy multiple times with different cache-busting (mobile-specific)
+    // Method 4: Try proxy multiple times with different cache-busting (mobile-specific, ONLY for HTTP URLs)
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    if (cachedUrl && isMobile) {
+    if (cachedUrl && cachedUrl.startsWith('http') && isMobile) {
         console.log(`🔄 Method 4: Trying proxy multiple times for ${handle} (mobile)...`);
         const apiBase = window.location.origin;
         
@@ -2461,8 +2535,8 @@ async function retryProfilePicture(failedEntry, users) {
         }
     }
     
-    // Method 5: Force reload by clearing and re-adding (last resort)
-    if (cachedUrl) {
+    // Method 5: Force reload by clearing and re-adding (last resort, ONLY for HTTP URLs)
+    if (cachedUrl && cachedUrl.startsWith('http')) {
         console.log(`🔄 Method 5: Force reload for ${handle}...`);
         const apiBase = window.location.origin;
         const proxyUrl = `${apiBase}/api/profile-pic-proxy?url=${encodeURIComponent(cachedUrl)}&_force=${Date.now()}`;
