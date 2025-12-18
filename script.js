@@ -1707,6 +1707,17 @@ async function clearLeaderboardHandles() {
 
 // Add entry to leaderboard (or update if exists)
 async function addToLeaderboard(name, handle, amount, isPlaceholder = false, refreshDisplay = false, entities = null, profilePic = null) {
+    console.log(`🚀🚀🚀 addToLeaderboard STARTED 🚀🚀🚀`);
+    console.log(`Parameters:`, {
+        name: name,
+        handle: handle,
+        amount: amount,
+        isPlaceholder: isPlaceholder,
+        refreshDisplay: refreshDisplay,
+        entitiesCount: entities ? entities.length : 0,
+        hasProfilePic: !!profilePic
+    });
+    
     try {
         console.log(`📝 addToLeaderboard called with profilePic: ${profilePic ? 'provided' : 'not provided'}`);
         
@@ -1893,6 +1904,17 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
                             leaderboardSection.classList.remove('hidden');
                         }
                         console.log(`✅ Leaderboard section is now visible`);
+                        
+                        // CRITICAL: Verify the entry we just added is actually in the reloaded data
+                        const cleanHandleValue = cleanHandle(handle);
+                        const foundEntry = reloadedData.find(e => cleanHandle(e.handle) === cleanHandleValue);
+                        if (foundEntry) {
+                            console.log(`✅✅✅ VERIFIED: Entry for ${handle} is in reloaded leaderboard! Amount: $${foundEntry.amount}`);
+                        } else {
+                            console.error(`❌❌❌ CRITICAL: Entry for ${handle} NOT FOUND in reloaded leaderboard!`);
+                            console.error(`Searched for handle: ${cleanHandleValue}`);
+                            console.error(`Available handles:`, reloadedData.map(e => cleanHandle(e.handle)));
+                        }
                     } else {
                         console.error(`❌ CRITICAL: Leaderboard element not found!`);
                     }
@@ -1905,7 +1927,9 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
                         leaderboardSection.classList.remove('hidden');
                     }
                 }
-            } else {
+            }
+            
+            console.log(`✅✅✅ addToLeaderboard COMPLETED successfully`); else {
                 console.error(`❌ API response missing leaderboard data:`, data);
                 // Still try to reload leaderboard in case entry was added but response was malformed
                 if (refreshDisplay) {
@@ -4093,8 +4117,31 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
             console.log('✅ Showing results modal with', result.results.length, 'results');
             console.log('📊 First result:', result.results[0]);
             
-            // Add to leaderboard with real amount, entities, profile pic, and refresh display
-            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), result.totalAmount, false, true, result.results || [], claimData.profilePic);
+            // CRITICAL: Add to leaderboard FIRST and WAIT for it to complete
+            console.log('🚀🚀🚀 ADDING TO LEADERBOARD NOW 🚀🚀🚀');
+            console.log('Entry details:', {
+                name: claimData.firstName + ' ' + claimData.lastName,
+                handle: claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''),
+                amount: result.totalAmount,
+                entitiesCount: result.results ? result.results.length : 0,
+                hasProfilePic: !!claimData.profilePic
+            });
+            
+            try {
+                await addToLeaderboard(
+                    claimData.firstName + ' ' + claimData.lastName, 
+                    claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 
+                    result.totalAmount, 
+                    false, 
+                    true, 
+                    result.results || [], 
+                    claimData.profilePic
+                );
+                console.log('✅✅✅ addToLeaderboard COMPLETED successfully');
+            } catch (addError) {
+                console.error('❌❌❌ CRITICAL: addToLeaderboard FAILED:', addError);
+                // Still show modal even if add failed
+            }
             
             // Show results modal
             showResultsModal(claimData, result);
@@ -4103,8 +4150,30 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
             console.log('✅ Search completed successfully but no results found');
             console.log('💾 Saving claim to leaderboard with $0 amount');
             
-            // Add to leaderboard with $0 amount (still a successful claim) and refresh display
-            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 0, false, true, [], claimData.profilePic);
+            // CRITICAL: Add to leaderboard FIRST and WAIT for it to complete
+            console.log('🚀🚀🚀 ADDING TO LEADERBOARD NOW (no results) 🚀🚀🚀');
+            console.log('Entry details:', {
+                name: claimData.firstName + ' ' + claimData.lastName,
+                handle: claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''),
+                amount: 0,
+                hasProfilePic: !!claimData.profilePic
+            });
+            
+            try {
+                await addToLeaderboard(
+                    claimData.firstName + ' ' + claimData.lastName, 
+                    claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 
+                    0, 
+                    false, 
+                    true, 
+                    [], 
+                    claimData.profilePic
+                );
+                console.log('✅✅✅ addToLeaderboard COMPLETED successfully (no results)');
+            } catch (addError) {
+                console.error('❌❌❌ CRITICAL: addToLeaderboard FAILED (no results):', addError);
+                // Still show modal even if add failed
+            }
             
             // Show "no results" modal
             showNoResultsModal(claimData);
