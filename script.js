@@ -2474,10 +2474,23 @@ async function checkAndRetryFailedProfilePictures(users) {
                 // Base64 image - this is GOOD, not failed
                 console.log(`✅ Image for ${handle} is base64 (already loaded correctly)`);
                 isFailed = false;
+            } else if (img.complete && img.naturalHeight > 0 && img.naturalWidth > 0) {
+                // CRITICAL: Image has loaded successfully - DON'T retry it, even if it's a URL
+                // This prevents clearing successfully loaded images
+                console.log(`✅ Image for ${handle} loaded successfully (complete=${img.complete}, height=${img.naturalHeight}, width=${img.naturalWidth}) - NOT retrying`);
+                isFailed = false;
             } else if (!img.complete || img.naturalHeight === 0 || img.naturalWidth === 0) {
                 // Only mark as failed if it's NOT base64 and hasn't loaded
-                isFailed = true;
-                console.log(`🔍 Detected failed pic for ${handle}: image not loaded (complete=${img.complete}, height=${img.naturalHeight})`);
+                // But check if it's still loading (give it more time)
+                const isStillLoading = img.src && img.src.length > 10 && !img.complete;
+                if (isStillLoading) {
+                    // Image is still loading - don't mark as failed yet
+                    console.log(`⏳ Image for ${handle} still loading, not marking as failed yet`);
+                    isFailed = false;
+                } else {
+                    isFailed = true;
+                    console.log(`🔍 Detected failed pic for ${handle}: image not loaded (complete=${img.complete}, height=${img.naturalHeight})`);
+                }
             } else if (!img.src || img.src.length < 10) {
                 // Image has invalid src (but NOT base64)
                 isFailed = true;
@@ -2799,9 +2812,21 @@ async function loadProfilePictureImage(imageUrl, profilePictureDiv, name, handle
             clearTimeout(timeout);
             console.log(`✅ Image loaded via ${method} for ${handle}`);
             if (profilePictureDiv) {
-                profilePictureDiv.innerHTML = '';
-                profilePictureDiv.appendChild(img);
-                profilePictureDiv.offsetHeight; // Force reflow
+                // CRITICAL: Only clear and replace if there's no successfully loaded image already
+                // This prevents clearing images that already loaded successfully
+                const existingImg = profilePictureDiv.querySelector('img');
+                const hasLoadedImage = existingImg && existingImg.complete && existingImg.naturalHeight > 0;
+                
+                if (!hasLoadedImage) {
+                    // No loaded image exists, safe to replace
+                    profilePictureDiv.innerHTML = '';
+                    profilePictureDiv.appendChild(img);
+                    profilePictureDiv.offsetHeight; // Force reflow
+                } else {
+                    // Image already loaded successfully - don't replace it
+                    console.log(`⚠️ Image for ${handle} already loaded successfully, not replacing`);
+                    // Still resolve successfully since we have a working image
+                }
             }
             resolve();
         };
