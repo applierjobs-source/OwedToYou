@@ -2537,8 +2537,31 @@ async function retryProfilePicture(failedEntry, users) {
     try {
         const freshProfilePic = await getInstagramProfilePicture(handle);
         if (freshProfilePic) {
-            console.log(`✅ Fresh profile pic fetched for ${handle}, attempting to load...`);
-            await loadProfilePictureImage(freshProfilePic, profilePictureDiv, name, handle, 'fresh-api');
+            console.log(`✅ Fresh profile pic fetched for ${handle}, converting to base64 to avoid CORS...`);
+            
+            // CRITICAL: If it's a URL (not base64), convert it to base64 FIRST before displaying
+            // This prevents CORS errors when loading Instagram CDN URLs directly
+            let displayPic = freshProfilePic;
+            if (freshProfilePic && freshProfilePic.startsWith('http') && !freshProfilePic.startsWith('data:')) {
+                console.log(`🔄 Converting URL to base64 for ${handle} to avoid CORS...`);
+                try {
+                    const base64 = await getProfilePicBase64(handle, freshProfilePic);
+                    if (base64 && base64.startsWith('data:image')) {
+                        displayPic = base64;
+                        console.log(`✅✅✅ Converted to BASE64 for ${handle}, now displaying...`);
+                    } else {
+                        console.warn(`⚠️ Base64 conversion returned invalid result for ${handle}, trying proxy URL...`);
+                        // If base64 conversion fails, use proxy URL instead
+                        displayPic = `/api/profile-pic-proxy?url=${encodeURIComponent(freshProfilePic)}`;
+                    }
+                } catch (convError) {
+                    console.warn(`⚠️ Base64 conversion failed for ${handle}, using proxy URL:`, convError);
+                    // If conversion fails, use proxy URL instead
+                    displayPic = `/api/profile-pic-proxy?url=${encodeURIComponent(freshProfilePic)}`;
+                }
+            }
+            
+            await loadProfilePictureImage(displayPic, profilePictureDiv, name, handle, 'fresh-api');
             
             // Check if it loaded successfully
             await new Promise(resolve => setTimeout(resolve, 2000));
@@ -2547,22 +2570,24 @@ async function retryProfilePicture(failedEntry, users) {
                 console.log(`✅✅✅ Successfully loaded profile pic for ${handle} using fresh API fetch`);
                 // Update localStorage and leaderboardData
                 const storedProfilePics = loadProfilePicsFromStorage();
-                // CRITICAL: Only convert to base64 if it's NOT already base64 (prevent infinite recursion)
-                // Don't convert immediately - let it load first, then convert in background
                 const userIndex = leaderboardData.findIndex(e => cleanHandle(e.handle) === cleanHandle(handle));
                 if (userIndex >= 0) {
-                    leaderboardData[userIndex].profilePic = freshProfilePic;
+                    // Save the displayPic (base64 if converted, or URL if proxy)
+                    leaderboardData[userIndex].profilePic = displayPic;
                 }
                 
-                // Save URL to localStorage (conversion to base64 happens in background, not blocking)
-                storedProfilePics[handle] = freshProfilePic;
-                storedProfilePics[cleanHandle(handle)] = freshProfilePic;
+                // Save to localStorage (prefer base64 if we have it)
+                storedProfilePics[handle] = displayPic;
+                storedProfilePics[cleanHandle(handle)] = displayPic;
                 saveProfilePicsToStorage(storedProfilePics);
                 
-                // Convert to base64 in background (non-blocking) - don't wait for it
-                if (freshProfilePic && freshProfilePic.startsWith('http')) {
+                // If we used base64, we're done. If we used proxy URL, convert to base64 in background
+                if (displayPic.startsWith('data:image')) {
+                    console.log(`✅✅✅ Using base64 for ${handle} - no further conversion needed`);
+                } else if (displayPic.startsWith('http') || displayPic.startsWith('/api/')) {
+                    // Convert to base64 in background for next time
                     getProfilePicBase64(handle, freshProfilePic).then(base64 => {
-                        if (base64) {
+                        if (base64 && base64.startsWith('data:image')) {
                             const stored = loadProfilePicsFromStorage();
                             stored[handle] = base64;
                             stored[cleanHandle(handle)] = base64;
