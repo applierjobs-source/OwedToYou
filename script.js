@@ -4357,16 +4357,21 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
         });
         
         // CRITICAL: Always show something - never just close the modal
-        if (result.success && result.results && result.results.length > 0) {
+        // CRITICAL FIX: Check if we have results FIRST, even if success is false
+        // Sometimes the backend finds results but returns success:false due to a minor error
+        const hasResults = result.results && Array.isArray(result.results) && result.results.length > 0;
+        
+        if (hasResults) {
             console.log('✅ Showing results modal with', result.results.length, 'results');
             console.log('📊 First result:', result.results[0]);
+            console.log('⚠️ Note: success=' + result.success + ' but results exist, showing results anyway');
             
             // CRITICAL: Add to leaderboard FIRST and WAIT for it to complete
             console.log('🚀🚀🚀 ADDING TO LEADERBOARD NOW 🚀🚀🚀');
             console.log('Entry details:', {
                 name: claimData.firstName + ' ' + claimData.lastName,
                 handle: claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''),
-                amount: result.totalAmount,
+                amount: result.totalAmount || 0,
                 entitiesCount: result.results ? result.results.length : 0,
                 hasProfilePic: !!claimData.profilePic
             });
@@ -4375,7 +4380,7 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
                 await addToLeaderboard(
                     claimData.firstName + ' ' + claimData.lastName, 
                     claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 
-                    result.totalAmount, 
+                    result.totalAmount || 0, 
                     false, 
                     true, 
                     result.results || [], 
@@ -4387,8 +4392,12 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
                 // Still show modal even if add failed
             }
             
-            // Show results modal
-            showResultsModal(claimData, result);
+            // Show results modal (even if success was false, we have results)
+            showResultsModal(claimData, {
+                success: true, // Force success since we have results
+                results: result.results,
+                totalAmount: result.totalAmount || 0
+            });
         } else if (result.success) {
             // Search completed successfully but no results found - show $100 undisclosed instead of $0
             console.log('✅ Search completed successfully but no results found');
