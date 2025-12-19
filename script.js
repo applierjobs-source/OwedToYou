@@ -4174,9 +4174,9 @@ function cleanNameForSearch(name) {
 }
 
 // Start missing money search directly with first and last name
-async function startMissingMoneySearch(firstName, lastName, handle, profilePic = null) {
+async function startMissingMoneySearch(firstName, lastName, handle, profilePic = null, isInstagramSearch = true) {
     console.log(`🚀🚀🚀🚀🚀 startMissingMoneySearch CALLED 🚀🚀🚀🚀🚀`);
-    console.log(`🚀 startMissingMoneySearch called with: firstName="${firstName}", lastName="${lastName}", handle="${handle}"`);
+    console.log(`🚀 startMissingMoneySearch called with: firstName="${firstName}", lastName="${lastName}", handle="${handle}", isInstagramSearch=${isInstagramSearch}`);
     console.log(`[PROFILE PIC FLOW] startMissingMoneySearch received profilePic: ${profilePic ? `YES (${profilePic.substring(0, 40)}...)` : 'NO (null/undefined)'}`);
     
     // Remove emojis from names before searching
@@ -4234,7 +4234,12 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
             // Don't return - continue to fresh search below
         } else if (cachedResult.results && cachedResult.results.length > 0) {
             console.log('✅ Showing cached results modal with', cachedResult.results.length, 'results');
-            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), cachedResult.totalAmount, false, true, cachedResult.results || [], claimData.profilePic);
+            // Only add to leaderboard if this is an Instagram search
+            if (isInstagramSearch) {
+                await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), cachedResult.totalAmount, false, true, cachedResult.results || [], claimData.profilePic);
+            } else {
+                console.log('⏭️ Skipping leaderboard - cached result from manual name search');
+            }
             showResultsModal(claimData, cachedResult);
             return;
         } else {
@@ -4245,7 +4250,12 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
                 amount: 'UNDISCLOSED',
                 details: 'Amount undisclosed - funds may be available'
             }];
-            await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 100, false, true, undisclosedResult, claimData.profilePic);
+            // Only add to leaderboard if this is an Instagram search
+            if (isInstagramSearch) {
+                await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 100, false, true, undisclosedResult, claimData.profilePic);
+            } else {
+                console.log('⏭️ Skipping leaderboard - cached no-results from manual name search');
+            }
             showResultsModal(claimData, {
                 success: true,
                 results: undisclosedResult,
@@ -4366,30 +4376,34 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
             console.log('📊 First result:', result.results[0]);
             console.log('⚠️ Note: success=' + result.success + ' but results exist, showing results anyway');
             
-            // CRITICAL: Add to leaderboard FIRST and WAIT for it to complete
-            console.log('🚀🚀🚀 ADDING TO LEADERBOARD NOW 🚀🚀🚀');
-            console.log('Entry details:', {
-                name: claimData.firstName + ' ' + claimData.lastName,
-                handle: claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''),
-                amount: result.totalAmount || 0,
-                entitiesCount: result.results ? result.results.length : 0,
-                hasProfilePic: !!claimData.profilePic
-            });
-            
-            try {
-                await addToLeaderboard(
-                    claimData.firstName + ' ' + claimData.lastName, 
-                    claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 
-                    result.totalAmount || 0, 
-                    false, 
-                    true, 
-                    result.results || [], 
-                    claimData.profilePic
-                );
-                console.log('✅✅✅ addToLeaderboard COMPLETED successfully');
-            } catch (addError) {
-                console.error('❌❌❌ CRITICAL: addToLeaderboard FAILED:', addError);
-                // Still show modal even if add failed
+            // CRITICAL: Only add to leaderboard if this is an Instagram search (not manual name search)
+            if (isInstagramSearch) {
+                console.log('🚀🚀🚀 ADDING TO LEADERBOARD NOW (Instagram search) 🚀🚀🚀');
+                console.log('Entry details:', {
+                    name: claimData.firstName + ' ' + claimData.lastName,
+                    handle: claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''),
+                    amount: result.totalAmount || 0,
+                    entitiesCount: result.results ? result.results.length : 0,
+                    hasProfilePic: !!claimData.profilePic
+                });
+                
+                try {
+                    await addToLeaderboard(
+                        claimData.firstName + ' ' + claimData.lastName, 
+                        claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 
+                        result.totalAmount || 0, 
+                        false, 
+                        true, 
+                        result.results || [], 
+                        claimData.profilePic
+                    );
+                    console.log('✅✅✅ addToLeaderboard COMPLETED successfully');
+                } catch (addError) {
+                    console.error('❌❌❌ CRITICAL: addToLeaderboard FAILED:', addError);
+                    // Still show modal even if add failed
+                }
+            } else {
+                console.log('⏭️ Skipping leaderboard - this is a manual name search, not Instagram');
             }
             
             // Show results modal (even if success was false, we have results)
@@ -4410,30 +4424,34 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
                 details: 'Amount undisclosed - funds may be available'
             }];
             
-            // CRITICAL: Add to leaderboard FIRST and WAIT for it to complete
-            console.log('🚀🚀🚀 ADDING TO LEADERBOARD NOW (no results - showing $100 undisclosed) 🚀🚀🚀');
-            console.log('Entry details:', {
-                name: claimData.firstName + ' ' + claimData.lastName,
-                handle: claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''),
-                amount: 100,
-                entitiesCount: 1,
-                hasProfilePic: !!claimData.profilePic
-            });
-            
-            try {
-                await addToLeaderboard(
-                    claimData.firstName + ' ' + claimData.lastName, 
-                    claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 
-                    100, // Show $100 instead of $0
-                    false, 
-                    true, 
-                    undisclosedResult, // Include undisclosed entity
-                    claimData.profilePic
-                );
-                console.log('✅✅✅ addToLeaderboard COMPLETED successfully (no results - $100 undisclosed)');
-            } catch (addError) {
-                console.error('❌❌❌ CRITICAL: addToLeaderboard FAILED (no results):', addError);
-                // Still show modal even if add failed
+            // CRITICAL: Only add to leaderboard if this is an Instagram search (not manual name search)
+            if (isInstagramSearch) {
+                console.log('🚀🚀🚀 ADDING TO LEADERBOARD NOW (no results - showing $100 undisclosed) 🚀🚀🚀');
+                console.log('Entry details:', {
+                    name: claimData.firstName + ' ' + claimData.lastName,
+                    handle: claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''),
+                    amount: 100,
+                    entitiesCount: 1,
+                    hasProfilePic: !!claimData.profilePic
+                });
+                
+                try {
+                    await addToLeaderboard(
+                        claimData.firstName + ' ' + claimData.lastName, 
+                        claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 
+                        100, // Show $100 instead of $0
+                        false, 
+                        true, 
+                        undisclosedResult, // Include undisclosed entity
+                        claimData.profilePic
+                    );
+                    console.log('✅✅✅ addToLeaderboard COMPLETED successfully (no results - $100 undisclosed)');
+                } catch (addError) {
+                    console.error('❌❌❌ CRITICAL: addToLeaderboard FAILED (no results):', addError);
+                    // Still show modal even if add failed
+                }
+            } else {
+                console.log('⏭️ Skipping leaderboard - this is a manual name search, not Instagram');
             }
             
             // Show results modal with undisclosed amount instead of "no results" modal
@@ -4502,9 +4520,9 @@ async function handleClaimSubmit(event) {
     // Small delay to ensure modal transition is smooth
     await new Promise(resolve => setTimeout(resolve, 300));
     
-    // Start search with form data
+    // Start search with form data - this is a manual name search, not Instagram
     const handle = formData.get('name') || '';
-    await startMissingMoneySearch(firstName, lastName, handle);
+    await startMissingMoneySearch(firstName, lastName, handle, null, false); // false = not Instagram search
 }
 
 // Show no results modal
