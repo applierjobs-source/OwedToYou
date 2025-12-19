@@ -2737,10 +2737,32 @@ async function retryProfilePicture(failedEntry, users) {
 }
 
 // Helper function to load a profile picture image
-function loadProfilePictureImage(imageUrl, profilePictureDiv, name, handle, method) {
-    return new Promise((resolve, reject) => {
+async function loadProfilePictureImage(imageUrl, profilePictureDiv, name, handle, method) {
+    return new Promise(async (resolve, reject) => {
         const img = new Image();
         const initials = getInitials(name);
+        
+        // CRITICAL: If imageUrl is an Instagram CDN URL (not base64), convert it to base64 first
+        // This prevents CORS errors when loading directly
+        let displayUrl = imageUrl;
+        if (imageUrl && imageUrl.startsWith('http') && !imageUrl.startsWith('data:') && imageUrl.includes('cdninstagram.com')) {
+            console.log(`🔄 Converting Instagram CDN URL to base64 for ${handle} to avoid CORS...`);
+            try {
+                const base64 = await getProfilePicBase64(handle, imageUrl);
+                if (base64 && base64.startsWith('data:image')) {
+                    displayUrl = base64;
+                    console.log(`✅ Converted to base64 for ${handle}`);
+                } else {
+                    // If base64 conversion fails, try proxy URL instead
+                    displayUrl = `/api/profile-pic-proxy?url=${encodeURIComponent(imageUrl)}`;
+                    console.log(`⚠️ Base64 conversion failed for ${handle}, using proxy URL`);
+                }
+            } catch (convError) {
+                // If conversion fails, use proxy URL instead
+                displayUrl = `/api/profile-pic-proxy?url=${encodeURIComponent(imageUrl)}`;
+                console.log(`⚠️ Base64 conversion error for ${handle}, using proxy URL:`, convError.message);
+            }
+        }
         
         img.alt = name;
         img.loading = 'eager';
@@ -2786,7 +2808,7 @@ function loadProfilePictureImage(imageUrl, profilePictureDiv, name, handle, meth
         
         img.onerror = function() {
             clearTimeout(timeout);
-            console.log(`❌ Image failed to load via ${method} for ${handle}`);
+            console.log(`❌ Image failed to load via ${method} for ${handle} (URL: ${displayUrl.substring(0, 50)}...)`);
             if (profilePictureDiv && !profilePictureDiv.querySelector('img')) {
                 profilePictureDiv.innerHTML = initials;
                 profilePictureDiv.style.display = 'flex';
@@ -2796,7 +2818,7 @@ function loadProfilePictureImage(imageUrl, profilePictureDiv, name, handle, meth
             reject(new Error(`Failed to load image via ${method}`));
         };
         
-        img.src = imageUrl;
+        img.src = displayUrl;
     });
 }
 
