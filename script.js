@@ -3122,8 +3122,7 @@ async function displayLeaderboard(users) {
     // CRITICAL: Ensure profile pictures display IMMEDIATELY (no delay)
     ensureMobileProfilePicturesDisplay();
     
-    // Smooth scroll to leaderboard
-    leaderboard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Removed auto-scroll to leaderboard - keep user at top of page on load
     
     // CRITICAL: Load profile pictures IMMEDIATELY (no delays) for instant display
     console.log(`🖼️ Starting to load profile pictures for ${usersWithPics.length} users IMMEDIATELY...`);
