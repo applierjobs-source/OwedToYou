@@ -5214,6 +5214,9 @@ async function handleClaimYourFundsClick(button) {
 
 // Show share modal with shareable card
 async function showShareModal(firstName, lastName, amount, results = []) {
+    // Check if we're on the /search page (name-only search, no Instagram)
+    const isSearchPage = window.location.pathname === '/search' || window.location.pathname === '/search/';
+    
     // Reload leaderboard to ensure we have the latest data including the user's entry
     await loadLeaderboard();
     
@@ -5315,6 +5318,7 @@ async function showShareModal(firstName, lastName, amount, results = []) {
                     <p style="font-size: 1.8rem; font-weight: 700; margin: 0; color: white; letter-spacing: 0.5px;">OwedToYou.ai</p>
                 </div>
             </div>
+            ${isSearchPage ? '' : `
             <div class="share-actions" style="margin-top: 30px; display: flex; flex-direction: column; gap: 15px; align-items: center;">
                 <button class="btn btn-share-instagram" onclick="shareToInstagram('${escapeHtml(firstName)}', '${escapeHtml(lastName)}', ${amount}, ${userRank || 'null'}, ${JSON.stringify(results || []).replace(/'/g, "\\'")})" style="width: 100%; max-width: 400px; padding: 14px; font-size: 1.1rem; font-weight: 600; background: linear-gradient(135deg, #E4405F 0%, #C13584 100%); color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
                     Share on Instagram
@@ -5326,6 +5330,7 @@ async function showShareModal(firstName, lastName, amount, results = []) {
                     After sharing, your claim will be processed for free!
                 </p>
             </div>
+            `}
         </div>
     `;
     
