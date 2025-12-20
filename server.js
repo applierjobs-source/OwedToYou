@@ -2660,7 +2660,13 @@ const server = http.createServer((req, res) => {
         });
     } else {
         // Serve static files (HTML, CSS, JS)
-        const filePath = parsedUrl.pathname === '/' ? '/index.html' : parsedUrl.pathname;
+        // Handle /search route - serve search.html
+        let filePath;
+        if (parsedUrl.pathname === '/search' || parsedUrl.pathname === '/search/') {
+            filePath = '/search.html';
+        } else {
+            filePath = parsedUrl.pathname === '/' ? '/index.html' : parsedUrl.pathname;
+        }
         const extname = String(path.extname(filePath)).toLowerCase();
         const mimeTypes = {
             '.html': 'text/html',

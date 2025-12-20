@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find Money You're Owed - OwedToYou.ai</title>
+    <meta name="description" content="Search for unclaimed funds and money owed to you. Enter your first and last name to discover unclaimed property across state databases.">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="apple-touch-icon" href="/favicon.svg">
+    <link rel="shortcut icon" href="/favicon.svg">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://js.stripe.com/v3/"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Use AI to Find Money Owed to You</h1>
+            <p class="subtext">Search by first and last name to discover unclaimed funds. Find money legally owed to you across state databases.</p>
+        </header>
+
+        <div class="search-section">
+            <div class="search-container">
+                <div style="display: flex; gap: 10px; width: 100%; flex-wrap: wrap;">
+                    <input 
+                        type="text" 
+                        id="firstName" 
+                        placeholder="First Name" 
+                        class="search-input"
+                        style="flex: 1; min-width: 150px;"
+                        required
+                    >
+                    <input 
+                        type="text" 
+                        id="lastName" 
+                        placeholder="Last Name" 
+                        class="search-input"
+                        style="flex: 1; min-width: 150px;"
+                        required
+                    >
+                </div>
+                <button id="searchBtn" class="search-button" onclick="handleNameSearch(); return false;">Search</button>
+            </div>
+            <p class="search-description">
+                OwedToYou.ai searches state unclaimed property databases to identify money legally owed to you. Enter your first and last name to get started.
+            </p>
+        </div>
+
+        <div id="leaderboard" class="leaderboard hidden">
+            <div class="leaderboard-header">
+                <h2>Top Discoveries Leaderboard</h2>
+            </div>
+            <div id="leaderboardList" class="leaderboard-list">
+                <!-- Leaderboard entries will be generated here -->
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Claim Form Modal -->
+    <div id="claimModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Claim Your Funds</h2>
+                <button class="modal-close" onclick="closeClaimModal()">&times;</button>
+            </div>
+            <form id="claimForm" onsubmit="handleClaimSubmit(event)">
+                <div class="form-group">
+                    <label for="firstName">First Name *</label>
+                    <input type="text" id="firstName" name="firstName" required>
+                </div>
+                <div class="form-group">
+                    <label for="lastName">Last Name *</label>
+                    <input type="text" id="lastName" name="lastName" required>
+                </div>
+                <input type="hidden" id="claimAmount" name="amount">
+                <input type="hidden" id="claimName" name="name">
+                <div class="form-actions">
+                    <button type="button" class="btn btn-cancel" onclick="closeClaimModal()">Cancel</button>
+                    <button type="submit" class="btn btn-submit">Submit Claim</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Progress Modal -->
+    <div id="progressModal" class="modal hidden">
+        <div class="modal-content progress-modal-content">
+            <div class="progress-header">
+                <h2>Searching for Unclaimed Funds</h2>
+            </div>
+            <div class="progress-body">
+                <div class="progress-spinner">
+                    <div class="spinner"></div>
+                </div>
+                <div class="progress-status">
+                    <p id="progressMessage" class="progress-message">Initializing search...</p>
+                </div>
+                <div class="progress-steps">
+                    <div class="progress-step" id="step1">
+                        <div class="step-icon">1</div>
+                        <div class="step-text">Preparing search</div>
+                    </div>
+                    <div class="progress-step" id="step2">
+                        <div class="step-icon">2</div>
+                        <div class="step-text">Opening Missing Money website</div>
+                    </div>
+                    <div class="progress-step" id="step3">
+                        <div class="step-icon">3</div>
+                        <div class="step-text">Filling out your information</div>
+                    </div>
+                    <div class="progress-step" id="step4">
+                        <div class="step-icon">4</div>
+                        <div class="step-text">Solving security verification</div>
+                    </div>
+                    <div class="progress-step" id="step5">
+                        <div class="step-icon">5</div>
+                        <div class="step-text">Searching database</div>
+                    </div>
+                    <div class="progress-step" id="step6">
+                        <div class="step-icon">6</div>
+                        <div class="step-text">Compiling results</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mailing Address Modal -->
+    <div id="mailingAddressModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Enter Your Mailing Address</h2>
+                <button class="modal-close" onclick="closeMailingAddressModal()">&times;</button>
+            </div>
+            <form id="mailingAddressForm" onsubmit="handleMailingAddressSubmit(event)">
+                <div class="form-group">
+                    <label for="mailingLastName">* Last Name</label>
+                    <input type="text" id="mailingLastName" name="lastName" required>
+                </div>
+                <div class="form-group">
+                    <label for="mailingFirstName">* First Name</label>
+                    <input type="text" id="mailingFirstName" name="firstName" required>
+                </div>
+                <div class="form-group">
+                    <label for="mailingDateOfBirth">Date of Birth</label>
+                    <div style="display: flex; gap: 10px;">
+                        <select id="mailingMonth" name="month" style="flex: 1; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px;">
+                            <option value="">MM</option>
+                        </select>
+                        <select id="mailingDay" name="day" style="flex: 1; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px;">
+                            <option value="">DD</option>
+                        </select>
+                        <select id="mailingYear" name="year" style="flex: 1; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px;">
+                            <option value="">YYYY</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="mailingEmail">* Email Address</label>
+                    <input type="email" id="mailingEmail" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="mailingEmailConfirm">* Email Address Confirmation</label>
+                    <input type="email" id="mailingEmailConfirm" name="emailConfirm" required>
+                </div>
+                <div class="form-group">
+                    <label for="mailingPhone">* Contact Phone</label>
+                    <input type="tel" id="mailingPhone" name="phone" required>
+                </div>
+                <div class="form-group">
+                    <label for="mailingPhone2">Phone 2</label>
+                    <input type="tel" id="mailingPhone2" name="phone2">
+                </div>
+                <div class="form-group">
+                    <label for="mailingSSN">* SSN/Tax ID</label>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="password" id="mailingSSN" name="ssn" required style="flex: 1;">
+                        <button type="button" onclick="toggleSSNVisibility()" style="background: none; border: none; cursor: pointer; padding: 8px;">
+                            <span id="ssnToggleIcon">👁️</span>
+                        </button>
+                        <button type="button" onclick="alert('SSN/Tax ID is required for verification purposes.')" style="background: #10b981; border: none; border-radius: 50%; width: 24px; height: 24px; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px;">?</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="mailingCountry">* Country</label>
+                    <select id="mailingCountry" name="country" required style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px;">
+                        <option value="US" selected>United States of America</option>
+                        <option value="CA">Canada</option>
+                        <option value="MX">Mexico</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="mailingAddress1">* Address 1</label>
+                    <input type="text" id="mailingAddress1" name="address1" required>
+                </div>
+                <div class="form-group">
+                    <label for="mailingCity">* City</label>
+                    <input type="text" id="mailingCity" name="city" required>
+                </div>
+                <div class="form-group">
+                    <label for="mailingState">* State</label>
+                    <select id="mailingState" name="state" required style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px;">
+                        <option value="">- Select an Option -</option>
+                        <option value="AL">Alabama</option>
+                        <option value="AK">Alaska</option>
+                        <option value="AZ">Arizona</option>
+                        <option value="AR">Arkansas</option>
+                        <option value="CA">California</option>
+                        <option value="CO">Colorado</option>
+                        <option value="CT">Connecticut</option>
+                        <option value="DE">Delaware</option>
+                        <option value="FL">Florida</option>
+                        <option value="GA">Georgia</option>
+                        <option value="HI">Hawaii</option>
+                        <option value="ID">Idaho</option>
+                        <option value="IL">Illinois</option>
+                        <option value="IN">Indiana</option>
+                        <option value="IA">Iowa</option>
+                        <option value="KS">Kansas</option>
+                        <option value="KY">Kentucky</option>
+                        <option value="LA">Louisiana</option>
+                        <option value="ME">Maine</option>
+                        <option value="MD">Maryland</option>
+                        <option value="MA">Massachusetts</option>
+                        <option value="MI">Michigan</option>
+                        <option value="MN">Minnesota</option>
+                        <option value="MS">Mississippi</option>
+                        <option value="MO">Missouri</option>
+                        <option value="MT">Montana</option>
+                        <option value="NE">Nebraska</option>
+                        <option value="NV">Nevada</option>
+                        <option value="NH">New Hampshire</option>
+                        <option value="NJ">New Jersey</option>
+                        <option value="NM">New Mexico</option>
+                        <option value="NY">New York</option>
+                        <option value="NC">North Carolina</option>
+                        <option value="ND">North Dakota</option>
+                        <option value="OH">Ohio</option>
+                        <option value="OK">Oklahoma</option>
+                        <option value="OR">Oregon</option>
+                        <option value="PA">Pennsylvania</option>
+                        <option value="RI">Rhode Island</option>
+                        <option value="SC">South Carolina</option>
+                        <option value="SD">South Dakota</option>
+                        <option value="TN">Tennessee</option>
+                        <option value="TX">Texas</option>
+                        <option value="UT">Utah</option>
+                        <option value="VT">Vermont</option>
+                        <option value="VA">Virginia</option>
+                        <option value="WA">Washington</option>
+                        <option value="WV">West Virginia</option>
+                        <option value="WI">Wisconsin</option>
+                        <option value="WY">Wyoming</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="mailingZipCode">* Zip Code</label>
+                    <input type="text" id="mailingZipCode" name="zipCode" required pattern="[0-9]{5}(-[0-9]{4})?" placeholder="12345">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-cancel" onclick="closeMailingAddressModal()">Cancel</button>
+                    <button type="submit" class="btn btn-submit">Submit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Terms and Conditions Modal -->
+    <div id="termsModal" class="modal hidden">
+        <div class="modal-content terms-modal-content">
+            <div class="modal-header">
+                <h2>Terms and Conditions</h2>
+                <button class="modal-close" onclick="closeTermsModal()">&times;</button>
+            </div>
+            <div class="terms-content">
+                <p><strong>Welcome to OwedToYou.AI</strong> ("Website," "we," "us," or "our"). By accessing or using <a href="https://www.owedtoyou.ai" target="_blank">www.owedtoyou.ai</a>, you agree to be bound by these Terms and Conditions ("Terms"). If you do not agree with these Terms, you must not use the Website.</p>
+
+                <h3>1. Use of the Website</h3>
+                <p>You agree to use OwedToYou.AI only for lawful purposes and in accordance with these Terms. You must not use the Website in any way that could damage, disable, overburden, or impair the Website or interfere with any other party's use of the Website.</p>
+
+                <h3>2. No Professional Advice</h3>
+                <p>The information and services provided by OwedToYou.AI are for informational and convenience purposes only.</p>
+                <ul>
+                    <li>OwedToYou.AI does not provide legal, financial, tax, accounting, or investment advice.</li>
+                    <li>Any actions you take based on information obtained through the Website are taken at your own risk.</li>
+                    <li>You should consult qualified professionals before making decisions involving money, legal rights, or obligations.</li>
+                </ul>
+
+                <h3>3. No Guarantee of Results</h3>
+                <p>OwedToYou.AI does not guarantee that:</p>
+                <ul>
+                    <li>Money is owed to you,</li>
+                    <li>Any funds will be identified, recovered, or paid,</li>
+                    <li>Any third party will cooperate or respond,</li>
+                    <li>Any specific outcome will occur.</li>
+                </ul>
+                <p>Past or illustrative examples do not guarantee future results.</p>
+
+                <h3>4. User Responsibilities</h3>
+                <p>You are responsible for:</p>
+                <ul>
+                    <li>The accuracy of information you provide,</li>
+                    <li>Maintaining the confidentiality of any credentials or access,</li>
+                    <li>Ensuring you have the legal right to submit any data you provide,</li>
+                    <li>Complying with all applicable laws and regulations.</li>
+                </ul>
+                <p>You agree not to submit false, misleading, or fraudulent information.</p>
+
+                <h3>5. Third-Party Services and Links</h3>
+                <p>The Website may reference or link to third-party websites, services, data sources, or tools. OwedToYou.AI does not control and is not responsible for:</p>
+                <ul>
+                    <li>Third-party content,</li>
+                    <li>Availability or accuracy of third-party information,</li>
+                    <li>Any losses or damages arising from third-party interactions.</li>
+                </ul>
+                <p>Your use of third-party services is governed by their own terms.</p>
+
+                <h3>6. Intellectual Property</h3>
+                <p>All content on OwedToYou.AI, including text, graphics, logos, software, and design, is the property of OwedToYou.AI or its licensors and is protected by applicable intellectual property laws.</p>
+                <p>You may not copy, reproduce, distribute, modify, or create derivative works without prior written permission.</p>
+
+                <h3>7. Disclaimer of Warranties</h3>
+                <p>The Website is provided "as is" and "as available."</p>
+                <p>OwedToYou.AI makes no warranties, express or implied, including but not limited to:</p>
+                <ul>
+                    <li>Accuracy,</li>
+                    <li>Reliability,</li>
+                    <li>Availability,</li>
+                    <li>Fitness for a particular purpose,</li>
+                    <li>Non-infringement.</li>
+                </ul>
+                <p>We do not warrant that the Website will be uninterrupted, secure, or error-free.</p>
+
+                <h3>8. Limitation of Liability</h3>
+                <p>To the maximum extent permitted by law, OwedToYou.AI shall not be liable for any indirect, incidental, consequential, special, or punitive damages, including loss of profits, data, or opportunities, arising out of or related to your use of the Website.</p>
+                <p>In no event shall our total liability exceed the amount, if any, you paid to use the Website.</p>
+
+                <h3>9. Indemnification</h3>
+                <p>You agree to indemnify and hold harmless OwedToYou.AI from any claims, damages, losses, liabilities, and expenses (including attorneys' fees) arising from:</p>
+                <ul>
+                    <li>Your use of the Website,</li>
+                    <li>Your violation of these Terms,</li>
+                    <li>Your violation of any law or third-party rights.</li>
+                </ul>
+
+                <h3>10. Termination</h3>
+                <p>OwedToYou.AI reserves the right to suspend or terminate access to the Website at any time, for any reason, without notice, including for violation of these Terms.</p>
+
+                <h3>11. Changes to These Terms</h3>
+                <p>OwedToYou.AI may update these Terms from time to time. Changes will be effective when posted on this page. Your continued use of the Website constitutes acceptance of the updated Terms.</p>
+
+                <h3>12. Governing Law</h3>
+                <p>These Terms are governed by and construed in accordance with the laws of the United States, without regard to conflict-of-law principles.</p>
+
+                <h3>13. Contact Information</h3>
+                <p>If you have questions about these Terms, you may contact us through the Website at:</p>
+                <p><strong>OwedToYou.AI</strong><br>
+                <a href="https://www.owedtoyou.ai" target="_blank">www.owedtoyou.ai</a></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="closeTermsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        <div class="footer-content">
+            <p>&copy; 2025 OwedToYou.AI. All rights reserved.</p>
+            <p>
+                <a href="#" onclick="showTermsModal(); return false;" class="footer-link">Terms and Conditions</a>
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // Handle name search (for /search page)
+        function handleNameSearch() {
+            const firstName = document.getElementById('firstName').value.trim();
+            const lastName = document.getElementById('lastName').value.trim();
+            
+            if (!firstName || !lastName) {
+                alert('Please enter both first and last name');
+                return false;
+            }
+            
+            // Call startMissingMoneySearch directly with names (not Instagram)
+            if (typeof startMissingMoneySearch === 'function') {
+                startMissingMoneySearch(firstName, lastName, '', null, false); // false = not Instagram search
+            } else {
+                // Fallback: use the claim form submission handler
+                const form = document.getElementById('claimForm');
+                if (form) {
+                    document.getElementById('claimForm').querySelector('[name="firstName"]').value = firstName;
+                    document.getElementById('claimForm').querySelector('[name="lastName"]').value = lastName;
+                    handleClaimSubmit({ preventDefault: () => {}, target: form });
+                } else {
+                    alert('Search function not loaded. Please refresh the page.');
+                }
+            }
+            return false;
+        }
+        
+        // Allow Enter key to trigger search
+        document.addEventListener('DOMContentLoaded', function() {
+            const firstNameInput = document.getElementById('firstName');
+            const lastNameInput = document.getElementById('lastName');
+            
+            if (firstNameInput) {
+                firstNameInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleNameSearch();
+                    }
+                });
+            }
+            
+            if (lastNameInput) {
+                lastNameInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleNameSearch();
+                    }
+                });
+            }
+        });
+    </script>
+    <script src="script.js"></script>
+</body>
+</html>
+
