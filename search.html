@@ -24,7 +24,7 @@
                 <div style="display: flex; gap: 10px; width: 100%; flex-wrap: wrap;">
                     <input 
                         type="text" 
-                        id="firstName" 
+                        id="searchFirstName" 
                         placeholder="First Name" 
                         class="search-input"
                         style="flex: 1; min-width: 150px;"
@@ -32,7 +32,7 @@
                     >
                     <input 
                         type="text" 
-                        id="lastName" 
+                        id="searchLastName" 
                         placeholder="Last Name" 
                         class="search-input"
                         style="flex: 1; min-width: 150px;"
@@ -377,8 +377,8 @@
     <script>
         // Handle name search (for /search page)
         async function handleNameSearch() {
-            const firstNameInput = document.getElementById('firstName');
-            const lastNameInput = document.getElementById('lastName');
+            const firstNameInput = document.getElementById('searchFirstName');
+            const lastNameInput = document.getElementById('searchLastName');
             const firstName = firstNameInput ? firstNameInput.value.trim() : '';
             const lastName = lastNameInput ? lastNameInput.value.trim() : '';
             
@@ -414,8 +414,8 @@
         
         // Allow Enter key to trigger search
         document.addEventListener('DOMContentLoaded', function() {
-            const firstNameInput = document.getElementById('firstName');
-            const lastNameInput = document.getElementById('lastName');
+            const firstNameInput = document.getElementById('searchFirstName');
+            const lastNameInput = document.getElementById('searchLastName');
             const searchBtn = document.getElementById('searchBtn');
             
             if (firstNameInput) {
