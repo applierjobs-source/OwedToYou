@@ -5272,22 +5272,32 @@ async function showShareModal(firstName, lastName, amount, results = []) {
             <button class="modal-close" onclick="closeShareModal()">&times;</button>
         </div>
         <div class="share-content" style="padding: 30px;">
+            ${isSearchPage ? `
             <div style="background: #f8f9fa; border-radius: 12px; padding: 20px; margin-bottom: 30px;">
-                    <h3 style="margin: 0 0 15px 0; color: #333; font-size: 1.1rem; font-weight: 600;">Almost Done — One Last Step</h3>
-                    <ol style="margin: 0 0 12px 0; padding-left: 20px; color: #666; line-height: 1.8;">
-                        <li style="margin-bottom: 8px;">Download your claim image</li>
-                        <li style="margin-bottom: 8px;">Post it on Instagram</li>
-                        <li style="margin-bottom: 8px;">Tag <strong style="color: #667eea;">@OwedToYou.ai</strong> for validation</li>
-                        <li style="margin-bottom: 0;">Enter your mailing address <a href="#" onclick="showMailingAddressModal(); return false;" style="color: #667eea; text-decoration: underline; font-weight: 600;">here</a> to receive your check!</li>
-                    </ol>
-                    <p style="margin: 0; padding-top: 12px; border-top: 1px solid #e0e0e0; color: #888; font-size: 0.9rem; line-height: 1.5; font-style: italic;">Your post may help someone else find money they didn't know they had.</p>
-                </div>
-                <div style="background: #fff; border: 2px solid #667eea; border-radius: 12px; padding: 20px; margin-bottom: 20px; text-align: center;">
-                    <p style="margin: 0 0 15px 0; color: #333; font-size: 1rem; font-weight: 500;">OR skip notifying others and pay $12.95 processing to begin the claim process now</p>
-                    <button class="btn-buy-now" onclick="handleBuyNow('${escapeHtml(firstName)}', '${escapeHtml(lastName)}', ${amount})" style="width: 100%; padding: 14px; font-size: 1.1rem; font-weight: 600; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);">
-                        Buy Now - $12.95
-                    </button>
-                </div>
+                <h3 style="margin: 0 0 15px 0; color: #333; font-size: 1.1rem; font-weight: 600;">Complete Your Claim</h3>
+                <p style="margin: 0 0 15px 0; color: #666; line-height: 1.8;">
+                    To process your claim and receive your funds, please complete the payment below. After payment, you'll be able to enter your mailing address to receive your check.
+                </p>
+            </div>
+            ` : `
+            <div style="background: #f8f9fa; border-radius: 12px; padding: 20px; margin-bottom: 30px;">
+                <h3 style="margin: 0 0 15px 0; color: #333; font-size: 1.1rem; font-weight: 600;">Almost Done — One Last Step</h3>
+                <ol style="margin: 0 0 12px 0; padding-left: 20px; color: #666; line-height: 1.8;">
+                    <li style="margin-bottom: 8px;">Download your claim image</li>
+                    <li style="margin-bottom: 8px;">Post it on Instagram</li>
+                    <li style="margin-bottom: 8px;">Tag <strong style="color: #667eea;">@OwedToYou.ai</strong> for validation</li>
+                    <li style="margin-bottom: 0;">Enter your mailing address <a href="#" onclick="showMailingAddressModal(); return false;" style="color: #667eea; text-decoration: underline; font-weight: 600;">here</a> to receive your check!</li>
+                </ol>
+                <p style="margin: 0; padding-top: 12px; border-top: 1px solid #e0e0e0; color: #888; font-size: 0.9rem; line-height: 1.5; font-style: italic;">Your post may help someone else find money they didn't know they had.</p>
+            </div>
+            `}
+            <div style="background: #fff; border: 2px solid #667eea; border-radius: 12px; padding: 20px; margin-bottom: 20px; text-align: center;">
+                <p style="margin: 0 0 15px 0; color: #333; font-size: 1rem; font-weight: 500;">${isSearchPage ? 'Pay $12.95 processing fee to begin the claim process' : 'OR skip notifying others and pay $12.95 processing to begin the claim process now'}</p>
+                <button class="btn-buy-now" onclick="handleBuyNow('${escapeHtml(firstName)}', '${escapeHtml(lastName)}', ${amount})" style="width: 100%; padding: 14px; font-size: 1.1rem; font-weight: 600; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);">
+                    Buy Now - $12.95
+                </button>
+            </div>
+            ${isSearchPage ? '' : `
             <div class="share-card" id="shareCard" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 16px; padding: 40px; color: white; text-align: center; max-width: 500px; margin: 0 auto; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); min-height: 400px; display: flex; flex-direction: column; justify-content: space-between;">
                 <div>
                     <p style="font-size: 1.2rem; opacity: 0.95; margin-bottom: 16px; font-weight: 600; color: white;">Rank #${userRank} on Leaderboard</p>
@@ -5318,6 +5328,7 @@ async function showShareModal(firstName, lastName, amount, results = []) {
                     <p style="font-size: 1.8rem; font-weight: 700; margin: 0; color: white; letter-spacing: 0.5px;">OwedToYou.ai</p>
                 </div>
             </div>
+            `}
             ${isSearchPage ? '' : `
             <div class="share-actions" style="margin-top: 30px; display: flex; flex-direction: column; gap: 15px; align-items: center;">
                 <button class="btn btn-share-instagram" onclick="shareToInstagram('${escapeHtml(firstName)}', '${escapeHtml(lastName)}', ${amount}, ${userRank || 'null'}, ${JSON.stringify(results || []).replace(/'/g, "\\'")})" style="width: 100%; max-width: 400px; padding: 14px; font-size: 1.1rem; font-weight: 600; background: linear-gradient(135deg, #E4405F 0%, #C13584 100%); color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
