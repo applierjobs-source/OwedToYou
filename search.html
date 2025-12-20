@@ -376,36 +376,47 @@
 
     <script>
         // Handle name search (for /search page)
-        function handleNameSearch() {
-            const firstName = document.getElementById('firstName').value.trim();
-            const lastName = document.getElementById('lastName').value.trim();
+        async function handleNameSearch() {
+            const firstNameInput = document.getElementById('firstName');
+            const lastNameInput = document.getElementById('lastName');
+            const firstName = firstNameInput ? firstNameInput.value.trim() : '';
+            const lastName = lastNameInput ? lastNameInput.value.trim() : '';
             
             if (!firstName || !lastName) {
                 alert('Please enter both first and last name');
                 return false;
             }
             
-            // Call startMissingMoneySearch directly with names (not Instagram)
+            // Wait for script.js to load, then call startMissingMoneySearch
+            // This function will be called after script.js loads
             if (typeof startMissingMoneySearch === 'function') {
-                startMissingMoneySearch(firstName, lastName, '', null, false); // false = not Instagram search
-            } else {
-                // Fallback: use the claim form submission handler
-                const form = document.getElementById('claimForm');
-                if (form) {
-                    document.getElementById('claimForm').querySelector('[name="firstName"]').value = firstName;
-                    document.getElementById('claimForm').querySelector('[name="lastName"]').value = lastName;
-                    handleClaimSubmit({ preventDefault: () => {}, target: form });
-                } else {
-                    alert('Search function not loaded. Please refresh the page.');
+                try {
+                    await startMissingMoneySearch(firstName, lastName, '', null, false); // false = not Instagram search
+                } catch (error) {
+                    console.error('Error in startMissingMoneySearch:', error);
+                    alert('An error occurred while searching. Please try again.');
                 }
+            } else {
+                // If script.js hasn't loaded yet, wait a bit and try again
+                setTimeout(() => {
+                    if (typeof startMissingMoneySearch === 'function') {
+                        startMissingMoneySearch(firstName, lastName, '', null, false);
+                    } else {
+                        alert('Search function not loaded. Please refresh the page.');
+                    }
+                }, 500);
             }
             return false;
         }
+        
+        // Make handleNameSearch available globally
+        window.handleNameSearch = handleNameSearch;
         
         // Allow Enter key to trigger search
         document.addEventListener('DOMContentLoaded', function() {
             const firstNameInput = document.getElementById('firstName');
             const lastNameInput = document.getElementById('lastName');
+            const searchBtn = document.getElementById('searchBtn');
             
             if (firstNameInput) {
                 firstNameInput.addEventListener('keypress', function(e) {
@@ -422,6 +433,13 @@
                         e.preventDefault();
                         handleNameSearch();
                     }
+                });
+            }
+            
+            if (searchBtn) {
+                searchBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    handleNameSearch();
                 });
             }
         });
