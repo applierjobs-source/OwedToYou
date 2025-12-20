@@ -5599,6 +5599,18 @@ function handleMailingAddressSubmit(event) {
     // For now, just show success message
     alert('Thank you! Your mailing address has been submitted. You will receive your check at the provided address after verification.');
     
+    // Fire Google Analytics conversion event for paid conversion
+    if (typeof gtag !== 'undefined') {
+        gtag('event', 'conversion', {
+            'send_to': 'AW-17710035997/ESHYCLzZsrsbEJ3o5vxB',
+            'value': 1.0,
+            'currency': 'USD'
+        });
+        console.log('✅ Google Analytics conversion event fired');
+    } else {
+        console.warn('⚠️ gtag not available - conversion event not fired');
+    }
+    
     // Close modal
     closeMailingAddressModal();
 }
