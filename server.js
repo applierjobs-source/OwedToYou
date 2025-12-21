@@ -2021,6 +2021,16 @@ async function fetchInstagramFullName_OLD(username) {
 
 // Create server
 const server = http.createServer((req, res) => {
+    // Redirect non-www to www
+    const host = req.headers.host || '';
+    if (host && !host.startsWith('www.')) {
+        const protocol = req.headers['x-forwarded-proto'] || 'https';
+        const redirectUrl = `${protocol}://www.${host}${req.url}`;
+        res.writeHead(301, { 'Location': redirectUrl });
+        res.end();
+        return;
+    }
+    
     // Handle CORS preflight
     if (req.method === 'OPTIONS') {
         res.writeHead(200, corsHeaders);
