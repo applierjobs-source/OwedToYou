@@ -5291,9 +5291,9 @@ async function showShareModal(firstName, lastName, amount, results = []) {
             </div>
             `}
             <div style="background: #fff; border: 2px solid #667eea; border-radius: 12px; padding: 20px; margin-bottom: 20px; text-align: center;">
-                <p style="margin: 0 0 15px 0; color: #333; font-size: 1rem; font-weight: 500;">${isSearchPage ? 'Pay $12.95 processing fee to begin the claim process' : 'OR skip notifying others and pay $12.95 processing to begin the claim process now'}</p>
+                <p style="margin: 0 0 15px 0; color: #333; font-size: 1rem; font-weight: 500;">${isSearchPage ? 'Pay $49.99 processing fee to begin the claim process' : 'OR skip notifying others and pay $49.99 processing to begin the claim process now'}</p>
                 <button class="btn-buy-now" onclick="handleBuyNow('${escapeHtml(firstName)}', '${escapeHtml(lastName)}', ${amount})" style="width: 100%; padding: 14px; font-size: 1.1rem; font-weight: 600; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);">
-                    Buy Now - $12.95
+                    Buy Now - $49.99
                 </button>
             </div>
             ${isSearchPage ? '' : `
@@ -5829,7 +5829,7 @@ async function handleBuyNow(firstName, lastName, amount) {
                 firstName: firstName,
                 lastName: lastName,
                 amount: amount,
-                processingFee: 12.95
+                processingFee: 49.99
             })
         });
         
