@@ -5566,6 +5566,10 @@ function closeShareModal() {
 
 // Show mailing address modal
 function showMailingAddressModal() {
+    // Check if URL has form parameter to auto-open
+    const urlParams = new URLSearchParams(window.location.search);
+    const openForm = urlParams.get('form');
+    
     const modal = document.getElementById('mailingAddressModal');
     if (modal) {
         // Initialize date dropdowns
@@ -5713,8 +5717,6 @@ async function handleMailingAddressSubmit(event) {
         console.log('[MAILING ADDRESS] Response result:', result);
         
         if (result.success) {
-            alert('Thank you! Your mailing address has been submitted. You will receive your check at the provided address after verification.');
-            
             // Fire Google Analytics conversion event for paid conversion
             if (typeof gtag !== 'undefined') {
                 gtag('event', 'conversion', {
@@ -5729,6 +5731,9 @@ async function handleMailingAddressSubmit(event) {
             
             // Close modal
             closeMailingAddressModal();
+            
+            // Redirect to thank you page
+            window.location.href = '/thank-you.html';
         } else {
             alert('There was an error submitting your mailing address. Please try again or contact support.');
             console.error('Mailing address submission error:', result.error);
