@@ -2769,7 +2769,7 @@ Submitted: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })
                     return;
                 }
                 
-                const fromEmail = process.env.SENDGRID_FROM_EMAIL || 'noreply@owedtoyou.ai';
+                const fromEmail = process.env.SENDGRID_FROM_EMAIL || 'owedtoyoucontact@gmail.com';
                 const toEmail = 'owedtoyoucontact@gmail.com';
                 
                 const msg = {
