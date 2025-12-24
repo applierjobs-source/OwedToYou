@@ -114,6 +114,12 @@ const corsHeaders = {
 async function fetchInstagramProfile(username) {
     // Use Apify Instagram scraper to get profile picture
     try {
+        // Check if Apify client is initialized
+        if (!apifyClient) {
+            console.error(`[PROFILE] ❌ Apify client not initialized!`);
+            return { success: false, error: 'Instagram API not configured. APIFY_API_TOKEN environment variable is missing.' };
+        }
+        
         // Reduced logging to avoid Railway rate limits - only log critical info
         console.log(`[PROFILE] Fetching profile for ${username}`);
         
@@ -125,8 +131,25 @@ async function fetchInstagramProfile(username) {
         };
         
         // Run the Profile Scraper Actor synchronously and get dataset items
-        const run = await apifyClient.actor("apify~instagram-profile-scraper").call(input);
-        const { items } = await apifyClient.dataset(run.defaultDatasetId).listItems();
+        let run;
+        try {
+            run = await apifyClient.actor("apify~instagram-profile-scraper").call(input);
+        } catch (actorError) {
+            console.error(`[PROFILE] ❌ Apify actor call failed:`, actorError.message);
+            if (actorError.message && (actorError.message.includes('401') || actorError.message.includes('unauthorized'))) {
+                return { success: false, error: 'Apify API authentication failed. Please check APIFY_API_TOKEN environment variable.' };
+            }
+            throw actorError;
+        }
+        
+        let items;
+        try {
+            const datasetResponse = await apifyClient.dataset(run.defaultDatasetId).listItems();
+            items = datasetResponse.items;
+        } catch (datasetError) {
+            console.error(`[PROFILE] ❌ Failed to fetch dataset items:`, datasetError.message);
+            return { success: false, error: `Failed to retrieve results from Apify: ${datasetError.message}` };
+        }
         
         if (items && items.length > 0) {
             const item = items[0];
