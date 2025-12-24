@@ -3261,9 +3261,11 @@ async function handleSearchImpl() {
                     console.log(`⚠️ Found cached null/empty name, clearing cache and retrying...`);
                     delete cached[cleanHandleValue];
                     // Save the updated cache (without the null entry)
-                    const updatedCache = loadInstagramNamesFromStorage();
-                    delete updatedCache[cleanHandleValue];
-                    localStorage.setItem('instagramNames', JSON.stringify(updatedCache));
+                    try {
+                        localStorage.setItem('instagramNames', JSON.stringify(cached));
+                    } catch (e) {
+                        console.error('Error clearing cache:', e);
+                    }
                     // Retry once
                     try {
                         fullName = await getInstagramFullName(cleanHandleValue);

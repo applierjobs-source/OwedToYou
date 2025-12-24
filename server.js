@@ -941,8 +941,14 @@ async function fetchInstagramFullName(username) {
             // Instagram Profile Scraper returns profile data directly
             let fullName = null;
             
-            // Log the item structure for debugging
-            console.log(`[INSTAGRAM] Apify item keys:`, Object.keys(item));
+            // Log the item structure for debugging (safely)
+            if (item && typeof item === 'object') {
+                try {
+                    console.log(`[INSTAGRAM] Apify item keys:`, Object.keys(item));
+                } catch (e) {
+                    console.log(`[INSTAGRAM] Could not log item keys:`, e.message);
+                }
+            }
             console.log(`[INSTAGRAM] Checking for fullName/full_name in item...`);
             
             // Try different paths for full_name (profile scraper structure)
@@ -978,13 +984,17 @@ async function fetchInstagramFullName(username) {
             }
             
             // Additional fallback: check if username matches the handle and look for name in other fields
-            if (!fullName && item.username === username) {
+            if (!fullName && item && typeof item === 'object' && item.username === username) {
                 console.log(`[INSTAGRAM] ⚠️ Username matches but no name found, checking additional fields...`);
                 // Log all string fields that might contain the name
-                for (const [key, value] of Object.entries(item)) {
-                    if (typeof value === 'string' && value.includes(' ') && value.length > 3 && value.length < 100) {
-                        console.log(`[INSTAGRAM] Potential name field "${key}": "${value}"`);
+                try {
+                    for (const [key, value] of Object.entries(item)) {
+                        if (typeof value === 'string' && value.includes(' ') && value.length > 3 && value.length < 100) {
+                            console.log(`[INSTAGRAM] Potential name field "${key}": "${value}"`);
+                        }
                     }
+                } catch (e) {
+                    console.log(`[INSTAGRAM] Error checking additional fields:`, e.message);
                 }
             }
             
@@ -999,7 +1009,12 @@ async function fetchInstagramFullName(username) {
             }
             
             console.log(`[INSTAGRAM] ⚠️ No valid full_name found in Apify response for ${username}`);
-            console.log(`[INSTAGRAM] Item structure:`, JSON.stringify(item, null, 2).substring(0, 500));
+            try {
+                const itemStr = item && typeof item === 'object' ? JSON.stringify(item, null, 2).substring(0, 500) : String(item);
+                console.log(`[INSTAGRAM] Item structure:`, itemStr);
+            } catch (e) {
+                console.log(`[INSTAGRAM] Could not stringify item:`, e.message);
+            }
             return { success: false, error: 'Full name not found in profile data. The profile may be private or not exist.' };
         } else {
             console.log(`[INSTAGRAM] ⚠️ Apify returned no items`);
