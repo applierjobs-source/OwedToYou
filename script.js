@@ -93,6 +93,12 @@ function cleanHandle(handle) {
     return handle.replace('@', '').trim().toLowerCase();
 }
 
+// Check if a word is a common first name
+function isCommonFirstName(word) {
+    const commonFirstNames = ['john', 'jane', 'matt', 'mike', 'dave', 'bob', 'tom', 'dan', 'sam', 'joe', 'ben', 'chris', 'nick', 'jake', 'luke', 'mark', 'paul', 'peter', 'steve', 'tim', 'will', 'alex', 'andy', 'brian', 'charlie', 'david', 'ed', 'frank', 'greg', 'harry', 'jack', 'james', 'jeff', 'ken', 'larry', 'matt', 'nate', 'ray', 'rick', 'ron', 'sean', 'ted', 'tony', 'vince', 'zach', 'shayne', 'ryan', 'kyle', 'tyler', 'brandon', 'jordan', 'justin', 'austin', 'cameron', 'connor', 'ethan', 'jacob', 'logan', 'mason', 'noah', 'owen', 'michael', 'joshua', 'andrew', 'daniel', 'josh', 'anthony', 'kevin', 'jason', 'matthew', 'thomas', 'joseph', 'william', 'richard', 'charles', 'christopher', 'anthony', 'donald', 'daniel', 'mark', 'paul', 'steven', 'kenneth', 'joshua', 'kevin', 'brian', 'george', 'edward', 'ronald', 'timothy', 'jason', 'jeffrey', 'ryan', 'jacob', 'gary', 'nicholas', 'eric', 'jonathan', 'stephen', 'larry', 'justin', 'scott', 'brandon', 'benjamin', 'samuel', 'frank', 'gregory', 'raymond', 'alexander', 'patrick', 'jack', 'dennis', 'jerry', 'tyler', 'aaron', 'jose', 'henry', 'adam', 'douglas', 'nathan', 'zachary', 'kyle', 'noah', 'ethan', 'logan', 'mason', 'owen', 'connor', 'austin', 'cameron', 'hunter', 'adrian', 'sean', 'carlos', 'juan', 'luis', 'miguel', 'roberto', 'james', 'robert', 'john', 'michael', 'william', 'david', 'richard', 'joseph', 'thomas', 'charles', 'christopher', 'daniel', 'matthew', 'anthony', 'mark', 'donald', 'steven', 'paul', 'andrew', 'joshua', 'kenneth', 'kevin', 'brian', 'george', 'edward', 'ronald', 'timothy', 'jason', 'jeffrey', 'ryan', 'jacob', 'gary', 'nicholas', 'eric', 'jonathan', 'stephen', 'larry', 'justin', 'scott', 'brandon', 'benjamin', 'samuel', 'frank', 'gregory', 'raymond', 'alexander', 'patrick', 'jack', 'dennis', 'jerry', 'tyler', 'aaron', 'jose', 'henry', 'adam', 'douglas', 'nathan', 'zachary', 'kyle', 'noah', 'ethan', 'logan', 'mason', 'owen', 'connor', 'austin', 'cameron', 'hunter', 'adrian', 'sean', 'carlos', 'juan', 'luis', 'miguel', 'roberto'];
+    return commonFirstNames.includes(word.toLowerCase());
+}
+
 // Get Instagram full name from profile
 async function getInstagramFullName(username) {
     const cleanUsername = cleanHandle(username);
@@ -159,13 +165,19 @@ async function getInstagramFullName(username) {
             if (data.success && data.fullName) {
                 const fullName = data.fullName.trim();
                 console.log(`✅ Found Instagram name via backend: ${fullName}`);
-                // Cache the result
-                saveInstagramNameToStorage(cleanUsername, fullName);
-                return fullName;
+                // Cache the result only if it's a valid name (not empty, not just username)
+                if (fullName.length > 0 && fullName.toLowerCase() !== cleanUsername.toLowerCase()) {
+                    saveInstagramNameToStorage(cleanUsername, fullName);
+                    return fullName;
+                } else {
+                    console.log(`⚠️ Backend returned invalid name "${fullName}", not caching`);
+                    return null;
+                }
             } else {
                 const errorMsg = data.error || 'Unknown error';
-                console.log(`⚠️ Backend Playwright returned but no name found:`, errorMsg);
-                // Return null - no fallback to HTML extraction
+                console.log(`⚠️ Backend API returned but no name found:`, errorMsg);
+                // Don't cache failed extractions - return null so we can retry
+                console.log(`⚠️ Not caching failed extraction for ${cleanUsername} - will retry next time`);
                 return null;
             }
         } else {
@@ -3241,6 +3253,30 @@ async function handleSearchImpl() {
                 console.log(`✅ Extracted name: ${fullName}`);
             } else {
                 console.log(`⚠️ Name extraction returned null for ${cleanHandleValue}`);
+                console.log(`⚠️ This might indicate the backend API failed to extract the name from Instagram profile`);
+                console.log(`⚠️ Will attempt handle splitting as fallback, but this is less reliable`);
+                // Try to clear any cached null/empty result and retry once
+                const cached = loadInstagramNamesFromStorage();
+                if (cached[cleanHandleValue] && (!cached[cleanHandleValue].fullName || cached[cleanHandleValue].fullName.trim() === '')) {
+                    console.log(`⚠️ Found cached null/empty name, clearing cache and retrying...`);
+                    delete cached[cleanHandleValue];
+                    // Save the updated cache (without the null entry)
+                    const updatedCache = loadInstagramNamesFromStorage();
+                    delete updatedCache[cleanHandleValue];
+                    localStorage.setItem('instagramNames', JSON.stringify(updatedCache));
+                    // Retry once
+                    try {
+                        fullName = await getInstagramFullName(cleanHandleValue);
+                        if (fullName) {
+                            console.log(`✅ Retry successful! Extracted name: ${fullName}`);
+                        } else {
+                            console.log(`⚠️ Retry also returned null - backend API may be having issues`);
+                            console.log(`⚠️ The profile may be private, or the backend scraper may need updating`);
+                        }
+                    } catch (retryError) {
+                        console.error('❌ Retry also failed:', retryError);
+                    }
+                }
             }
         } catch (nameError) {
             console.error('❌ Error extracting Instagram name:', nameError);
@@ -3372,10 +3408,22 @@ async function handleSearchImpl() {
                     // e.g., if name is "shayne shayne" and handle is "shaynecoplan", split handle
                     const handleParts = cleanHandleValue.split(/[._-]/);
                     if (handleParts.length >= 2) {
-                        // Handle has separators - use them
-                        firstName = handleParts[0].charAt(0).toUpperCase() + handleParts[0].slice(1);
-                        lastName = handleParts.slice(1).join(' ').charAt(0).toUpperCase() + handleParts.slice(1).join(' ').slice(1);
-                        console.log(`✅ Split handle "${cleanHandleValue}" to fix duplicated name: "${firstName}" "${lastName}"`);
+                        // Handle has separators - use them, but check order
+                        let firstPart = handleParts[0];
+                        let secondPart = handleParts.slice(1).join(' ');
+                        
+                        // Check if parts are in wrong order (second part is a common first name, first part is not)
+                        if (isCommonFirstName(secondPart) && !isCommonFirstName(firstPart)) {
+                            // Swap them - second part should be first name
+                            firstName = secondPart.charAt(0).toUpperCase() + secondPart.slice(1);
+                            lastName = firstPart.charAt(0).toUpperCase() + firstPart.slice(1);
+                            console.log(`✅ Split handle "${cleanHandleValue}" to fix duplicated name (swapped): "${firstName}" "${lastName}"`);
+                        } else {
+                            // Normal order
+                            firstName = firstPart.charAt(0).toUpperCase() + firstPart.slice(1);
+                            lastName = secondPart.charAt(0).toUpperCase() + secondPart.slice(1);
+                            console.log(`✅ Split handle "${cleanHandleValue}" to fix duplicated name: "${firstName}" "${lastName}"`);
+                        }
                     } else {
                         // Try common first name pattern on handle
                         const lowerHandle = cleanHandleValue.toLowerCase();
@@ -3426,8 +3474,20 @@ async function handleSearchImpl() {
             firstName, 
             lastName,
             extracted: !!fullName,
-            hasBothNames: !!(firstName && lastName)
+            hasBothNames: !!(firstName && lastName),
+            handle: cleanHandleValue
         });
+        
+        // CRITICAL: If we successfully extracted a name from Instagram, we should NEVER fall back to handle splitting
+        // Only use handle splitting if name extraction completely failed (fullName is null)
+        if (fullName && firstName && lastName) {
+            console.log(`✅✅✅ Successfully extracted name from Instagram: "${firstName} ${lastName}"`);
+            console.log(`✅ Will use extracted name for search, NOT handle splitting`);
+        } else if (fullName && !firstName && !lastName) {
+            console.log(`⚠️ Got fullName "${fullName}" but couldn't split it properly - this shouldn't happen`);
+        } else if (!fullName) {
+            console.log(`⚠️ No name extracted from Instagram - will fall back to handle splitting`);
+        }
         
         // Update progress to show extracted name
         if (firstName && lastName) {
@@ -3492,27 +3552,47 @@ async function handleSearchImpl() {
                     // Try to split handle by common separators (dot, underscore, hyphen)
                     // e.g., "rocket.thrall" -> "Rocket" "Thrall"
                     // e.g., "john_smith" -> "John" "Smith"
+                    // e.g., "currently_kyle" -> "Kyle" "Currently" (swapped because Kyle is a common first name)
                     let splitHandle = cleanHandleValue;
+                    let parts = [];
+                    let separator = '';
+                    
                     if (splitHandle.includes('.')) {
-                        const parts = splitHandle.split('.');
-                        if (parts.length >= 2) {
-                            firstName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-                            lastName = parts.slice(1).join(' ').charAt(0).toUpperCase() + parts.slice(1).join(' ').slice(1);
-                            console.log(`✅ Split handle "${cleanHandleValue}" by dot: "${firstName}" "${lastName}"`);
-                        }
+                        parts = splitHandle.split('.');
+                        separator = 'dot';
                     } else if (splitHandle.includes('_')) {
-                        const parts = splitHandle.split('_');
-                        if (parts.length >= 2) {
-                            firstName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-                            lastName = parts.slice(1).join(' ').charAt(0).toUpperCase() + parts.slice(1).join(' ').slice(1);
-                            console.log(`✅ Split handle "${cleanHandleValue}" by underscore: "${firstName}" "${lastName}"`);
-                        }
+                        parts = splitHandle.split('_');
+                        separator = 'underscore';
                     } else if (splitHandle.includes('-')) {
-                        const parts = splitHandle.split('-');
-                        if (parts.length >= 2) {
-                            firstName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-                            lastName = parts.slice(1).join(' ').charAt(0).toUpperCase() + parts.slice(1).join(' ').slice(1);
-                            console.log(`✅ Split handle "${cleanHandleValue}" by hyphen: "${firstName}" "${lastName}"`);
+                        parts = splitHandle.split('-');
+                        separator = 'hyphen';
+                    }
+                    
+                    if (parts.length >= 2) {
+                        let firstPart = parts[0];
+                        let secondPart = parts.slice(1).join(' ');
+                        
+                        // Check if parts are in wrong order (second part is a common first name, first part is not)
+                        // e.g., "currently_kyle" -> "Kyle Currently" (Kyle is a common first name)
+                        if (isCommonFirstName(secondPart) && !isCommonFirstName(firstPart)) {
+                            // Swap them - second part should be first name
+                            firstName = secondPart.charAt(0).toUpperCase() + secondPart.slice(1);
+                            lastName = firstPart.charAt(0).toUpperCase() + firstPart.slice(1);
+                            console.log(`✅ Split handle "${cleanHandleValue}" by ${separator} and swapped order: "${firstName}" "${lastName}"`);
+                            
+                            // If the last name looks like a descriptor (not a real name), also try searching with just first name
+                            // Common descriptors: currently, official, real, verified, etc.
+                            const descriptorWords = ['currently', 'official', 'real', 'verified', 'actual', 'true', 'the', 'this', 'that'];
+                            if (descriptorWords.includes(lastName.toLowerCase())) {
+                                console.log(`⚠️ Last name "${lastName}" appears to be a descriptor, will try search with "${firstName}" as both first and last name as fallback`);
+                                // Store this info to try fallback search if main search fails
+                                // We'll handle this in startMissingMoneySearch if no results are found
+                            }
+                        } else {
+                            // Normal order
+                            firstName = firstPart.charAt(0).toUpperCase() + firstPart.slice(1);
+                            lastName = secondPart.charAt(0).toUpperCase() + secondPart.slice(1);
+                            console.log(`✅ Split handle "${cleanHandleValue}" by ${separator}: "${firstName}" "${lastName}"`);
                         }
                     } else {
                         // Try to split camelCase or all-lowercase handles into words

@@ -941,36 +941,66 @@ async function fetchInstagramFullName(username) {
             // Instagram Profile Scraper returns profile data directly
             let fullName = null;
             
+            // Log the item structure for debugging
+            console.log(`[INSTAGRAM] Apify item keys:`, Object.keys(item));
+            console.log(`[INSTAGRAM] Checking for fullName/full_name in item...`);
+            
             // Try different paths for full_name (profile scraper structure)
-            if (item.fullName) {
+            if (item.fullName && item.fullName.trim().length > 0) {
                 fullName = item.fullName.trim();
-            } else if (item.full_name) {
+                console.log(`[INSTAGRAM] ✅ Found name in item.fullName: "${fullName}"`);
+            } else if (item.full_name && item.full_name.trim().length > 0) {
                 fullName = item.full_name.trim();
-            } else if (item.name) {
+                console.log(`[INSTAGRAM] ✅ Found name in item.full_name: "${fullName}"`);
+            } else if (item.name && item.name.trim().length > 0 && item.name.includes(' ')) {
+                // Only use item.name if it looks like a full name (has space)
                 fullName = item.name.trim();
+                console.log(`[INSTAGRAM] ✅ Found name in item.name: "${fullName}"`);
             } else if (item.biography && item.biography.includes(' ')) {
-                // Sometimes full name is in biography
+                // Sometimes full name is in biography (first line)
                 const bioLines = item.biography.split('\n');
-                if (bioLines.length > 0 && bioLines[0].includes(' ')) {
+                if (bioLines.length > 0 && bioLines[0].includes(' ') && bioLines[0].trim().length > 0) {
                     fullName = bioLines[0].trim();
+                    console.log(`[INSTAGRAM] ✅ Found name in biography: "${fullName}"`);
                 }
-            } else if (item.profile && item.profile.fullName) {
+            } else if (item.profile && item.profile.fullName && item.profile.fullName.trim().length > 0) {
                 fullName = item.profile.fullName.trim();
-            } else if (item.profile && item.profile.full_name) {
+                console.log(`[INSTAGRAM] ✅ Found name in item.profile.fullName: "${fullName}"`);
+            } else if (item.profile && item.profile.full_name && item.profile.full_name.trim().length > 0) {
                 fullName = item.profile.full_name.trim();
-            } else if (item.user && item.user.fullName) {
+                console.log(`[INSTAGRAM] ✅ Found name in item.profile.full_name: "${fullName}"`);
+            } else if (item.user && item.user.fullName && item.user.fullName.trim().length > 0) {
                 fullName = item.user.fullName.trim();
-            } else if (item.user && item.user.full_name) {
+                console.log(`[INSTAGRAM] ✅ Found name in item.user.fullName: "${fullName}"`);
+            } else if (item.user && item.user.full_name && item.user.full_name.trim().length > 0) {
                 fullName = item.user.full_name.trim();
+                console.log(`[INSTAGRAM] ✅ Found name in item.user.full_name: "${fullName}"`);
+            }
+            
+            // Additional fallback: check if username matches the handle and look for name in other fields
+            if (!fullName && item.username === username) {
+                console.log(`[INSTAGRAM] ⚠️ Username matches but no name found, checking additional fields...`);
+                // Log all string fields that might contain the name
+                for (const [key, value] of Object.entries(item)) {
+                    if (typeof value === 'string' && value.includes(' ') && value.length > 3 && value.length < 100) {
+                        console.log(`[INSTAGRAM] Potential name field "${key}": "${value}"`);
+                    }
+                }
             }
             
             if (fullName && fullName.length > 0) {
-                console.log(`[INSTAGRAM] ✅✅✅ Successfully extracted name: ${fullName}`);
-                return { success: true, fullName: fullName };
-            } else {
-                console.log(`[INSTAGRAM] ⚠️ No full_name found in Apify response`);
-                return { success: false, error: 'Full name not found in profile data. The profile may be private or not exist.' };
+                // Validate that the name looks reasonable (not just the username)
+                if (fullName.toLowerCase() !== username.toLowerCase() && !fullName.startsWith('@')) {
+                    console.log(`[INSTAGRAM] ✅✅✅ Successfully extracted name: ${fullName}`);
+                    return { success: true, fullName: fullName };
+                } else {
+                    console.log(`[INSTAGRAM] ⚠️ Extracted name "${fullName}" appears to be just the username, rejecting`);
+                }
             }
+            
+            console.log(`[INSTAGRAM] ⚠️ No valid full_name found in Apify response for ${username}`);
+            console.log(`[INSTAGRAM] Item structure:`, JSON.stringify(item, null, 2).substring(0, 500));
+            return { success: false, error: 'Full name not found in profile data. The profile may be private or not exist.' };
         } else {
             console.log(`[INSTAGRAM] ⚠️ Apify returned no items`);
             return { success: false, error: 'Profile not found. The profile may be private or not exist.' };
