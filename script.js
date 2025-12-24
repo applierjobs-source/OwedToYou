@@ -5566,21 +5566,39 @@ function closeShareModal() {
 
 // Show mailing address modal
 function showMailingAddressModal() {
-    // Check if URL has form parameter to auto-open
-    const urlParams = new URLSearchParams(window.location.search);
-    const openForm = urlParams.get('form');
-    
     const modal = document.getElementById('mailingAddressModal');
     if (modal) {
         // Initialize date dropdowns
         initializeDateDropdowns();
         
         modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
         // Focus on first field
         setTimeout(() => {
             document.getElementById('mailingLastName').focus();
         }, 100);
     }
+}
+
+// Check URL parameter to auto-open form
+function checkFormUrlParameter() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const openForm = urlParams.get('form');
+    if (openForm === 'mailing' || openForm === 'address') {
+        // Small delay to ensure page is loaded
+        setTimeout(() => {
+            if (typeof showMailingAddressModal === 'function') {
+                showMailingAddressModal();
+            }
+        }, 500);
+    }
+}
+
+// Run check on page load
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', checkFormUrlParameter);
+} else {
+    checkFormUrlParameter();
 }
 
 // Close mailing address modal
