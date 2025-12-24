@@ -32,12 +32,30 @@ let emailTransporter = null;
 if (process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
     try {
         emailTransporter = nodemailer.createTransport({
-            service: 'gmail',
+            host: 'smtp.gmail.com',
+            port: 587,
+            secure: false, // true for 465, false for other ports
             auth: {
                 user: process.env.EMAIL_USER,
                 pass: process.env.EMAIL_PASSWORD
+            },
+            tls: {
+                rejectUnauthorized: false
+            },
+            connectionTimeout: 10000, // 10 seconds
+            greetingTimeout: 10000,
+            socketTimeout: 10000
+        });
+        
+        // Verify connection
+        emailTransporter.verify(function(error, success) {
+            if (error) {
+                console.error('[EMAIL] ❌ SMTP connection verification failed:', error);
+            } else {
+                console.log('[EMAIL] ✅ SMTP server is ready to take our messages');
             }
         });
+        
         console.log('[EMAIL] ✅ Email transporter initialized successfully');
     } catch (e) {
         console.error('[EMAIL] ❌ Failed to initialize email transporter:', e.message);
@@ -2808,11 +2826,14 @@ Submitted: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })
                 console.log('[MAILING ADDRESS] To:', mailOptions.to);
                 console.log('[MAILING ADDRESS] Subject:', mailOptions.subject);
                 
-                // Add timeout to email sending (15 seconds)
+                // Add timeout to email sending (20 seconds)
                 const emailPromise = emailTransporter.sendMail(mailOptions);
-                const timeoutPromise = new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Email sending timed out after 15 seconds')), 15000)
-                );
+                const timeoutPromise = new Promise((_, reject) => {
+                    const timeout = setTimeout(() => {
+                        reject(new Error('Email sending timed out after 20 seconds. Check SMTP connection and credentials.'));
+                    }, 20000);
+                    emailPromise.finally(() => clearTimeout(timeout));
+                });
                 
                 const emailResult = await Promise.race([emailPromise, timeoutPromise]);
                 console.log('[MAILING ADDRESS] ✅ Email sent successfully to owedtoyoucontact@gmail.com');
