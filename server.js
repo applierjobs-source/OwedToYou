@@ -2809,10 +2809,17 @@ Submitted: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })
                 console.log('[MAILING ADDRESS] Subject:', msg.subject);
                 
                 // Send email with SendGrid (has built-in timeout handling)
-                const emailResult = await sgMail.send(msg);
-                console.log('[MAILING ADDRESS] ✅ Email sent successfully to owedtoyoucontact@gmail.com');
-                console.log('[MAILING ADDRESS] Email status code:', emailResult[0].statusCode);
-                console.log('[MAILING ADDRESS] Email headers:', emailResult[0].headers);
+                try {
+                    const emailResult = await sgMail.send(msg);
+                    console.log('[MAILING ADDRESS] ✅ Email sent successfully to owedtoyoucontact@gmail.com');
+                    console.log('[MAILING ADDRESS] Email status code:', emailResult[0].statusCode);
+                    console.log('[MAILING ADDRESS] Email headers:', emailResult[0].headers);
+                } catch (sgError) {
+                    console.error('[MAILING ADDRESS] ❌ SendGrid error:', sgError);
+                    console.error('[MAILING ADDRESS] SendGrid error response:', sgError.response?.body);
+                    console.error('[MAILING ADDRESS] SendGrid error code:', sgError.code);
+                    throw sgError;
+                }
                 
                 // Ensure response is sent
                 console.log('[MAILING ADDRESS] Sending success response...');
