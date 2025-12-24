@@ -12,10 +12,10 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@sendgrid/mail": "^8.1.6",
     "2captcha": "^3.0.5-2",
     "apify-client": "^2.21.0",
     "axios": "^1.13.2",
-    "nodemailer": "^6.10.1",
     "pg": "^8.11.3",
     "playwright": "^1.57.0",
     "puppeteer-extra": "^3.3.6",

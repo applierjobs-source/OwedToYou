@@ -9,7 +9,7 @@ const { searchMissingMoney } = require('./missingMoneySearch');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { chromium } = require('playwright');
 const { ApifyClient } = require('apify-client');
-const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
 
 // Initialize Apify client (only if token is provided)
 let apifyClient = null;
@@ -27,42 +27,19 @@ if (process.env.APIFY_API_TOKEN) {
     console.warn('[APIFY] ⚠️ APIFY_API_TOKEN not set - Instagram name extraction will not work');
 }
 
-// Initialize email transporter (using Gmail SMTP)
-let emailTransporter = null;
-if (process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
+// Initialize SendGrid email service
+let sendGridConfigured = false;
+if (process.env.SENDGRID_API_KEY) {
     try {
-        emailTransporter = nodemailer.createTransport({
-            host: 'smtp.gmail.com',
-            port: 587,
-            secure: false, // true for 465, false for other ports
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASSWORD
-            },
-            tls: {
-                rejectUnauthorized: false
-            },
-            connectionTimeout: 10000, // 10 seconds
-            greetingTimeout: 10000,
-            socketTimeout: 10000
-        });
-        
-        // Verify connection
-        emailTransporter.verify(function(error, success) {
-            if (error) {
-                console.error('[EMAIL] ❌ SMTP connection verification failed:', error);
-            } else {
-                console.log('[EMAIL] ✅ SMTP server is ready to take our messages');
-            }
-        });
-        
-        console.log('[EMAIL] ✅ Email transporter initialized successfully');
+        sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+        sendGridConfigured = true;
+        console.log('[EMAIL] ✅ SendGrid initialized successfully');
     } catch (e) {
-        console.error('[EMAIL] ❌ Failed to initialize email transporter:', e.message);
-        emailTransporter = null;
+        console.error('[EMAIL] ❌ Failed to initialize SendGrid:', e.message);
+        sendGridConfigured = false;
     }
 } else {
-    console.warn('[EMAIL] ⚠️ EMAIL_USER or EMAIL_PASSWORD not set - email sending will not work');
+    console.warn('[EMAIL] ⚠️ SENDGRID_API_KEY not set - email sending will not work');
 }
 
 const PORT = process.env.PORT || 3000;
@@ -2783,19 +2760,24 @@ Mailing Address:
 Submitted: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })} CST
                 `.trim();
                 
-                // Send email
-                if (!emailTransporter) {
-                    console.error('[MAILING ADDRESS] ❌ Email transporter not initialized');
-                    console.error('[MAILING ADDRESS] EMAIL_USER:', process.env.EMAIL_USER ? 'SET' : 'NOT SET');
-                    console.error('[MAILING ADDRESS] EMAIL_PASSWORD:', process.env.EMAIL_PASSWORD ? 'SET (length: ' + process.env.EMAIL_PASSWORD.length + ')' : 'NOT SET');
+                // Send email using SendGrid
+                if (!sendGridConfigured) {
+                    console.error('[MAILING ADDRESS] ❌ SendGrid not configured');
+                    console.error('[MAILING ADDRESS] SENDGRID_API_KEY:', process.env.SENDGRID_API_KEY ? 'SET' : 'NOT SET');
                     res.writeHead(500, corsHeaders);
-                    res.end(JSON.stringify({ success: false, error: 'Email service not configured. Please check EMAIL_USER and EMAIL_PASSWORD environment variables.' }));
+                    res.end(JSON.stringify({ success: false, error: 'Email service not configured. Please check SENDGRID_API_KEY environment variable.' }));
                     return;
                 }
                 
-                const mailOptions = {
-                    from: process.env.EMAIL_USER,
-                    to: 'owedtoyoucontact@gmail.com',
+                const fromEmail = process.env.SENDGRID_FROM_EMAIL || 'noreply@owedtoyou.ai';
+                const toEmail = 'owedtoyoucontact@gmail.com';
+                
+                const msg = {
+                    to: toEmail,
+                    from: {
+                        email: fromEmail,
+                        name: 'OwedToYou.ai'
+                    },
                     subject: `New Mailing Address Submission - ${mailingData.firstName} ${mailingData.lastName}`,
                     text: emailBody,
                     html: `
@@ -2821,23 +2803,16 @@ Submitted: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })
                     `
                 };
                 
-                console.log('[MAILING ADDRESS] Attempting to send email...');
-                console.log('[MAILING ADDRESS] From:', mailOptions.from);
-                console.log('[MAILING ADDRESS] To:', mailOptions.to);
-                console.log('[MAILING ADDRESS] Subject:', mailOptions.subject);
+                console.log('[MAILING ADDRESS] Attempting to send email via SendGrid...');
+                console.log('[MAILING ADDRESS] From:', fromEmail);
+                console.log('[MAILING ADDRESS] To:', toEmail);
+                console.log('[MAILING ADDRESS] Subject:', msg.subject);
                 
-                // Add timeout to email sending (20 seconds)
-                const emailPromise = emailTransporter.sendMail(mailOptions);
-                const timeoutPromise = new Promise((_, reject) => {
-                    const timeout = setTimeout(() => {
-                        reject(new Error('Email sending timed out after 20 seconds. Check SMTP connection and credentials.'));
-                    }, 20000);
-                    emailPromise.finally(() => clearTimeout(timeout));
-                });
-                
-                const emailResult = await Promise.race([emailPromise, timeoutPromise]);
+                // Send email with SendGrid (has built-in timeout handling)
+                const emailResult = await sgMail.send(msg);
                 console.log('[MAILING ADDRESS] ✅ Email sent successfully to owedtoyoucontact@gmail.com');
-                console.log('[MAILING ADDRESS] Email result:', emailResult.messageId);
+                console.log('[MAILING ADDRESS] Email status code:', emailResult[0].statusCode);
+                console.log('[MAILING ADDRESS] Email headers:', emailResult[0].headers);
                 
                 // Ensure response is sent
                 console.log('[MAILING ADDRESS] Sending success response...');
