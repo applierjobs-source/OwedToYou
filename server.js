@@ -2768,8 +2768,10 @@ Submitted: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })
                 // Send email
                 if (!emailTransporter) {
                     console.error('[MAILING ADDRESS] ❌ Email transporter not initialized');
+                    console.error('[MAILING ADDRESS] EMAIL_USER:', process.env.EMAIL_USER ? 'SET' : 'NOT SET');
+                    console.error('[MAILING ADDRESS] EMAIL_PASSWORD:', process.env.EMAIL_PASSWORD ? 'SET (length: ' + process.env.EMAIL_PASSWORD.length + ')' : 'NOT SET');
                     res.writeHead(500, corsHeaders);
-                    res.end(JSON.stringify({ success: false, error: 'Email service not configured' }));
+                    res.end(JSON.stringify({ success: false, error: 'Email service not configured. Please check EMAIL_USER and EMAIL_PASSWORD environment variables.' }));
                     return;
                 }
                 
@@ -2802,6 +2804,9 @@ Submitted: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })
                 };
                 
                 console.log('[MAILING ADDRESS] Attempting to send email...');
+                console.log('[MAILING ADDRESS] From:', mailOptions.from);
+                console.log('[MAILING ADDRESS] To:', mailOptions.to);
+                console.log('[MAILING ADDRESS] Subject:', mailOptions.subject);
                 
                 // Add timeout to email sending (15 seconds)
                 const emailPromise = emailTransporter.sendMail(mailOptions);
@@ -2813,8 +2818,11 @@ Submitted: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })
                 console.log('[MAILING ADDRESS] ✅ Email sent successfully to owedtoyoucontact@gmail.com');
                 console.log('[MAILING ADDRESS] Email result:', emailResult.messageId);
                 
+                // Ensure response is sent
+                console.log('[MAILING ADDRESS] Sending success response...');
                 res.writeHead(200, corsHeaders);
                 res.end(JSON.stringify({ success: true, message: 'Mailing address submitted successfully' }));
+                console.log('[MAILING ADDRESS] ✅ Success response sent');
             } catch (error) {
                 console.error('[MAILING ADDRESS] ❌ Error:', error);
                 console.error('[MAILING ADDRESS] Error message:', error.message);
