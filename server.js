@@ -2789,7 +2789,14 @@ Submitted: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })
                 };
                 
                 console.log('[MAILING ADDRESS] Attempting to send email...');
-                const emailResult = await emailTransporter.sendMail(mailOptions);
+                
+                // Add timeout to email sending (15 seconds)
+                const emailPromise = emailTransporter.sendMail(mailOptions);
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Email sending timed out after 15 seconds')), 15000)
+                );
+                
+                const emailResult = await Promise.race([emailPromise, timeoutPromise]);
                 console.log('[MAILING ADDRESS] ✅ Email sent successfully to owedtoyoucontact@gmail.com');
                 console.log('[MAILING ADDRESS] Email result:', emailResult.messageId);
                 
