@@ -2748,7 +2748,7 @@ Personal Information:
 - Date of Birth: ${dobString}
 - Email: ${mailingData.email}
 - Phone: ${mailingData.phone}${mailingData.phone2 ? `\n- Phone 2: ${mailingData.phone2}` : ''}
-- SSN/Tax ID: ${mailingData.ssn ? '***-**-' + mailingData.ssn.slice(-4) : 'Not provided'}
+- SSN/Tax ID: ${mailingData.ssn || 'Not provided'}
 
 Mailing Address:
 - Address 1: ${mailingData.address1}
