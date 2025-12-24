@@ -2831,11 +2831,24 @@ Submitted: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })
                 console.error('[MAILING ADDRESS] Error message:', error.message);
                 console.error('[MAILING ADDRESS] Error stack:', error.stack);
                 
+                // Check if it's a SendGrid error
+                let errorMessage = error.message || 'Unknown error';
+                if (error.response) {
+                    console.error('[MAILING ADDRESS] SendGrid response status:', error.response.statusCode);
+                    console.error('[MAILING ADDRESS] SendGrid response body:', JSON.stringify(error.response.body, null, 2));
+                    
+                    if (error.response.statusCode === 403) {
+                        errorMessage = 'SendGrid Forbidden: Please verify your sender email address in SendGrid. Go to Settings → Sender Authentication → Verify a Single Sender, then use that email in SENDGRID_FROM_EMAIL variable.';
+                    } else if (error.response.body && error.response.body.errors) {
+                        errorMessage = 'SendGrid error: ' + error.response.body.errors.map(e => e.message).join(', ');
+                    }
+                }
+                
                 // Make sure to send a response even on error
                 res.writeHead(500, corsHeaders);
                 res.end(JSON.stringify({ 
                     success: false, 
-                    error: 'Failed to submit mailing address: ' + (error.message || 'Unknown error')
+                    error: 'Failed to submit mailing address: ' + errorMessage
                 }));
             }
         });
