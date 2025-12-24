@@ -2692,8 +2692,21 @@ const server = http.createServer((req, res) => {
                 res.end(JSON.stringify({ success: false, error: error.message }));
             }
         })();
-    } else if (parsedUrl.pathname === '/api/submit-mailing-address' && req.method === 'POST') {
+    } else if (parsedUrl.pathname === '/api/submit-mailing-address') {
+        // Handle CORS preflight
+        if (req.method === 'OPTIONS') {
+            res.writeHead(200, corsHeaders);
+            res.end();
+            return;
+        }
+        
         // Handle mailing address form submission
+        if (req.method !== 'POST') {
+            res.writeHead(405, corsHeaders);
+            res.end(JSON.stringify({ success: false, error: 'Method not allowed' }));
+            return;
+        }
+        
         let body = '';
         
         req.on('data', chunk => {
