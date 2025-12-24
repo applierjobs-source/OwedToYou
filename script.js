@@ -5642,7 +5642,7 @@ function initializeDateDropdowns() {
 }
 
 // Handle mailing address form submission
-function handleMailingAddressSubmit(event) {
+async function handleMailingAddressSubmit(event) {
     event.preventDefault();
     const form = event.target;
     const formData = new FormData(form);
@@ -5677,24 +5677,54 @@ function handleMailingAddressSubmit(event) {
     
     console.log('Mailing address submitted:', mailingData);
     
-    // TODO: Send to backend for processing
-    // For now, just show success message
-    alert('Thank you! Your mailing address has been submitted. You will receive your check at the provided address after verification.');
-    
-    // Fire Google Analytics conversion event for paid conversion
-    if (typeof gtag !== 'undefined') {
-        gtag('event', 'conversion', {
-            'send_to': 'AW-17710035997/ESHYCLzZsrsbEJ3o5vxB',
-            'value': 1.0,
-            'currency': 'USD'
+    // Send to backend for email processing
+    try {
+        const submitButton = form.querySelector('button[type="submit"]');
+        const originalText = submitButton.textContent;
+        submitButton.disabled = true;
+        submitButton.textContent = 'Submitting...';
+        
+        const response = await fetch('/api/submit-mailing-address', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(mailingData)
         });
-        console.log('✅ Google Analytics conversion event fired');
-    } else {
-        console.warn('⚠️ gtag not available - conversion event not fired');
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Thank you! Your mailing address has been submitted. You will receive your check at the provided address after verification.');
+            
+            // Fire Google Analytics conversion event for paid conversion
+            if (typeof gtag !== 'undefined') {
+                gtag('event', 'conversion', {
+                    'send_to': 'AW-17710035997/ESHYCLzZsrsbEJ3o5vxB',
+                    'value': 1.0,
+                    'currency': 'USD'
+                });
+                console.log('✅ Google Analytics conversion event fired');
+            } else {
+                console.warn('⚠️ gtag not available - conversion event not fired');
+            }
+            
+            // Close modal
+            closeMailingAddressModal();
+        } else {
+            alert('There was an error submitting your mailing address. Please try again or contact support.');
+            console.error('Mailing address submission error:', result.error);
+        }
+        
+        submitButton.disabled = false;
+        submitButton.textContent = originalText;
+    } catch (error) {
+        console.error('Error submitting mailing address:', error);
+        alert('There was an error submitting your mailing address. Please try again or contact support.');
+        const submitButton = form.querySelector('button[type="submit"]');
+        submitButton.disabled = false;
+        submitButton.textContent = 'Submit';
     }
-    
-    // Close modal
-    closeMailingAddressModal();
 }
 
 // Show name search modal (alternative to Instagram search)

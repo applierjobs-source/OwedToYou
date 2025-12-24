@@ -9,6 +9,7 @@ const { searchMissingMoney } = require('./missingMoneySearch');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { chromium } = require('playwright');
 const { ApifyClient } = require('apify-client');
+const nodemailer = require('nodemailer');
 
 // Initialize Apify client (only if token is provided)
 let apifyClient = null;
@@ -24,6 +25,26 @@ if (process.env.APIFY_API_TOKEN) {
     }
 } else {
     console.warn('[APIFY] ⚠️ APIFY_API_TOKEN not set - Instagram name extraction will not work');
+}
+
+// Initialize email transporter (using Gmail SMTP)
+let emailTransporter = null;
+if (process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
+    try {
+        emailTransporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASSWORD
+            }
+        });
+        console.log('[EMAIL] ✅ Email transporter initialized successfully');
+    } catch (e) {
+        console.error('[EMAIL] ❌ Failed to initialize email transporter:', e.message);
+        emailTransporter = null;
+    }
+} else {
+    console.warn('[EMAIL] ⚠️ EMAIL_USER or EMAIL_PASSWORD not set - email sending will not work');
 }
 
 const PORT = process.env.PORT || 3000;
@@ -2671,6 +2692,109 @@ const server = http.createServer((req, res) => {
                 res.end(JSON.stringify({ success: false, error: error.message }));
             }
         })();
+    } else if (parsedUrl.pathname === '/api/submit-mailing-address' && req.method === 'POST') {
+        // Handle mailing address form submission
+        let body = '';
+        
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        
+        req.on('end', async () => {
+            try {
+                const mailingData = JSON.parse(body);
+                console.log('[MAILING ADDRESS] Received submission:', {
+                    firstName: mailingData.firstName,
+                    lastName: mailingData.lastName,
+                    email: mailingData.email,
+                    phone: mailingData.phone,
+                    city: mailingData.city,
+                    state: mailingData.state
+                });
+                
+                // Validate required fields
+                if (!mailingData.firstName || !mailingData.lastName || !mailingData.email || 
+                    !mailingData.phone || !mailingData.address1 || !mailingData.city || 
+                    !mailingData.state || !mailingData.zipCode) {
+                    res.writeHead(400, corsHeaders);
+                    res.end(JSON.stringify({ success: false, error: 'Missing required fields' }));
+                    return;
+                }
+                
+                // Format date of birth
+                const dob = mailingData.dateOfBirth;
+                const dobString = (dob.month && dob.day && dob.year) 
+                    ? `${dob.month}/${dob.day}/${dob.year}` 
+                    : 'Not provided';
+                
+                // Format email body
+                const emailBody = `
+New Mailing Address Submission
+
+Personal Information:
+- Name: ${mailingData.firstName} ${mailingData.lastName}
+- Date of Birth: ${dobString}
+- Email: ${mailingData.email}
+- Phone: ${mailingData.phone}${mailingData.phone2 ? `\n- Phone 2: ${mailingData.phone2}` : ''}
+- SSN/Tax ID: ${mailingData.ssn ? '***-**-' + mailingData.ssn.slice(-4) : 'Not provided'}
+
+Mailing Address:
+- Address 1: ${mailingData.address1}
+- City: ${mailingData.city}
+- State: ${mailingData.state}
+- Zip Code: ${mailingData.zipCode}
+- Country: ${mailingData.country || 'US'}
+
+Submitted: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })} CST
+                `.trim();
+                
+                // Send email
+                if (!emailTransporter) {
+                    console.error('[MAILING ADDRESS] ❌ Email transporter not initialized');
+                    res.writeHead(500, corsHeaders);
+                    res.end(JSON.stringify({ success: false, error: 'Email service not configured' }));
+                    return;
+                }
+                
+                const mailOptions = {
+                    from: process.env.EMAIL_USER,
+                    to: 'owedtoyoucontact@gmail.com',
+                    subject: `New Mailing Address Submission - ${mailingData.firstName} ${mailingData.lastName}`,
+                    text: emailBody,
+                    html: `
+                        <h2>New Mailing Address Submission</h2>
+                        <h3>Personal Information:</h3>
+                        <ul>
+                            <li><strong>Name:</strong> ${mailingData.firstName} ${mailingData.lastName}</li>
+                            <li><strong>Date of Birth:</strong> ${dobString}</li>
+                            <li><strong>Email:</strong> ${mailingData.email}</li>
+                            <li><strong>Phone:</strong> ${mailingData.phone}</li>
+                            ${mailingData.phone2 ? `<li><strong>Phone 2:</strong> ${mailingData.phone2}</li>` : ''}
+                            <li><strong>SSN/Tax ID:</strong> ${mailingData.ssn ? '***-**-' + mailingData.ssn.slice(-4) : 'Not provided'}</li>
+                        </ul>
+                        <h3>Mailing Address:</h3>
+                        <ul>
+                            <li><strong>Address 1:</strong> ${mailingData.address1}</li>
+                            <li><strong>City:</strong> ${mailingData.city}</li>
+                            <li><strong>State:</strong> ${mailingData.state}</li>
+                            <li><strong>Zip Code:</strong> ${mailingData.zipCode}</li>
+                            <li><strong>Country:</strong> ${mailingData.country || 'US'}</li>
+                        </ul>
+                        <p><em>Submitted: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })} CST</em></p>
+                    `
+                };
+                
+                await emailTransporter.sendMail(mailOptions);
+                console.log('[MAILING ADDRESS] ✅ Email sent successfully to owedtoyoucontact@gmail.com');
+                
+                res.writeHead(200, corsHeaders);
+                res.end(JSON.stringify({ success: true, message: 'Mailing address submitted successfully' }));
+            } catch (error) {
+                console.error('[MAILING ADDRESS] ❌ Error sending email:', error);
+                res.writeHead(500, corsHeaders);
+                res.end(JSON.stringify({ success: false, error: 'Failed to submit mailing address: ' + error.message }));
+            }
+        });
     } else if (parsedUrl.pathname === '/api/leaderboard' && req.method === 'POST') {
         // Add entry to leaderboard
         let body = '';
