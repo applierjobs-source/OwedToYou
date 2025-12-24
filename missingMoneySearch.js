@@ -294,12 +294,18 @@ function expandNameWithAliases(name) {
 }
 
 async function searchMissingMoney(firstName, lastName, city, state, use2Captcha = false, captchaApiKey = null) {
+    // CRITICAL: Log the exact names being searched for debugging
+    console.log(`🔍🔍🔍 SEARCHING MISSING MONEY 🔍🔍🔍`);
+    console.log(`🔍 Original names received: firstName="${firstName}", lastName="${lastName}"`);
+    
     // Remove emojis from names before searching (safety measure)
     let cleanedFirstName = cleanNameForSearch(firstName);
     let cleanedLastName = cleanNameForSearch(lastName);
     
+    console.log(`🔍 Cleaned names: "${firstName}" -> "${cleanedFirstName}", "${lastName}" -> "${cleanedLastName}"`);
+    
     if (cleanedFirstName !== firstName || cleanedLastName !== lastName) {
-        console.log(`🧹 Cleaned names: "${firstName}" -> "${cleanedFirstName}", "${lastName}" -> "${cleanedLastName}"`);
+        console.log(`🧹 Names were cleaned (emoji removal)`);
     }
     
     // CRITICAL FIX: Expand common nicknames to full names for better matching
@@ -633,6 +639,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         
         // NOW FILL THE FORM FIELDS IMMEDIATELY - NO CLOUDFLARE CHECKS!
         // Try to fill last name first (it's the first field on Missing Money)
+        console.log(`🔍 About to fill last name: "${cleanedLastName}"`);
         const lastNameFilled = await fillField(cleanedLastName, 'lastName', [
             'input[name*="lastName" i]',
             'input[id*="lastName" i]',
@@ -641,6 +648,11 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             'input[placeholder*="Last" i]',
             'input[type="text"]:nth-of-type(1)'
         ]);
+        
+        // CRITICAL: Log exactly what we're searching for
+        console.log(`🔍🔍🔍 ABOUT TO SEARCH MISSING MONEY WEBSITE 🔍🔍🔍`);
+        console.log(`🔍 Searching for: "${cleanedFirstName}" "${cleanedLastName}"`);
+        console.log(`🔍 City: "${city || 'NOT PROVIDED'}", State: "${fullStateName || 'NOT PROVIDED'}"`);
         
         // Try to fill first name
         const firstNameFilled = await fillField(cleanedFirstName, 'firstName', [
@@ -652,6 +664,8 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             'input[placeholder*="name" i]',
             'input[type="text"]:nth-of-type(2)'
         ]);
+        
+        console.log(`🔍 First name filled: ${firstNameFilled ? 'YES' : 'NO'} with value: "${cleanedFirstName}"`);
         
         // Try to fill city
         const cityFilled = await fillField(city, 'city', [
