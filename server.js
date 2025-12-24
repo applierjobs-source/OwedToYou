@@ -10,10 +10,21 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { chromium } = require('playwright');
 const { ApifyClient } = require('apify-client');
 
-// Initialize Apify client
-const apifyClient = new ApifyClient({
-    token: process.env.APIFY_API_TOKEN,
-});
+// Initialize Apify client (only if token is provided)
+let apifyClient = null;
+if (process.env.APIFY_API_TOKEN) {
+    try {
+        apifyClient = new ApifyClient({
+            token: process.env.APIFY_API_TOKEN,
+        });
+        console.log('[APIFY] ✅ Apify client initialized successfully');
+    } catch (e) {
+        console.error('[APIFY] ❌ Failed to initialize Apify client:', e.message);
+        apifyClient = null;
+    }
+} else {
+    console.warn('[APIFY] ⚠️ APIFY_API_TOKEN not set - Instagram name extraction will not work');
+}
 
 const PORT = process.env.PORT || 3000;
 
@@ -916,10 +927,35 @@ async function fetchInstagramFullName(username) {
         console.log(`[INSTAGRAM] Calling Apify actor with input:`, JSON.stringify(input));
         
         // Run the Profile Scraper Actor synchronously and get dataset items
-        const run = await apifyClient.actor("apify~instagram-profile-scraper").call(input);
-        console.log(`[INSTAGRAM] Apify run completed, fetching dataset items...`);
-        const { items } = await apifyClient.dataset(run.defaultDatasetId).listItems();
-        console.log(`[INSTAGRAM] Received ${items ? items.length : 0} items from Apify`);
+        let run;
+        try {
+            run = await apifyClient.actor("apify~instagram-profile-scraper").call(input);
+            console.log(`[INSTAGRAM] Apify run completed, run ID: ${run.id}, status: ${run.status}`);
+        } catch (actorError) {
+            console.error(`[INSTAGRAM] ❌ Apify actor call failed:`, actorError.message);
+            console.error(`[INSTAGRAM] Error details:`, actorError);
+            // Check if it's an authentication error
+            if (actorError.message && (actorError.message.includes('401') || actorError.message.includes('unauthorized') || actorError.message.includes('token'))) {
+                return { success: false, error: 'Apify API authentication failed. Please check APIFY_API_TOKEN environment variable.' };
+            }
+            // Check if it's a rate limit error
+            if (actorError.message && (actorError.message.includes('429') || actorError.message.includes('rate limit'))) {
+                return { success: false, error: 'Apify API rate limit exceeded. Please try again later.' };
+            }
+            throw actorError; // Re-throw to be caught by outer catch
+        }
+        
+        let items;
+        try {
+            console.log(`[INSTAGRAM] Fetching dataset items from run ${run.id}...`);
+            const datasetResponse = await apifyClient.dataset(run.defaultDatasetId).listItems();
+            items = datasetResponse.items;
+            console.log(`[INSTAGRAM] Received ${items ? items.length : 0} items from Apify`);
+        } catch (datasetError) {
+            console.error(`[INSTAGRAM] ❌ Failed to fetch dataset items:`, datasetError.message);
+            console.error(`[INSTAGRAM] Dataset error details:`, datasetError);
+            return { success: false, error: `Failed to retrieve results from Apify: ${datasetError.message}` };
+        }
         
         if (items && items.length > 0) {
             const item = items[0];
@@ -1021,9 +1057,23 @@ async function fetchInstagramFullName(username) {
             return { success: false, error: 'Profile not found. The profile may be private or not exist.' };
         }
     } catch (error) {
-        console.error(`[INSTAGRAM] Apify error for ${username}:`, error.message);
+        console.error(`[INSTAGRAM] ❌❌❌ Apify error for ${username}:`, error.message);
+        console.error(`[INSTAGRAM] Error type:`, error.constructor.name);
         console.error(`[INSTAGRAM] Error stack:`, error.stack);
-        return { success: false, error: `Failed to fetch profile: ${error.message}` };
+        
+        // Provide more specific error messages
+        let errorMessage = `Failed to fetch profile: ${error.message}`;
+        if (error.message && (error.message.includes('401') || error.message.includes('unauthorized') || error.message.includes('token'))) {
+            errorMessage = 'Apify API authentication failed. Please check APIFY_API_TOKEN environment variable.';
+        } else if (error.message && (error.message.includes('429') || error.message.includes('rate limit'))) {
+            errorMessage = 'Apify API rate limit exceeded. Please try again later.';
+        } else if (error.message && error.message.includes('timeout')) {
+            errorMessage = 'Apify API request timed out. Instagram may be blocking automated access.';
+        } else if (error.message && (error.message.includes('network') || error.message.includes('ECONNREFUSED'))) {
+            errorMessage = 'Cannot connect to Apify API. Please check your internet connection and Apify service status.';
+        }
+        
+        return { success: false, error: errorMessage };
     }
 }
 
