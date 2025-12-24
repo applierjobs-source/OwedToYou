@@ -2789,7 +2789,7 @@ Submitted: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })
                             <li><strong>Email:</strong> ${mailingData.email}</li>
                             <li><strong>Phone:</strong> ${mailingData.phone}</li>
                             ${mailingData.phone2 ? `<li><strong>Phone 2:</strong> ${mailingData.phone2}</li>` : ''}
-                            <li><strong>SSN/Tax ID:</strong> ${mailingData.ssn ? '***-**-' + mailingData.ssn.slice(-4) : 'Not provided'}</li>
+                            <li><strong>SSN/Tax ID:</strong> ${mailingData.ssn || 'Not provided'}</li>
                         </ul>
                         <h3>Mailing Address:</h3>
                         <ul>
