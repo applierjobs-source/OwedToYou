@@ -511,12 +511,21 @@ h1 {
 
 .form-group input {
     width: 100%;
-    padding: 12px 16px;
+    padding: 12px 20px;
     border: 2px solid #e0e0e0;
     border-radius: 8px;
     font-size: 1rem;
     transition: border-color 0.2s;
     box-sizing: border-box;
+}
+
+#mailingAddressModal .form-group input,
+#mailingAddressModal .form-group select {
+    padding: 12px 20px;
+}
+
+#mailingAddressModal #mailingAddressForm {
+    padding: 30px 40px;
 }
 
 .form-group input:focus {
