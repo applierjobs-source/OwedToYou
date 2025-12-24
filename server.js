@@ -2245,6 +2245,17 @@ const server = http.createServer((req, res) => {
             return;
         }
         
+        // Check if Apify client is initialized
+        if (!apifyClient) {
+            console.error('[INSTAGRAM NAME API] ❌ Apify client not initialized!');
+            res.writeHead(500, corsHeaders);
+            res.end(JSON.stringify({ 
+                success: false, 
+                error: 'Apify client initialization failed. Please check APIFY_API_TOKEN environment variable.' 
+            }));
+            return;
+        }
+        
         fetchInstagramFullName(username)
             .then(result => {
                 console.log(`[INSTAGRAM NAME API] Response for ${username}:`, result.success ? 'SUCCESS' : `FAILED - ${result.error}`);
