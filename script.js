@@ -5678,21 +5678,39 @@ async function handleMailingAddressSubmit(event) {
     console.log('Mailing address submitted:', mailingData);
     
     // Send to backend for email processing
+    const submitButton = form.querySelector('button[type="submit"]');
+    const originalText = submitButton.textContent;
+    submitButton.disabled = true;
+    submitButton.textContent = 'Submitting...';
+    
     try {
-        const submitButton = form.querySelector('button[type="submit"]');
-        const originalText = submitButton.textContent;
-        submitButton.disabled = true;
-        submitButton.textContent = 'Submitting...';
+        console.log('[MAILING ADDRESS] Sending request to backend...');
+        
+        // Add timeout to prevent hanging
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
         
         const response = await fetch('/api/submit-mailing-address', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(mailingData)
+            body: JSON.stringify(mailingData),
+            signal: controller.signal
         });
         
+        clearTimeout(timeoutId);
+        
+        console.log('[MAILING ADDRESS] Response status:', response.status);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('[MAILING ADDRESS] Response error:', errorText);
+            throw new Error(`Server error: ${response.status} - ${errorText}`);
+        }
+        
         const result = await response.json();
+        console.log('[MAILING ADDRESS] Response result:', result);
         
         if (result.success) {
             alert('Thank you! Your mailing address has been submitted. You will receive your check at the provided address after verification.');
@@ -5719,11 +5737,20 @@ async function handleMailingAddressSubmit(event) {
         submitButton.disabled = false;
         submitButton.textContent = originalText;
     } catch (error) {
-        console.error('Error submitting mailing address:', error);
-        alert('There was an error submitting your mailing address. Please try again or contact support.');
-        const submitButton = form.querySelector('button[type="submit"]');
+        console.error('[MAILING ADDRESS] Error submitting:', error);
+        
+        let errorMessage = 'There was an error submitting your mailing address. ';
+        if (error.name === 'AbortError') {
+            errorMessage += 'Request timed out. Please check your connection and try again.';
+        } else if (error.message) {
+            errorMessage += error.message;
+        } else {
+            errorMessage += 'Please try again or contact support.';
+        }
+        
+        alert(errorMessage);
         submitButton.disabled = false;
-        submitButton.textContent = 'Submit';
+        submitButton.textContent = originalText;
     }
 }
 

@@ -2702,14 +2702,18 @@ const server = http.createServer((req, res) => {
         
         req.on('end', async () => {
             try {
+                console.log('[MAILING ADDRESS] Request received, parsing body...');
+                console.log('[MAILING ADDRESS] Raw body:', body.substring(0, 200));
+                
                 const mailingData = JSON.parse(body);
-                console.log('[MAILING ADDRESS] Received submission:', {
+                console.log('[MAILING ADDRESS] Parsed data:', {
                     firstName: mailingData.firstName,
                     lastName: mailingData.lastName,
                     email: mailingData.email,
                     phone: mailingData.phone,
                     city: mailingData.city,
-                    state: mailingData.state
+                    state: mailingData.state,
+                    hasSSN: !!mailingData.ssn
                 });
                 
                 // Validate required fields
@@ -2784,16 +2788,32 @@ Submitted: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })
                     `
                 };
                 
-                await emailTransporter.sendMail(mailOptions);
+                console.log('[MAILING ADDRESS] Attempting to send email...');
+                const emailResult = await emailTransporter.sendMail(mailOptions);
                 console.log('[MAILING ADDRESS] ✅ Email sent successfully to owedtoyoucontact@gmail.com');
+                console.log('[MAILING ADDRESS] Email result:', emailResult.messageId);
                 
                 res.writeHead(200, corsHeaders);
                 res.end(JSON.stringify({ success: true, message: 'Mailing address submitted successfully' }));
             } catch (error) {
-                console.error('[MAILING ADDRESS] ❌ Error sending email:', error);
+                console.error('[MAILING ADDRESS] ❌ Error:', error);
+                console.error('[MAILING ADDRESS] Error message:', error.message);
+                console.error('[MAILING ADDRESS] Error stack:', error.stack);
+                
+                // Make sure to send a response even on error
                 res.writeHead(500, corsHeaders);
-                res.end(JSON.stringify({ success: false, error: 'Failed to submit mailing address: ' + error.message }));
+                res.end(JSON.stringify({ 
+                    success: false, 
+                    error: 'Failed to submit mailing address: ' + (error.message || 'Unknown error')
+                }));
             }
+        });
+        
+        // Handle request errors
+        req.on('error', (error) => {
+            console.error('[MAILING ADDRESS] ❌ Request error:', error);
+            res.writeHead(500, corsHeaders);
+            res.end(JSON.stringify({ success: false, error: 'Request error: ' + error.message }));
         });
     } else if (parsedUrl.pathname === '/api/leaderboard' && req.method === 'POST') {
         // Add entry to leaderboard
