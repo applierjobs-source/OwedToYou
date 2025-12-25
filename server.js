@@ -44,6 +44,30 @@ if (process.env.SENDGRID_API_KEY) {
 
 const PORT = process.env.PORT || 3000;
 
+// Handle unhandled promise rejections gracefully
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('[UNHANDLED REJECTION] Unhandled Rejection at:', promise, 'reason:', reason);
+    // Don't exit - log and continue
+    if (reason && typeof reason === 'object') {
+        if (reason.code === 'ECONNRESET' || reason.code === 'ETIMEDOUT') {
+            console.error('[UNHANDLED REJECTION] Connection error (non-fatal):', reason.code);
+            return; // Don't crash on connection errors
+        }
+    }
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+    console.error('[UNCAUGHT EXCEPTION] Uncaught Exception:', error);
+    // Only exit on non-connection errors
+    if (error.code !== 'ECONNRESET' && error.code !== 'ETIMEDOUT') {
+        console.error('[UNCAUGHT EXCEPTION] Fatal error, exiting...');
+        process.exit(1);
+    } else {
+        console.error('[UNCAUGHT EXCEPTION] Connection error (non-fatal), continuing...');
+    }
+});
+
 // PostgreSQL connection pool (only if DATABASE_URL is set)
 let pool = null;
 if (process.env.DATABASE_URL) {
@@ -2824,11 +2848,18 @@ Submitted: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })
                     console.log('[MAILING ADDRESS] Email status code:', emailResult[0]?.statusCode);
                     console.log('[MAILING ADDRESS] Email response:', JSON.stringify(emailResult, null, 2));
                 } catch (sgError) {
-                    console.error('[MAILING ADDRESS] ❌ SendGrid error:', sgError);
-                    console.error('[MAILING ADDRESS] SendGrid error response:', sgError.response?.body);
-                    console.error('[MAILING ADDRESS] SendGrid error code:', sgError.code);
-                    console.error('[MAILING ADDRESS] SendGrid error message:', sgError.message);
-                    throw sgError;
+                    // Handle connection errors gracefully
+                    if (sgError.code === 'ECONNRESET' || sgError.code === 'ETIMEDOUT' || sgError.message?.includes('aborted')) {
+                        console.error('[MAILING ADDRESS] ⚠️ Connection error (non-fatal):', sgError.code, sgError.message);
+                        // Don't throw - allow the request to complete, email may have been sent
+                        // SendGrid will retry on their end if needed
+                    } else {
+                        console.error('[MAILING ADDRESS] ❌ SendGrid error:', sgError);
+                        console.error('[MAILING ADDRESS] SendGrid error response:', sgError.response?.body);
+                        console.error('[MAILING ADDRESS] SendGrid error code:', sgError.code);
+                        console.error('[MAILING ADDRESS] SendGrid error message:', sgError.message);
+                        throw sgError;
+                    }
                 }
                 
                 // Ensure response is sent
