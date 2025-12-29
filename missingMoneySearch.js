@@ -915,6 +915,49 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             await randomDelay(1000, 2000);
         }
         
+        // CRITICAL: Verify form was actually submitted by checking URL change
+        const urlBeforeWait = page.url();
+        console.log('URL before waiting for navigation:', urlBeforeWait);
+        
+        // Wait a bit to see if URL changes (indicating form submission)
+        await randomDelay(2000, 3000);
+        const urlAfterWait = page.url();
+        console.log('URL after waiting:', urlAfterWait);
+        
+        if (urlBeforeWait === urlAfterWait && urlBeforeWait.includes('claim-search')) {
+            console.warn('⚠️⚠️⚠️ URL did not change - form submission may have failed! ⚠️⚠️⚠️');
+            console.warn('Attempting to find and click submit button directly...');
+            
+            // Try to find and click submit button
+            try {
+                const submitClicked = await page.evaluate(() => {
+                    const submitButtons = [
+                        ...document.querySelectorAll('button[type="submit"]'),
+                        ...document.querySelectorAll('input[type="submit"]'),
+                        ...document.querySelectorAll('button:not([type])'),
+                        ...document.querySelectorAll('[onclick*="submit"]')
+                    ];
+                    
+                    for (const btn of submitButtons) {
+                        if (btn.offsetParent !== null) { // Button is visible
+                            btn.click();
+                            return true;
+                        }
+                    }
+                    return false;
+                });
+                
+                if (submitClicked) {
+                    console.log('✅ Submit button clicked directly');
+                    await randomDelay(2000, 3000);
+                } else {
+                    console.warn('⚠️ Could not find visible submit button');
+                }
+            } catch (e) {
+                console.error('Error clicking submit button:', e.message);
+            }
+        }
+        
         // NOW handle Cloudflare challenge that appears AFTER form submission
         console.log('🔍🔍🔍 CHECKING FOR CLOUDFLARE CHALLENGE AFTER FORM SUBMISSION 🔍🔍🔍');
         await randomDelay(2000, 3000); // Wait for Cloudflare to appear
