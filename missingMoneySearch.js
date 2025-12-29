@@ -1139,6 +1139,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                     for (let i = 0; i < 20; i++) {
                         const pageText = await page.evaluate(() => document.body.innerText);
                         const url = page.url();
+                        console.log(`[CLOUDFLARE] Verification check ${i + 1}/20 - URL: ${url.substring(0, 100)}`);
                         if (!pageText.includes('Please wait while we verify your browser') &&
                             !pageText.includes('Checking your browser') &&
                             !url.includes('challenge')) {
@@ -1147,6 +1148,10 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                             break;
                         }
                         await randomDelay(1000, 2000);
+                    }
+                    
+                    if (!verificationComplete) {
+                        console.warn('⚠️ Cloudflare verification may not have completed - continuing anyway');
                     }
                 } catch (e) {
                     console.error('❌ 2captcha failed after submission:', e.message);
@@ -1189,34 +1194,6 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         // Note: verificationComplete is set in the 2captcha block above if token injection succeeds
         // If we reach here and 2captcha wasn't used or didn't complete, we'll continue to results extraction
         
-        // Wait for results to load - try multiple strategies
-        console.log('Waiting for results...');
-        
-        // Wait for navigation or results to appear
-        try {
-            await Promise.race([
-                page.waitForNavigation({ waitUntil: 'networkidle', timeout: 25000 }),
-                page.waitForSelector('table, [class*="result"], [class*="claim"], [class*="table"], [id*="result"], [id*="claim"], tbody, [role="row"]', { timeout: 25000 }),
-                page.waitForFunction(
-                    () => {
-                        const text = document.body.innerText;
-                        // Look for dollar signs that aren't in navigation/headers
-                        const hasAmount = text.match(/\$[\d,]+\.?\d*/);
-                        const hasResultIndicators = text.includes('Amount') || 
-                                                   text.includes('Property') || 
-                                                   text.includes('Claim') ||
-                                                   text.includes('Entity') ||
-                                                   text.includes('Holder');
-                        return hasAmount && hasResultIndicators;
-                    },
-                    { timeout: 25000 }
-                ),
-                page.waitForTimeout(10000)
-            ]);
-        } catch (e) {
-            console.log('Waiting for results timed out, continuing...');
-        }
-        
         // Wait for any AJAX/API calls to complete
         await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
         
@@ -1244,6 +1221,22 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         const finalTitle = await page.title();
         console.log('Final URL:', finalUrl);
         console.log('Final title:', finalTitle);
+        
+        // CRITICAL: Check if we're still on the search form page (form submission may have failed)
+        const isStillOnFormPage = finalUrl.includes('claim-search') && !finalUrl.includes('results') && !finalUrl.includes('claim-detail');
+        if (isStillOnFormPage) {
+            console.warn('⚠️⚠️⚠️ WARNING: Still on search form page - form submission may have failed! ⚠️⚠️⚠️');
+            console.warn('This could indicate Cloudflare blocking or form submission failure');
+            console.warn('Attempting to detect if form was actually submitted...');
+            
+            // Check if there's an error message on the page
+            const hasError = pageText.toLowerCase().includes('error') || 
+                            pageText.toLowerCase().includes('invalid') ||
+                            pageText.toLowerCase().includes('required');
+            if (hasError) {
+                console.error('❌ Form submission error detected on page');
+            }
+        }
         
         // Get all text content to see what's on the page
         const pageText = await page.evaluate(() => document.body.innerText);
@@ -1288,12 +1281,14 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         console.log('Page contains result indicators:', hasResults);
         
         // Check for "no results" messages (but be careful - "no results" might appear in instructions)
-        const noResults = (pageText.toLowerCase().includes('no unclaimed funds found') ||
-                          pageText.toLowerCase().includes('no match') ||
-                          (pageText.toLowerCase().includes('no results') && 
-                           !pageText.toLowerCase().includes('to begin your search'))) &&
-                          !pageText.match(/\$[\d,]+\.?\d*/); // Only consider "no results" if there are NO dollar amounts
+        // IMPORTANT: Be more strict - only mark as "no results" if we're CERTAIN there are no results
+        const hasExplicitNoResults = pageText.toLowerCase().includes('no unclaimed funds found') ||
+                                     pageText.toLowerCase().includes('no match');
+        const hasDollarAmounts = pageText.match(/\$[\d,]+\.?\d*/);
+        const noResults = hasExplicitNoResults && !hasDollarAmounts; // Only if explicit message AND no dollar amounts
         console.log('Page shows "no results":', noResults);
+        console.log('Has explicit "no results" message:', hasExplicitNoResults);
+        console.log('Has dollar amounts:', !!hasDollarAmounts);
         
         // Check for dollar amounts in the page
         const dollarAmounts = pageText.match(/\$[\d,]+\.?\d*/g);
@@ -2193,6 +2188,17 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             console.log('⚠️ No results extracted, but page does not show explicit "no results" message');
             console.log('Page URL:', page.url());
             console.log('Page title:', await page.title());
+        }
+        
+        // CRITICAL: If we're still on the form page, the search likely failed
+        if (isStillOnFormPage && uniqueResults.length === 0) {
+            console.error('❌❌❌ SEARCH FAILED: Still on form page with no results ❌❌❌');
+            console.error('This indicates form submission failed - likely Cloudflare blocking');
+            return {
+                success: false,
+                error: 'Form submission failed - Cloudflare challenge may be blocking the search',
+                results: []
+            };
         }
         
         // If we found explicit "no results" message and no dollar amounts, return empty results
