@@ -2272,7 +2272,16 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             console.error('This indicates form submission failed - likely Cloudflare blocking');
             console.error('Final URL:', finalUrl);
             console.error('Page title:', finalTitle);
-            console.error('Page text sample:', pageText.substring(0, 500));
+            // Safely access pageText - it should be defined but handle case where it might not be
+            try {
+                if (typeof pageText !== 'undefined') {
+                    console.error('Page text sample:', pageText.substring(0, 500));
+                } else {
+                    console.error('Page text not available');
+                }
+            } catch (e) {
+                console.error('Error accessing pageText:', e.message);
+            }
             return {
                 success: false,
                 error: 'Form submission failed - Cloudflare challenge may be blocking the search. The form was not submitted successfully.',
