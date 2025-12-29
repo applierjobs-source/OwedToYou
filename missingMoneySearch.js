@@ -2237,9 +2237,12 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         if (isStillOnFormPage && uniqueResults.length === 0) {
             console.error('❌❌❌ SEARCH FAILED: Still on form page with no results ❌❌❌');
             console.error('This indicates form submission failed - likely Cloudflare blocking');
+            console.error('Final URL:', finalUrl);
+            console.error('Page title:', finalTitle);
+            console.error('Page text sample:', pageText.substring(0, 500));
             return {
                 success: false,
-                error: 'Form submission failed - Cloudflare challenge may be blocking the search',
+                error: 'Form submission failed - Cloudflare challenge may be blocking the search. The form was not submitted successfully.',
                 results: []
             };
         }

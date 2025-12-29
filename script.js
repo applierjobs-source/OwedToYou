@@ -4406,8 +4406,16 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
             resultsCount: result.results ? result.results.length : 0,
             totalAmount: result.totalAmount,
             message: result.message,
-            sampleResults: result.results ? result.results.slice(0, 3) : null
+            error: result.error,
+            sampleResults: result.results ? result.results.slice(0, 3) : null,
+            fullResponse: result // Log full response for debugging
         });
+        
+        // Check if response indicates an error
+        if (!result.success && result.error) {
+            console.error('❌ API returned error:', result.error);
+            console.error('Full error response:', JSON.stringify(result, null, 2));
+        }
         
         // Clear all progress timers
         progressTimers.forEach(timer => clearTimeout(timer));
@@ -4545,9 +4553,24 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
             });
         } else {
             console.log('❌ Search failed. Result:', result);
-            console.log('⚠️ Showing "no results" modal instead');
-            // Search failed - show in a modal instead of alert
-            showNoResultsModal(claimData);
+            console.log('Error details:', {
+                success: result.success,
+                error: result.error,
+                message: result.message,
+                results: result.results
+            });
+            
+            // Check if there's an error message indicating what went wrong
+            if (result.error) {
+                console.error('❌ Search error:', result.error);
+                // Show error modal with actual error message
+                hideProgressModal();
+                showErrorModal(`Search failed: ${result.error}. This may be due to Cloudflare blocking or form submission issues. Please try again.`);
+            } else {
+                console.log('⚠️ Showing "no results" modal instead');
+                // Search failed but no specific error - show "no results" modal
+                showNoResultsModal(claimData);
+            }
         }
         
         // Ensure modal is visible
