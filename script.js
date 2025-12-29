@@ -1351,10 +1351,39 @@ async function getProfilePicBase64(handle, imageUrl) {
                 // Also store with original handle
                 stored[`${handle}_base64`] = base64;
                 stored[`${handle}_url`] = imageUrl;
-                localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(stored));
-                console.log(`✅ Cached base64 for ${handle}`);
+                
+                // Limit base64 storage to prevent quota exceeded errors
+                const MAX_BASE64_ENTRIES = 50;
+                const storedKeys = Object.keys(stored);
+                if (storedKeys.length > MAX_BASE64_ENTRIES) {
+                    // Remove oldest entries (keep only most recent)
+                    const keysToKeep = storedKeys.slice(-MAX_BASE64_ENTRIES);
+                    const reduced = {};
+                    keysToKeep.forEach(key => {
+                        reduced[key] = stored[key];
+                    });
+                    // Add new entries
+                    reduced[base64Key] = base64;
+                    reduced[urlKey] = imageUrl;
+                    reduced[`${handle}_base64`] = base64;
+                    reduced[`${handle}_url`] = imageUrl;
+                    localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(reduced));
+                    console.log(`✅ Cached base64 for ${handle} (reduced storage to ${MAX_BASE64_ENTRIES} entries)`);
+                } else {
+                    localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(stored));
+                    console.log(`✅ Cached base64 for ${handle}`);
+                }
             } catch (e) {
                 console.error('Error saving base64 cache:', e);
+                if (e.name === 'QuotaExceededError') {
+                    // Clear base64 cache if quota exceeded
+                    try {
+                        localStorage.removeItem('leaderboardProfilePicsBase64');
+                        console.log('⚠️ Cleared base64 cache due to quota exceeded');
+                    } catch (e2) {
+                        console.error('Could not clear base64 cache:', e2);
+                    }
+                }
             }
         }
         
@@ -1931,15 +1960,35 @@ async function addToLeaderboard(name, handle, amount, isPlaceholder = false, ref
                 storedProfilePics[cleanHandleValue] = profilePicToSave;
                 saveProfilePicsToStorage(storedProfilePics);
                 
-                // Also save to base64 cache
-                const base64Cache = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
-                base64Cache[`${cleanHandleValue}_base64`] = profilePicToSave;
-                if (profilePic && profilePic.startsWith('http')) {
-                    base64Cache[`${cleanHandleValue}_url`] = profilePic; // Keep original URL reference
-                    base64Cache[`${handle}_url`] = profilePic;
+                // Also save to base64 cache (with size limit)
+                try {
+                    const base64Cache = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
+                    base64Cache[`${cleanHandleValue}_base64`] = profilePicToSave;
+                    if (profilePic && profilePic.startsWith('http')) {
+                        base64Cache[`${cleanHandleValue}_url`] = profilePic; // Keep original URL reference
+                        base64Cache[`${handle}_url`] = profilePic;
+                    }
+                    base64Cache[`${handle}_base64`] = profilePicToSave;
+                    
+                    // Limit base64 storage to prevent quota exceeded errors
+                    const MAX_BASE64_ENTRIES = 50;
+                    const storedKeys = Object.keys(base64Cache);
+                    if (storedKeys.length > MAX_BASE64_ENTRIES) {
+                        const keysToKeep = storedKeys.slice(-MAX_BASE64_ENTRIES);
+                        const reduced = {};
+                        keysToKeep.forEach(key => {
+                            reduced[key] = base64Cache[key];
+                        });
+                        localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(reduced));
+                    } else {
+                        localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(base64Cache));
+                    }
+                } catch (e) {
+                    if (e.name === 'QuotaExceededError') {
+                        console.warn('⚠️ Base64 cache quota exceeded, clearing cache');
+                        localStorage.removeItem('leaderboardProfilePicsBase64');
+                    }
                 }
-                base64Cache[`${handle}_base64`] = profilePicToSave;
-                localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(base64Cache));
                 
                 console.log(`✅✅✅ Saved BASE64 to localStorage for ${handle} - INSTANT DISPLAY READY`);
             }
@@ -2187,14 +2236,34 @@ async function loadProfilePicturesInBackground(users) {
                 storedProfilePics[cleanHandle(user.handle)] = base64;
                 saveProfilePicsToStorage(storedProfilePics);
                 
-                // Also save to base64 cache
-                const cleanHandleValue = cleanHandle(user.handle);
-                const base64Cache = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
-                base64Cache[`${cleanHandleValue}_base64`] = base64;
-                base64Cache[`${cleanHandleValue}_url`] = profilePic;
-                base64Cache[`${user.handle}_base64`] = base64;
-                base64Cache[`${user.handle}_url`] = profilePic;
-                localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(base64Cache));
+                // Also save to base64 cache (with size limit)
+                try {
+                    const cleanHandleValue = cleanHandle(user.handle);
+                    const base64Cache = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
+                    base64Cache[`${cleanHandleValue}_base64`] = base64;
+                    base64Cache[`${cleanHandleValue}_url`] = profilePic;
+                    base64Cache[`${user.handle}_base64`] = base64;
+                    base64Cache[`${user.handle}_url`] = profilePic;
+                    
+                    // Limit base64 storage to prevent quota exceeded errors
+                    const MAX_BASE64_ENTRIES = 50;
+                    const storedKeys = Object.keys(base64Cache);
+                    if (storedKeys.length > MAX_BASE64_ENTRIES) {
+                        const keysToKeep = storedKeys.slice(-MAX_BASE64_ENTRIES);
+                        const reduced = {};
+                        keysToKeep.forEach(key => {
+                            reduced[key] = base64Cache[key];
+                        });
+                        localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(reduced));
+                    } else {
+                        localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(base64Cache));
+                    }
+                } catch (e) {
+                    if (e.name === 'QuotaExceededError') {
+                        console.warn('⚠️ Base64 cache quota exceeded, clearing cache');
+                        localStorage.removeItem('leaderboardProfilePicsBase64');
+                    }
+                }
                 
                 // Update user object with base64
                 const userIndex = leaderboardData.findIndex(e => cleanHandle(e.handle) === cleanHandle(user.handle));
@@ -3361,13 +3430,33 @@ async function handleSearchImpl() {
                     storedProfilePicsToSave[handle] = base64;
                     saveProfilePicsToStorage(storedProfilePicsToSave);
                     
-                    // Also save to base64 cache
-                    const base64Cache = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
-                    base64Cache[`${cleanHandleValue}_base64`] = base64;
-                    base64Cache[`${cleanHandleValue}_url`] = profilePic;
-                    base64Cache[`${handle}_base64`] = base64;
-                    base64Cache[`${handle}_url`] = profilePic;
-                    localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(base64Cache));
+                    // Also save to base64 cache (with size limit)
+                    try {
+                        const base64Cache = JSON.parse(localStorage.getItem('leaderboardProfilePicsBase64') || '{}');
+                        base64Cache[`${cleanHandleValue}_base64`] = base64;
+                        base64Cache[`${cleanHandleValue}_url`] = profilePic;
+                        base64Cache[`${handle}_base64`] = base64;
+                        base64Cache[`${handle}_url`] = profilePic;
+                        
+                        // Limit base64 storage to prevent quota exceeded errors
+                        const MAX_BASE64_ENTRIES = 50;
+                        const storedKeys = Object.keys(base64Cache);
+                        if (storedKeys.length > MAX_BASE64_ENTRIES) {
+                            const keysToKeep = storedKeys.slice(-MAX_BASE64_ENTRIES);
+                            const reduced = {};
+                            keysToKeep.forEach(key => {
+                                reduced[key] = base64Cache[key];
+                            });
+                            localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(reduced));
+                        } else {
+                            localStorage.setItem('leaderboardProfilePicsBase64', JSON.stringify(base64Cache));
+                        }
+                    } catch (e) {
+                        if (e.name === 'QuotaExceededError') {
+                            console.warn('⚠️ Base64 cache quota exceeded, clearing cache');
+                            localStorage.removeItem('leaderboardProfilePicsBase64');
+                        }
+                    }
                     
                     console.log(`[PROFILE PIC FLOW] ✅✅✅ Saved BASE64 to localStorage for ${cleanHandleValue} - INSTANT DISPLAY READY`);
                 } else {
