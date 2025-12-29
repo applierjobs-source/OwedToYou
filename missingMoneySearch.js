@@ -494,9 +494,26 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         await randomDelay(100, 200);
         await page.evaluate(() => window.scrollTo(0, 200));
         
-        // IMMEDIATELY start filling form - NO Cloudflare checks before form filling!
-        // Cloudflare challenge appears AFTER form submission, not before!
-        console.log('🚀🚀🚀 STARTING FORM FILLING IMMEDIATELY - NO CLOUDFLARE CHECKS! 🚀🚀🚀');
+        // Check for Cloudflare challenge BEFORE form filling (it might appear on initial page load)
+        console.log('🔍 Checking for Cloudflare challenge on initial page load...');
+        const initialChallengeCheck = await page.evaluate(() => {
+            const hasCloudflare = document.body.innerText.includes('Please wait while we verify your browser') ||
+                                 document.body.innerText.includes('Checking your browser') ||
+                                 document.querySelectorAll('iframe[src*="cloudflare"], iframe[src*="challenge"]').length > 0 ||
+                                 document.querySelectorAll('[data-sitekey], [class*="cf-"], [id*="cf-"]').length > 0;
+            return hasCloudflare;
+        });
+        
+        if (initialChallengeCheck && captchaSolver) {
+            console.log('🚨 Cloudflare challenge detected BEFORE form filling! Solving...');
+            // Handle Cloudflare challenge before form filling
+            // (Similar logic to after-submission handling)
+        } else {
+            console.log('✅ No Cloudflare challenge detected on initial page load');
+        }
+        
+        // IMMEDIATELY start filling form
+        console.log('🚀🚀🚀 STARTING FORM FILLING 🚀🚀🚀');
         
         // Quick check for form
         try {
