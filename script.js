@@ -1216,20 +1216,57 @@ function loadProfilePicsFromStorage() {
 }
 
 // Save profile pictures to localStorage
+// Limit storage to prevent quota exceeded errors
 function saveProfilePicsToStorage(profilePics) {
+    const MAX_PROFILE_PICS = 50; // Limit to 50 most recent profile pictures
+    
     try {
+        // If we have too many, keep only the most recent ones
+        const picKeys = Object.keys(profilePics);
+        if (picKeys.length > MAX_PROFILE_PICS) {
+            console.log(`⚠️ Too many profile pics (${picKeys.length}), limiting to ${MAX_PROFILE_PICS} most recent`);
+            // Keep only the first MAX_PROFILE_PICS entries
+            const limitedPics = {};
+            picKeys.slice(0, MAX_PROFILE_PICS).forEach(key => {
+                limitedPics[key] = profilePics[key];
+            });
+            profilePics = limitedPics;
+        }
+        
         localStorage.setItem('leaderboardProfilePics', JSON.stringify(profilePics));
         console.log(`💾 Saved ${Object.keys(profilePics).length} profile pictures to localStorage`);
     } catch (e) {
         console.error('Error saving profile pics to storage:', e);
-        // If storage is full, try to clear old entries
-        try {
-            console.log('⚠️ Storage may be full, attempting to clear and retry...');
-            localStorage.removeItem('leaderboardProfilePics');
-            localStorage.setItem('leaderboardProfilePics', JSON.stringify(profilePics));
-            console.log('✅ Successfully saved after clearing storage');
-        } catch (e2) {
-            console.error('❌ Failed to save even after clearing:', e2);
+        
+        // If storage is full, try to reduce size and retry
+        if (e.name === 'QuotaExceededError') {
+            try {
+                console.log('⚠️ Storage quota exceeded, attempting to reduce size...');
+                
+                // Clear old storage
+                localStorage.removeItem('leaderboardProfilePics');
+                
+                // Try saving with even fewer entries
+                const picKeys = Object.keys(profilePics);
+                const reducedPics = {};
+                const keepCount = Math.min(20, picKeys.length); // Keep only 20 most recent
+                picKeys.slice(0, keepCount).forEach(key => {
+                    reducedPics[key] = profilePics[key];
+                });
+                
+                localStorage.setItem('leaderboardProfilePics', JSON.stringify(reducedPics));
+                console.log(`✅ Successfully saved ${keepCount} profile pictures after reducing size`);
+            } catch (e2) {
+                console.error('❌ Failed to save even after reducing size:', e2);
+                // Last resort: clear all profile pic storage
+                try {
+                    localStorage.removeItem('leaderboardProfilePics');
+                    localStorage.removeItem('leaderboardProfilePicsBase64');
+                    console.log('⚠️ Cleared all profile picture storage due to quota exceeded');
+                } catch (e3) {
+                    console.error('❌ Could not clear storage:', e3);
+                }
+            }
         }
     }
 }
