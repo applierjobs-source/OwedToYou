@@ -958,8 +958,24 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             }
         }
         
-        // NOW handle Cloudflare challenge that appears AFTER form submission
-        console.log('🔍🔍🔍 CHECKING FOR CLOUDFLARE CHALLENGE AFTER FORM SUBMISSION 🔍🔍🔍');
+        // Wait for navigation or Cloudflare challenge
+        console.log('🔍🔍🔍 WAITING FOR FORM SUBMISSION RESPONSE 🔍🔍🔍');
+        try {
+            // Wait for either navigation to results page OR Cloudflare challenge
+            await Promise.race([
+                page.waitForNavigation({ waitUntil: 'networkidle', timeout: 10000 }).catch(() => {}),
+                page.waitForTimeout(5000)
+            ]);
+        } catch (e) {
+            console.log('Navigation wait completed or timed out');
+        }
+        
+        // Check current URL to see if we navigated away from form page
+        const currentUrlAfterSubmit = page.url();
+        console.log('URL after form submission attempt:', currentUrlAfterSubmit);
+        
+        // NOW handle Cloudflare challenge that appears AFTER form submission (or before if still on form page)
+        console.log('🔍🔍🔍 CHECKING FOR CLOUDFLARE CHALLENGE 🔍🔍🔍');
         await randomDelay(2000, 3000); // Wait for Cloudflare to appear
         
         // Check for Cloudflare challenge AFTER submission
