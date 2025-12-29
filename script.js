@@ -4302,11 +4302,18 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
         profilePic: claimData.profilePic ? `SET (${claimData.profilePic.substring(0, 40)}...)` : 'NOT SET'
     });
     
-    // Check localStorage cache first
+    // Show progress modal FIRST before checking cache
+    // Progress modal should already be shown from handleSearchImpl for Instagram searches
+    // But ensure it's visible for manual name searches
+    if (!document.getElementById('progressModal') || document.getElementById('progressModal').classList.contains('hidden')) {
+        showProgressModal();
+        updateProgressStep(1, 'Preparing search...');
+    }
+    
+    // Check localStorage cache AFTER showing progress modal
     const cachedResult = loadMissingMoneyResultsFromStorage(claimData.firstName, claimData.lastName);
     if (cachedResult) {
-        console.log('✅ Using cached MissingMoney results');
-        hideProgressModal();
+        console.log('✅ Found cached MissingMoney results');
         
         // Process cached result same as fresh result
         // Note: Failed searches should not be cached, but double-check just in case
@@ -4315,6 +4322,10 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
             // Don't return - continue to fresh search below
         } else if (cachedResult.results && cachedResult.results.length > 0) {
             console.log('✅ Showing cached results modal with', cachedResult.results.length, 'results');
+            // Show progress briefly before showing cached results
+            updateProgressStep(6, 'Loading cached results...');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            hideProgressModal();
             // Only add to leaderboard if this is an Instagram search
             if (isInstagramSearch) {
                 await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), cachedResult.totalAmount, false, true, cachedResult.results || [], claimData.profilePic);
@@ -4324,51 +4335,42 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
             showResultsModal(claimData, cachedResult);
             return;
         } else {
-            console.log('✅ Cached search completed successfully but no results found');
-            // Show $100 undisclosed instead of $0
-            const undisclosedResult = [{
-                entity: 'Undisclosed Property',
-                amount: 'UNDISCLOSED',
-                details: 'Amount undisclosed - funds may be available'
-            }];
-            // Only add to leaderboard if this is an Instagram search
-            if (isInstagramSearch) {
-                await addToLeaderboard(claimData.firstName + ' ' + claimData.lastName, claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 100, false, true, undisclosedResult, claimData.profilePic);
-            } else {
-                console.log('⏭️ Skipping leaderboard - cached no-results from manual name search');
-            }
-            showResultsModal(claimData, {
-                success: true,
-                results: undisclosedResult,
-                totalAmount: 100
-            });
-            return;
+            console.log('⚠️ Cached search had no results - performing fresh search instead');
+            // Don't use cached "no results" - always do a fresh search
+            // This prevents stale "no results" from showing immediately
         }
     }
     
-    // Progress modal should already be shown from handleSearchImpl
-    // But ensure it's visible and update to step 2 (since step 1 was Instagram extraction)
-    if (!document.getElementById('progressModal').classList.contains('hidden')) {
-        // Already shown, just update to step 2
+    // Update progress modal - start from step 1 for manual searches, step 2 for Instagram searches
+    if (isInstagramSearch) {
+        // Instagram search already showed step 1, continue from step 2
         updateProgressStep(2, 'Opening Missing Money website...');
     } else {
-        // Not shown yet, show it
-        showProgressModal();
-        updateProgressStep(2, 'Opening Missing Money website...');
+        // Manual name search - start from step 1
+        updateProgressStep(1, 'Preparing search...');
     }
     
     // Track start time to ensure minimum display time
     const startTime = Date.now();
-    const MIN_DISPLAY_TIME = 5000; // Minimum 5 seconds
+    const MIN_DISPLAY_TIME = 10000; // Minimum 10 seconds to show progress
     
-    // Progress update timers (steps 2-6, since step 1 was Instagram extraction)
+    // Progress update timers
     const progressTimers = [];
     
-    // Continue progress updates (step 2 onwards)
-    progressTimers.push(setTimeout(() => updateProgressStep(3, 'Filling out your information...'), 2000));
-    progressTimers.push(setTimeout(() => updateProgressStep(4, 'Solving security verification... This may take 10-30 seconds...'), 5000));
-    progressTimers.push(setTimeout(() => updateProgressStep(5, 'Searching database...'), 15000));
-    progressTimers.push(setTimeout(() => updateProgressStep(6, 'Compiling results...'), 30000));
+    if (isInstagramSearch) {
+        // Continue progress updates (step 2 onwards for Instagram searches)
+        progressTimers.push(setTimeout(() => updateProgressStep(3, 'Filling out your information...'), 2000));
+        progressTimers.push(setTimeout(() => updateProgressStep(4, 'Solving security verification... This may take 10-30 seconds...'), 5000));
+        progressTimers.push(setTimeout(() => updateProgressStep(5, 'Searching database...'), 15000));
+        progressTimers.push(setTimeout(() => updateProgressStep(6, 'Compiling results...'), 30000));
+    } else {
+        // Manual name search - start from step 1
+        progressTimers.push(setTimeout(() => updateProgressStep(2, 'Opening Missing Money website...'), 1000));
+        progressTimers.push(setTimeout(() => updateProgressStep(3, 'Filling out your information...'), 3000));
+        progressTimers.push(setTimeout(() => updateProgressStep(4, 'Solving security verification... This may take 10-30 seconds...'), 6000));
+        progressTimers.push(setTimeout(() => updateProgressStep(5, 'Searching database...'), 16000));
+        progressTimers.push(setTimeout(() => updateProgressStep(6, 'Compiling results...'), 31000));
+    }
     
     try {
         // Search Missing Money with 2captcha API key
@@ -4410,23 +4412,23 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
         // Clear all progress timers
         progressTimers.forEach(timer => clearTimeout(timer));
         
-        // Mark all steps as completed
-        for (let i = 1; i <= 5; i++) {
+        // Ensure minimum display time has passed before marking steps as completed
+        const elapsedTime = Date.now() - startTime;
+        const remainingTime = Math.max(0, MIN_DISPLAY_TIME - elapsedTime);
+        
+        if (remainingTime > 0) {
+            // Continue showing progress during the wait
+            updateProgressStep(6, 'Finalizing results...');
+            await new Promise(resolve => setTimeout(resolve, remainingTime));
+        }
+        
+        // Mark all steps as completed only after minimum time
+        for (let i = 1; i <= 6; i++) {
             const step = document.getElementById(`step${i}`);
             if (step) {
                 step.classList.remove('active');
                 step.classList.add('completed');
             }
-        }
-        
-        updateProgressStep(5, 'Finalizing results...');
-        
-        // Ensure minimum display time has passed
-        const elapsedTime = Date.now() - startTime;
-        const remainingTime = Math.max(0, MIN_DISPLAY_TIME - elapsedTime);
-        
-        if (remainingTime > 0) {
-            await new Promise(resolve => setTimeout(resolve, remainingTime));
         }
         
         // Additional small delay to show completion
