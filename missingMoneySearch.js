@@ -1265,6 +1265,10 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         console.log('Final URL:', finalUrl);
         console.log('Final title:', finalTitle);
         
+        // Get all text content to see what's on the page (needed for error detection)
+        const pageText = await page.evaluate(() => document.body.innerText);
+        console.log('Page text sample (first 5000 chars):', pageText.substring(0, 5000));
+        
         // CRITICAL: Check if we're still on the search form page (form submission may have failed)
         const isStillOnFormPage = finalUrl.includes('claim-search') && !finalUrl.includes('results') && !finalUrl.includes('claim-detail');
         if (isStillOnFormPage) {
@@ -1280,10 +1284,6 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 console.error('❌ Form submission error detected on page');
             }
         }
-        
-        // Get all text content to see what's on the page
-        const pageText = await page.evaluate(() => document.body.innerText);
-        console.log('Page text sample (first 5000 chars):', pageText.substring(0, 5000));
         
         // Check if URL changed (indicating form submission)
         const currentUrl = page.url();
