@@ -388,7 +388,9 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         // Note: Must use headless: true on Railway (no display server available)
         // The stealth techniques (user agent, viewport, etc.) still work in headless mode
         console.log('[BROWSER] Launching Chromium browser...');
-        browser = await chromium.launch({ 
+        
+        // Add timeout for browser launch to prevent hanging
+        const browserLaunchPromise = chromium.launch({ 
             headless: true, // Required for Railway deployment (no X server)
             args: [
                 '--no-sandbox',
@@ -400,9 +402,19 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 '--no-zygote',
                 '--disable-gpu',
                 '--disable-web-security',
-                '--disable-features=IsolateOrigins,site-per-process'
-            ]
+                '--disable-features=IsolateOrigins,site-per-process',
+                '--single-process' // Use single process to reduce resource usage
+            ],
+            timeout: 30000 // 30 second timeout for browser launch
         });
+        
+        // Race browser launch against timeout
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Browser launch timeout after 30 seconds')), 30000);
+        });
+        
+        browser = await Promise.race([browserLaunchPromise, timeoutPromise]);
+        console.log('[BROWSER] Browser launched successfully');
         
         // Create context with realistic browser fingerprint
         const context = await browser.newContext({
