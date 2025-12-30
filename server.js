@@ -132,7 +132,23 @@ async function initializeDatabase() {
             CREATE INDEX IF NOT EXISTS idx_leaderboard_handle ON leaderboard(handle)
         `);
         
+        // CRITICAL: Create instagram_cache table to cache Apify results and reduce API calls
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS instagram_cache (
+                username VARCHAR(255) PRIMARY KEY,
+                profile_pic_url TEXT,
+                full_name VARCHAR(255),
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
+        // Create index on updated_at for cache cleanup queries
+        await pool.query(`
+            CREATE INDEX IF NOT EXISTS idx_instagram_cache_updated_at ON instagram_cache(updated_at)
+        `);
+        
         console.log('[DATABASE] Leaderboard table initialized successfully');
+        console.log('[DATABASE] Instagram cache table initialized successfully');
     } catch (error) {
         console.error('[DATABASE] Error initializing database:', error);
         // Don't crash if database isn't available - app can still run
@@ -152,6 +168,54 @@ const corsHeaders = {
 
 // Fetch Instagram profile picture using Apify
 async function fetchInstagramProfile(username) {
+    // CRITICAL: Check database cache FIRST before calling Apify
+    if (pool) {
+        try {
+            const cacheResult = await pool.query(
+                `SELECT profile_pic_url, updated_at FROM instagram_cache WHERE username = $1 AND profile_pic_url IS NOT NULL AND updated_at > NOW() - INTERVAL '90 days'`,
+                [username.toLowerCase()]
+            );
+            
+            if (cacheResult.rows.length > 0 && cacheResult.rows[0].profile_pic_url) {
+                console.log(`[PROFILE] ✅ Using cached profile pic for ${username} (from database)`);
+                return { success: true, url: cacheResult.rows[0].profile_pic_url };
+            }
+        } catch (cacheError) {
+            console.error(`[PROFILE] Error checking cache:`, cacheError.message);
+            // Continue to Apify call if cache check fails
+        }
+    }
+    
+    // Also check if profile pic already exists in leaderboard
+    if (pool) {
+        try {
+            const leaderboardResult = await pool.query(
+                `SELECT profile_pic FROM leaderboard WHERE handle = $1 AND profile_pic IS NOT NULL AND profile_pic != '' LIMIT 1`,
+                [username.toLowerCase()]
+            );
+            
+            if (leaderboardResult.rows.length > 0 && leaderboardResult.rows[0].profile_pic) {
+                const existingPic = leaderboardResult.rows[0].profile_pic;
+                // If it's a URL (not base64), use it
+                if (existingPic.startsWith('http')) {
+                    console.log(`[PROFILE] ✅ Using existing profile pic from leaderboard for ${username}`);
+                    // Cache it for future use
+                    if (pool) {
+                        pool.query(
+                            `INSERT INTO instagram_cache (username, profile_pic_url, updated_at) VALUES ($1, $2, NOW()) 
+                             ON CONFLICT (username) DO UPDATE SET profile_pic_url = $2, updated_at = NOW()`,
+                            [username.toLowerCase(), existingPic]
+                        ).catch(() => {}); // Ignore errors
+                    }
+                    return { success: true, url: existingPic };
+                }
+            }
+        } catch (leaderboardError) {
+            console.error(`[PROFILE] Error checking leaderboard:`, leaderboardError.message);
+            // Continue to Apify call if check fails
+        }
+    }
+    
     // Use Apify Instagram scraper to get profile picture
     try {
         // Check if Apify client is initialized
@@ -161,7 +225,7 @@ async function fetchInstagramProfile(username) {
         }
         
         // Reduced logging to avoid Railway rate limits - only log critical info
-        console.log(`[PROFILE] Fetching profile for ${username}`);
+        console.log(`[PROFILE] 🔄 Calling Apify for ${username} (cache miss)`);
         
         // Prepare Apify Actor input
         // Use Instagram Profile Scraper specifically designed for profile data
@@ -249,6 +313,18 @@ async function fetchInstagramProfile(username) {
             
             if (profilePicUrl && profilePicUrl.length > 0) {
                 console.log(`[PROFILE] SUCCESS: ${username} -> ${profilePicUrl.substring(0, 60)}...`);
+                
+                // CRITICAL: Cache the result in database to avoid future Apify calls
+                if (pool) {
+                    pool.query(
+                        `INSERT INTO instagram_cache (username, profile_pic_url, updated_at) VALUES ($1, $2, NOW()) 
+                         ON CONFLICT (username) DO UPDATE SET profile_pic_url = $2, updated_at = NOW()`,
+                        [username.toLowerCase(), profilePicUrl]
+                    ).catch(err => {
+                        console.error(`[PROFILE] Error caching result:`, err.message);
+                    });
+                }
+                
                 return { success: true, url: profilePicUrl };
             }
         }
@@ -970,9 +1046,27 @@ async function fetchInstagramProfile_OLD(username) {
 
 // Fetch Instagram full name
 async function fetchInstagramFullName(username) {
+    // CRITICAL: Check database cache FIRST before calling Apify
+    if (pool) {
+        try {
+            const cacheResult = await pool.query(
+                `SELECT full_name, updated_at FROM instagram_cache WHERE username = $1 AND full_name IS NOT NULL AND updated_at > NOW() - INTERVAL '90 days'`,
+                [username.toLowerCase()]
+            );
+            
+            if (cacheResult.rows.length > 0 && cacheResult.rows[0].full_name) {
+                console.log(`[INSTAGRAM] ✅ Using cached name for ${username} (from database): ${cacheResult.rows[0].full_name}`);
+                return { success: true, fullName: cacheResult.rows[0].full_name };
+            }
+        } catch (cacheError) {
+            console.error(`[INSTAGRAM] Error checking cache:`, cacheError.message);
+            // Continue to Apify call if cache check fails
+        }
+    }
+    
     // Use Apify Instagram scraper to get profile data
     try {
-        console.log(`[INSTAGRAM] Using Apify to extract name for ${username}`);
+        console.log(`[INSTAGRAM] 🔄 Calling Apify to extract name for ${username} (cache miss)`);
         
         // Check if Apify client is initialized
         if (!apifyClient) {
@@ -1101,6 +1195,18 @@ async function fetchInstagramFullName(username) {
                 // Validate that the name looks reasonable (not just the username)
                 if (fullName.toLowerCase() !== username.toLowerCase() && !fullName.startsWith('@')) {
                     console.log(`[INSTAGRAM] ✅✅✅ Successfully extracted name: ${fullName}`);
+                    
+                    // CRITICAL: Cache the result in database to avoid future Apify calls
+                    if (pool) {
+                        pool.query(
+                            `INSERT INTO instagram_cache (username, full_name, updated_at) VALUES ($1, $2, NOW()) 
+                             ON CONFLICT (username) DO UPDATE SET full_name = $2, updated_at = NOW()`,
+                            [username.toLowerCase(), fullName]
+                        ).catch(err => {
+                            console.error(`[INSTAGRAM] Error caching result:`, err.message);
+                        });
+                    }
+                    
                     return { success: true, fullName: fullName };
                 } else {
                     console.log(`[INSTAGRAM] ⚠️ Extracted name "${fullName}" appears to be just the username, rejecting`);
