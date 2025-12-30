@@ -224,6 +224,13 @@ async function fetchInstagramProfile(username) {
             return { success: false, error: 'Instagram API not configured. APIFY_API_TOKEN environment variable is missing.' };
         }
         
+        // Check if Apify limit is already exceeded - don't even try if we know it's failed
+        // This prevents wasting time and resources
+        if (!apifyClient) {
+            console.error(`[PROFILE] ❌ Apify client not initialized!`);
+            return { success: false, error: 'Instagram API not configured. APIFY_API_TOKEN environment variable is missing.' };
+        }
+        
         // Reduced logging to avoid Railway rate limits - only log critical info
         console.log(`[PROFILE] 🔄 Calling Apify for ${username} (cache miss)`);
         
@@ -242,6 +249,11 @@ async function fetchInstagramProfile(username) {
             console.error(`[PROFILE] ❌ Apify actor call failed:`, actorError.message);
             if (actorError.message && (actorError.message.includes('401') || actorError.message.includes('unauthorized'))) {
                 return { success: false, error: 'Apify API authentication failed. Please check APIFY_API_TOKEN environment variable.' };
+            }
+            // If monthly limit exceeded, don't try fallback - just return error
+            if (actorError.message && actorError.message.includes('Monthly usage hard limit exceeded')) {
+                console.error(`[PROFILE] ⚠️ Apify monthly limit exceeded - skipping fallback to save resources`);
+                return { success: false, error: 'Instagram profile fetching is temporarily unavailable due to API limits. Please try again later.' };
             }
             throw actorError;
         }
@@ -330,29 +342,33 @@ async function fetchInstagramProfile(username) {
         }
         
         // Fallback: Use Playwright to Google search for Instagram profile
-        try {
-            const googleResult = await fetchInstagramProfileGoogleFallback(username);
-            if (googleResult.success && googleResult.url) {
-                console.log(`[PROFILE] Google fallback SUCCESS: ${username}`);
-                return googleResult;
-            }
-        } catch (googleError) {
-            // Silently continue - fallback failed
-        }
+        // DISABLED: This causes resource exhaustion errors. Only use if Apify fails but limit not exceeded
+        // try {
+        //     const googleResult = await fetchInstagramProfileGoogleFallback(username);
+        //     if (googleResult.success && googleResult.url) {
+        //         console.log(`[PROFILE] Google fallback SUCCESS: ${username}`);
+        //         return googleResult;
+        //     }
+        // } catch (googleError) {
+        //     // Silently continue - fallback failed
+        // }
         
         // If both methods failed
         return { success: false, error: 'Profile picture not found' };
     } catch (error) {
-        // Try Google search fallback even on Apify error
-        try {
-            const googleResult = await fetchInstagramProfileGoogleFallback(username);
-            if (googleResult.success && googleResult.url) {
-                console.log(`[PROFILE] Google fallback SUCCESS after error: ${username}`);
-                return googleResult;
-            }
-        } catch (googleError) {
-            // Silently continue
-        }
+        // DISABLED: Google fallback causes resource exhaustion
+        // Only try Google fallback if it's NOT a limit exceeded error
+        // if (!error.message || !error.message.includes('Monthly usage hard limit exceeded')) {
+        //     try {
+        //         const googleResult = await fetchInstagramProfileGoogleFallback(username);
+        //         if (googleResult.success && googleResult.url) {
+        //             console.log(`[PROFILE] Google fallback SUCCESS after error: ${username}`);
+        //             return googleResult;
+        //         }
+        //     } catch (googleError) {
+        //         // Silently continue
+        //     }
+        // }
         
         return { success: false, error: `Failed: ${error.message}` };
     }
