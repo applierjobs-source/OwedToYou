@@ -403,7 +403,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 '--disable-gpu',
                 '--disable-web-security',
                 '--disable-features=IsolateOrigins,site-per-process',
-                '--single-process' // Use single process to reduce resource usage
+                '--max-old-space-size=512' // Limit memory usage
             ],
             timeout: 30000 // 30 second timeout for browser launch
         });
