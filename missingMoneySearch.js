@@ -3,7 +3,7 @@ const { CloudflareSolver } = require('./cloudflareSolver');
 
 // Limit concurrent browser instances to prevent resource exhaustion
 let activeBrowserCount = 0;
-const MAX_CONCURRENT_BROWSERS = 2; // Limit to 2 concurrent browsers
+const MAX_CONCURRENT_BROWSERS = 5; // Limit to 5 concurrent browsers (increased from 2)
 const browserQueue = [];
 let processingQueue = false;
 
