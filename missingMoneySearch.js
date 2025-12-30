@@ -1,6 +1,43 @@
 const { chromium } = require('playwright');
 const { CloudflareSolver } = require('./cloudflareSolver');
 
+// Limit concurrent browser instances to prevent resource exhaustion
+let activeBrowserCount = 0;
+const MAX_CONCURRENT_BROWSERS = 2; // Limit to 2 concurrent browsers
+const browserQueue = [];
+let processingQueue = false;
+
+// Semaphore to limit concurrent browser launches
+async function acquireBrowserSlot() {
+    return new Promise((resolve) => {
+        if (activeBrowserCount < MAX_CONCURRENT_BROWSERS) {
+            activeBrowserCount++;
+            resolve();
+        } else {
+            browserQueue.push(resolve);
+            processBrowserQueue();
+        }
+    });
+}
+
+function releaseBrowserSlot() {
+    activeBrowserCount--;
+    processBrowserQueue();
+}
+
+function processBrowserQueue() {
+    if (processingQueue) return;
+    processingQueue = true;
+    
+    while (activeBrowserCount < MAX_CONCURRENT_BROWSERS && browserQueue.length > 0) {
+        const resolve = browserQueue.shift();
+        activeBrowserCount++;
+        resolve();
+    }
+    
+    processingQueue = false;
+}
+
 // Human-like delay function
 function randomDelay(min = 100, max = 500) {
     return new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * (max - min) + min)));
@@ -341,11 +378,16 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         console.log('⚠️ Reason: use2Captcha=' + use2Captcha + ', captchaApiKey=' + !!captchaApiKey);
     }
     
+    // Acquire browser slot to limit concurrent instances
+    await acquireBrowserSlot();
+    console.log(`[BROWSER] Acquired browser slot (${activeBrowserCount}/${MAX_CONCURRENT_BROWSERS} active)`);
+    
     let browser = null;
     try {
         // Launch browser with stealth settings
         // Note: Must use headless: true on Railway (no display server available)
         // The stealth techniques (user agent, viewport, etc.) still work in headless mode
+        console.log('[BROWSER] Launching Chromium browser...');
         browser = await chromium.launch({ 
             headless: true, // Required for Railway deployment (no X server)
             args: [
@@ -2518,15 +2560,39 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         
     } catch (error) {
         console.error('Error searching Missing Money:', error);
+        
+        // Check if it's a resource exhaustion error
+        if (error.message && (
+            error.message.includes('Resource temporarily unavailable') ||
+            error.message.includes('pthread_create') ||
+            error.message.includes('ENOMEM') ||
+            error.message.includes('EMFILE')
+        )) {
+            console.error('❌ Resource exhaustion error detected - too many concurrent browser instances');
+            return {
+                success: false,
+                error: 'Server resources temporarily unavailable. Please try again in a few seconds.',
+                results: []
+            };
+        }
+        
         return {
             success: false,
             error: error.message,
             results: []
         };
     } finally {
+        // Always close browser and release slot
         if (browser) {
-            await browser.close();
+            try {
+                await browser.close();
+                console.log('[BROWSER] Browser closed successfully');
+            } catch (closeError) {
+                console.error('[BROWSER] Error closing browser:', closeError);
+            }
         }
+        releaseBrowserSlot();
+        console.log(`[BROWSER] Released browser slot (${activeBrowserCount}/${MAX_CONCURRENT_BROWSERS} active)`);
     }
 }
 
