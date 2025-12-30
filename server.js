@@ -181,7 +181,28 @@ async function fetchInstagramProfile(username) {
                 return { success: true, url: cacheResult.rows[0].profile_pic_url };
             }
         } catch (cacheError) {
-            console.error(`[PROFILE] Error checking cache:`, cacheError.message);
+            // If table doesn't exist, create it
+            if (cacheError.message && cacheError.message.includes('does not exist')) {
+                console.log(`[PROFILE] Cache table doesn't exist, creating it...`);
+                try {
+                    await pool.query(`
+                        CREATE TABLE IF NOT EXISTS instagram_cache (
+                            username VARCHAR(255) PRIMARY KEY,
+                            profile_pic_url TEXT,
+                            full_name VARCHAR(255),
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    `);
+                    await pool.query(`
+                        CREATE INDEX IF NOT EXISTS idx_instagram_cache_updated_at ON instagram_cache(updated_at)
+                    `);
+                    console.log(`[PROFILE] Cache table created successfully`);
+                } catch (createError) {
+                    console.error(`[PROFILE] Error creating cache table:`, createError.message);
+                }
+            } else {
+                console.error(`[PROFILE] Error checking cache:`, cacheError.message);
+            }
             // Continue to Apify call if cache check fails
         }
     }
@@ -1075,7 +1096,28 @@ async function fetchInstagramFullName(username) {
                 return { success: true, fullName: cacheResult.rows[0].full_name };
             }
         } catch (cacheError) {
-            console.error(`[INSTAGRAM] Error checking cache:`, cacheError.message);
+            // If table doesn't exist, create it
+            if (cacheError.message && cacheError.message.includes('does not exist')) {
+                console.log(`[INSTAGRAM] Cache table doesn't exist, creating it...`);
+                try {
+                    await pool.query(`
+                        CREATE TABLE IF NOT EXISTS instagram_cache (
+                            username VARCHAR(255) PRIMARY KEY,
+                            profile_pic_url TEXT,
+                            full_name VARCHAR(255),
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    `);
+                    await pool.query(`
+                        CREATE INDEX IF NOT EXISTS idx_instagram_cache_updated_at ON instagram_cache(updated_at)
+                    `);
+                    console.log(`[INSTAGRAM] Cache table created successfully`);
+                } catch (createError) {
+                    console.error(`[INSTAGRAM] Error creating cache table:`, createError.message);
+                }
+            } else {
+                console.error(`[INSTAGRAM] Error checking cache:`, cacheError.message);
+            }
             // Continue to Apify call if cache check fails
         }
     }
