@@ -2343,15 +2343,10 @@ async function fetchInstagramFullName_OLD(username) {
 
 // Create server
 const server = http.createServer((req, res) => {
-    // Redirect non-www to www
+    // Serve content on both www and non-www domains
+    // Note: Railway must have SSL certificates configured for both domains
+    // The 502 error occurs at Railway's proxy level, not in this application
     const host = req.headers.host || '';
-    if (host && !host.startsWith('www.')) {
-        const protocol = req.headers['x-forwarded-proto'] || 'https';
-        const redirectUrl = `${protocol}://www.${host}${req.url}`;
-        res.writeHead(301, { 'Location': redirectUrl });
-        res.end();
-        return;
-    }
     
     // Handle CORS preflight
     if (req.method === 'OPTIONS') {

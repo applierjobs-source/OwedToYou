@@ -5889,7 +5889,7 @@ async function handleMailingAddressSubmit(event) {
             // Fire Google Analytics conversion event for paid conversion
             if (typeof gtag !== 'undefined') {
                 gtag('event', 'conversion', {
-                    'send_to': 'AW-17710035997/ESHYCLzZsrsbEJ3o5vxB',
+                    'send_to': 'AW-17850698021/CONVERSION_LABEL',
                     'value': 1.0,
                     'currency': 'USD'
                 });
