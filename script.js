@@ -5449,10 +5449,7 @@ async function showShareModal(firstName, lastName, amount, results = []) {
     // Check if we're on the /search page (name-only search, no Instagram)
     const isSearchPage = window.location.pathname === '/search' || window.location.pathname === '/search/';
     
-    // Reload leaderboard to ensure we have the latest data including the user's entry
-    await loadLeaderboard();
-    
-    // Find user's rank
+    // Calculate rank from existing leaderboardData first (for immediate display)
     const userHandle = (firstName + lastName).toLowerCase().replace(/\s+/g, '');
     let userRank = null;
     
@@ -5485,6 +5482,44 @@ async function showShareModal(firstName, lastName, amount, results = []) {
     if (!userRank) {
         userRank = 1;
     }
+    
+    // Show modal immediately (don't wait for leaderboard reload)
+    // Reload leaderboard in background and update rank if it changes
+    loadLeaderboard().then(() => {
+        // Recalculate rank after leaderboard reload
+        if (leaderboardData && leaderboardData.length > 0) {
+            const sortedLeaderboard = [...leaderboardData].sort((a, b) => {
+                if (a.isPlaceholder && !b.isPlaceholder) return 1;
+                if (!a.isPlaceholder && b.isPlaceholder) return -1;
+                return b.amount - a.amount;
+            });
+            
+            const userIndex = sortedLeaderboard.findIndex(entry => {
+                const entryHandle = cleanHandle(entry.handle);
+                const searchHandle = cleanHandle(userHandle);
+                return entryHandle === searchHandle;
+            });
+            
+            let newRank = null;
+            if (userIndex >= 0) {
+                newRank = userIndex + 1;
+            } else {
+                const rankByAmount = sortedLeaderboard.findIndex(entry => entry.amount < amount) + 1;
+                newRank = rankByAmount > 0 ? rankByAmount : sortedLeaderboard.length + 1;
+            }
+            
+            // Update rank display if it changed
+            if (newRank && newRank !== userRank) {
+                const rankElement = document.querySelector('.share-card p[style*="Rank"]');
+                if (rankElement) {
+                    rankElement.textContent = `Rank #${newRank} on Leaderboard`;
+                }
+            }
+        }
+    }).catch(err => {
+        console.error('Error reloading leaderboard:', err);
+        // Don't block UI if leaderboard reload fails
+    });
     
     const modal = document.getElementById('claimModal');
     if (!modal) {
