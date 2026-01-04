@@ -383,6 +383,13 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
     console.log(`[BROWSER] Acquired browser slot (${activeBrowserCount}/${MAX_CONCURRENT_BROWSERS} active)`);
     
     let browser = null;
+    
+    // Overall timeout wrapper (75 seconds max) to prevent infinite hanging
+    const overallTimeout = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Search operation timed out after 75 seconds')), 75000);
+    });
+    
+    const searchOperation = (async () => {
     try {
         // Launch browser with stealth settings
         // Note: Must use headless: true on Railway (no display server available)
@@ -1032,10 +1039,10 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         // Wait for navigation or Cloudflare challenge
         console.log('🔍🔍🔍 WAITING FOR FORM SUBMISSION RESPONSE 🔍🔍🔍');
         try {
-            // Wait for either navigation to results page OR Cloudflare challenge
+            // Wait for either navigation to results page OR Cloudflare challenge (reduced timeout)
             await Promise.race([
-                page.waitForNavigation({ waitUntil: 'networkidle', timeout: 10000 }).catch(() => {}),
-                page.waitForTimeout(5000)
+                page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 8000 }).catch(() => {}),
+                page.waitForTimeout(4000) // Reduced from 5s to 4s
             ]);
         } catch (e) {
             console.log('Navigation wait completed or timed out');
@@ -1298,9 +1305,10 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         
         // Wait for navigation or results to appear
         try {
+            // Reduced timeouts to prevent hanging - use Promise.race with shorter timeouts
             await Promise.race([
-                page.waitForNavigation({ waitUntil: 'networkidle', timeout: 25000 }),
-                page.waitForSelector('table, [class*="result"], [class*="claim"], [class*="table"], [id*="result"], [id*="claim"], tbody, [role="row"]', { timeout: 25000 }),
+                page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {}),
+                page.waitForSelector('table, [class*="result"], [class*="claim"], [class*="table"], [id*="result"], [id*="claim"], tbody, [role="row"]', { timeout: 15000 }).catch(() => {}),
                 page.waitForFunction(
                     () => {
                         const text = document.body.innerText;
@@ -1313,9 +1321,9 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                                                    text.includes('Holder');
                         return hasAmount && hasResultIndicators;
                     },
-                    { timeout: 25000 }
-                ),
-                page.waitForTimeout(10000)
+                    { timeout: 15000 }
+                ).catch(() => {}),
+                page.waitForTimeout(8000) // Reduced from 10s to 8s
             ]);
         } catch (e) {
             console.log('Waiting for results timed out, continuing...');
@@ -1324,17 +1332,19 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         // Note: verificationComplete is set in the 2captcha block above if token injection succeeds
         // If we reach here and 2captcha wasn't used or didn't complete, we'll continue to results extraction
         
-        // Wait for any AJAX/API calls to complete
-        await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+        // Wait for any AJAX/API calls to complete (with shorter timeout to prevent hanging)
+        await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {
+            console.log('Networkidle timeout - continuing anyway');
+        });
         
-        // Wait a bit more for any dynamic content to render
-        await page.waitForTimeout(5000);
+        // Wait a bit more for any dynamic content to render (reduced from 5s to 2s)
+        await page.waitForTimeout(2000);
         
         // Scroll down to trigger lazy loading if any
         await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(1000); // Reduced from 2s to 1s
         await page.evaluate(() => window.scrollTo(0, 0));
-        await page.waitForTimeout(1000);
+        await page.waitForTimeout(500); // Reduced from 1s to 0.5s
         
         // Take a screenshot for debugging
         await page.screenshot({ path: '/tmp/missing-money-results.png', fullPage: true });
@@ -2605,6 +2615,29 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         }
         releaseBrowserSlot();
         console.log(`[BROWSER] Released browser slot (${activeBrowserCount}/${MAX_CONCURRENT_BROWSERS} active)`);
+    }
+    })();
+    
+    // Race the search operation against overall timeout
+    try {
+        return await Promise.race([searchOperation, overallTimeout]);
+    } catch (error) {
+        // Clean up browser if timeout occurred
+        if (browser) {
+            try {
+                await browser.close();
+            } catch (closeError) {
+                console.error('[BROWSER] Error closing browser after timeout:', closeError);
+            }
+        }
+        releaseBrowserSlot();
+        
+        // Return timeout error
+        return {
+            success: false,
+            error: error.message || 'Search operation timed out',
+            results: []
+        };
     }
 }
 

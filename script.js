@@ -4501,20 +4501,36 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
     try {
         // Search Missing Money with 2captcha API key
         const apiBase = window.location.origin;
-        const response = await fetch(`${apiBase}/api/search-missing-money`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                firstName: claimData.firstName,
-                lastName: claimData.lastName,
-                city: claimData.city,
-                state: claimData.state,
-                use2Captcha: true,
-                captchaApiKey: '35172944ef966249d7c2e102c3196f0c' // TODO: Move to environment variable or secure storage
-            })
-        });
+        
+        // Add timeout to prevent hanging (90 seconds max)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 90000);
+        
+        let response;
+        try {
+            response = await fetch(`${apiBase}/api/search-missing-money`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    firstName: claimData.firstName,
+                    lastName: claimData.lastName,
+                    city: claimData.city,
+                    state: claimData.state,
+                    use2Captcha: true,
+                    captchaApiKey: '35172944ef966249d7c2e102c3196f0c' // TODO: Move to environment variable or secure storage
+                }),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+        } catch (fetchError) {
+            clearTimeout(timeoutId);
+            if (fetchError.name === 'AbortError') {
+                throw new Error('Search timed out after 90 seconds. Please try again.');
+            }
+            throw fetchError;
+        }
         
         const result = await response.json();
         
@@ -4718,6 +4734,7 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
         const remainingTime = Math.max(0, MIN_DISPLAY_TIME - elapsedTime);
         
         if (remainingTime > 0) {
+            updateProgressStep(6, 'Error occurred...');
             await new Promise(resolve => setTimeout(resolve, remainingTime));
         }
         
@@ -4726,8 +4743,16 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
         // Small delay before showing error
         await new Promise(resolve => setTimeout(resolve, 300));
         
+        // Show specific error message
+        let errorMessage = 'An error occurred while searching. Please try again.';
+        if (error.message && error.message.includes('timeout')) {
+            errorMessage = 'Search timed out after 90 seconds. The search may be taking longer than expected. Please try again.';
+        } else if (error.message) {
+            errorMessage = error.message;
+        }
+        
         // Show error in a modal instead of alert
-        showErrorModal('An error occurred while searching. Please try again.');
+        showErrorModal(errorMessage);
     }
 }
 
