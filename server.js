@@ -5,7 +5,7 @@ const zlib = require('zlib');
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
-const { searchMissingMoney } = require('./missingMoneySearch');
+const { searchMissingMoney, getBrowserStats } = require('./missingMoneySearch');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { chromium } = require('playwright');
 const { ApifyClient } = require('apify-client');
@@ -2616,15 +2616,44 @@ const server = http.createServer((req, res) => {
                 if (captchaApiKey) {
                     console.log(`API key (first 10 chars): ${captchaApiKey.substring(0, 10)}...`);
                 }
-                const result = await searchMissingMoney(cleanedFirstName, cleanedLastName, searchCity, searchState, use2Captcha || false, captchaApiKey || null);
+                
+                // Execute search with timeout protection
+                let result;
+                try {
+                    result = await searchMissingMoney(cleanedFirstName, cleanedLastName, searchCity, searchState, use2Captcha || false, captchaApiKey || null);
+                } catch (searchError) {
+                    console.error('[SEARCH] Error in searchMissingMoney:', searchError);
+                    res.writeHead(500, corsHeaders);
+                    res.end(JSON.stringify({ 
+                        success: false, 
+                        error: searchError.message || 'Search failed due to server error. Please try again.',
+                        results: []
+                    }));
+                    return;
+                }
                 
                 res.writeHead(200, corsHeaders);
                 res.end(JSON.stringify(result));
             } catch (error) {
+                console.error('[SEARCH API] Unexpected error:', error);
                 res.writeHead(500, corsHeaders);
-                res.end(JSON.stringify({ success: false, error: error.message }));
+                res.end(JSON.stringify({ 
+                    success: false, 
+                    error: error.message || 'An unexpected error occurred. Please try again.',
+                    results: []
+                }));
             }
         });
+    } else if (parsedUrl.pathname === '/api/health' && req.method === 'GET') {
+        // Health check endpoint to monitor system status
+        const browserStats = getBrowserStats();
+        res.writeHead(200, corsHeaders);
+        res.end(JSON.stringify({ 
+            status: 'ok',
+            timestamp: new Date().toISOString(),
+            message: 'Server is running',
+            browserStats: browserStats
+        }));
     } else if (parsedUrl.pathname === '/api/leaderboard' && req.method === 'GET') {
         // Get leaderboard entries from PostgreSQL
         (async () => {

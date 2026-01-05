@@ -3,25 +3,45 @@ const { CloudflareSolver } = require('./cloudflareSolver');
 
 // Limit concurrent browser instances to prevent resource exhaustion
 let activeBrowserCount = 0;
-const MAX_CONCURRENT_BROWSERS = 5; // Limit to 5 concurrent browsers (increased from 2)
+// Make configurable via environment variable, default to 10 for better throughput
+const MAX_CONCURRENT_BROWSERS = parseInt(process.env.MAX_CONCURRENT_BROWSERS || '10', 10);
 const browserQueue = [];
 let processingQueue = false;
+const QUEUE_TIMEOUT = 120000; // 2 minutes max wait time in queue
 
-// Semaphore to limit concurrent browser launches
+// Semaphore to limit concurrent browser launches with timeout
 async function acquireBrowserSlot() {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         if (activeBrowserCount < MAX_CONCURRENT_BROWSERS) {
             activeBrowserCount++;
+            console.log(`[BROWSER] Slot acquired immediately (${activeBrowserCount}/${MAX_CONCURRENT_BROWSERS})`);
             resolve();
         } else {
-            browserQueue.push(resolve);
+            console.log(`[BROWSER] All slots busy, queuing request (queue length: ${browserQueue.length + 1})`);
+            const queueEntry = { resolve, timestamp: Date.now() };
+            browserQueue.push(queueEntry);
+            
+            // Add timeout to queue entry
+            const timeoutId = setTimeout(() => {
+                const index = browserQueue.indexOf(queueEntry);
+                if (index !== -1) {
+                    browserQueue.splice(index, 1);
+                    reject(new Error('Queue timeout: All browser slots are busy. Please try again in a moment.'));
+                }
+            }, QUEUE_TIMEOUT);
+            
+            queueEntry.timeoutId = timeoutId;
             processBrowserQueue();
         }
     });
 }
 
 function releaseBrowserSlot() {
-    activeBrowserCount--;
+    if (activeBrowserCount > 0) {
+        activeBrowserCount--;
+    } else {
+        console.warn('[BROWSER] WARNING: releaseBrowserSlot called but activeBrowserCount is already 0');
+    }
     processBrowserQueue();
 }
 
@@ -30,9 +50,13 @@ function processBrowserQueue() {
     processingQueue = true;
     
     while (activeBrowserCount < MAX_CONCURRENT_BROWSERS && browserQueue.length > 0) {
-        const resolve = browserQueue.shift();
-        activeBrowserCount++;
-        resolve();
+        const queueEntry = browserQueue.shift();
+        if (queueEntry && queueEntry.resolve) {
+            clearTimeout(queueEntry.timeoutId);
+            activeBrowserCount++;
+            console.log(`[BROWSER] Slot acquired from queue (${activeBrowserCount}/${MAX_CONCURRENT_BROWSERS}, queue: ${browserQueue.length})`);
+            queueEntry.resolve();
+        }
     }
     
     processingQueue = false;
@@ -378,11 +402,22 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         console.log('⚠️ Reason: use2Captcha=' + use2Captcha + ', captchaApiKey=' + !!captchaApiKey);
     }
     
-    // Acquire browser slot to limit concurrent instances
-    await acquireBrowserSlot();
-    console.log(`[BROWSER] Acquired browser slot (${activeBrowserCount}/${MAX_CONCURRENT_BROWSERS} active)`);
-    
+    // Acquire browser slot to limit concurrent instances (with timeout)
     let browser = null;
+    let slotAcquired = false;
+    
+    try {
+        await acquireBrowserSlot();
+        slotAcquired = true;
+        console.log(`[BROWSER] Acquired browser slot (${activeBrowserCount}/${MAX_CONCURRENT_BROWSERS} active)`);
+    } catch (queueError) {
+        // Queue timeout or other acquisition error
+        return {
+            success: false,
+            error: queueError.message || 'Unable to acquire browser slot. Please try again.',
+            results: []
+        };
+    }
     
     // Overall timeout wrapper (75 seconds max) to prevent infinite hanging
     const overallTimeout = new Promise((_, reject) => {
@@ -2604,33 +2639,48 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             results: []
         };
     } finally {
-        // Always close browser and release slot
+        // Always close browser and release slot - CRITICAL for resource management
         if (browser) {
             try {
-                await browser.close();
+                await browser.close().catch(err => {
+                    console.error('[BROWSER] Error closing browser in finally:', err);
+                });
                 console.log('[BROWSER] Browser closed successfully');
             } catch (closeError) {
                 console.error('[BROWSER] Error closing browser:', closeError);
             }
+            browser = null; // Clear reference
         }
-        releaseBrowserSlot();
-        console.log(`[BROWSER] Released browser slot (${activeBrowserCount}/${MAX_CONCURRENT_BROWSERS} active)`);
+        
+        // Always release slot if we acquired it
+        if (slotAcquired) {
+            releaseBrowserSlot();
+            console.log(`[BROWSER] Released browser slot (${activeBrowserCount}/${MAX_CONCURRENT_BROWSERS} active)`);
+        }
     }
     })();
     
     // Race the search operation against overall timeout
     try {
-        return await Promise.race([searchOperation, overallTimeout]);
+        const result = await Promise.race([searchOperation, overallTimeout]);
+        return result;
     } catch (error) {
-        // Clean up browser if timeout occurred
+        // Clean up browser if timeout or error occurred
         if (browser) {
             try {
-                await browser.close();
+                await browser.close().catch(err => {
+                    console.error('[BROWSER] Error closing browser after timeout:', err);
+                });
             } catch (closeError) {
-                console.error('[BROWSER] Error closing browser after timeout:', closeError);
+                console.error('[BROWSER] Error closing browser:', closeError);
             }
+            browser = null;
         }
-        releaseBrowserSlot();
+        
+        // Release slot if we acquired it
+        if (slotAcquired) {
+            releaseBrowserSlot();
+        }
         
         // Return timeout error
         return {
@@ -2641,5 +2691,15 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
     }
 }
 
-module.exports = { searchMissingMoney };
+// Export browser stats for monitoring
+function getBrowserStats() {
+    return {
+        activeBrowserCount,
+        maxConcurrentBrowsers: MAX_CONCURRENT_BROWSERS,
+        queueLength: browserQueue.length,
+        availableSlots: MAX_CONCURRENT_BROWSERS - activeBrowserCount
+    };
+}
+
+module.exports = { searchMissingMoney, getBrowserStats };
 
