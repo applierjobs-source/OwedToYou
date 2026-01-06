@@ -2617,19 +2617,59 @@ const server = http.createServer((req, res) => {
                     console.log(`API key (first 10 chars): ${captchaApiKey.substring(0, 10)}...`);
                 }
                 
-                // Execute search with timeout protection
+                // Execute search with timeout protection and retry logic
                 let result;
-                try {
-                    result = await searchMissingMoney(cleanedFirstName, cleanedLastName, searchCity, searchState, use2Captcha || false, captchaApiKey || null);
-                } catch (searchError) {
-                    console.error('[SEARCH] Error in searchMissingMoney:', searchError);
-                    res.writeHead(500, corsHeaders);
-                    res.end(JSON.stringify({ 
-                        success: false, 
-                        error: searchError.message || 'Search failed due to server error. Please try again.',
-                        results: []
-                    }));
-                    return;
+                let retries = 0;
+                const MAX_RETRIES = 2;
+                
+                while (retries <= MAX_RETRIES) {
+                    try {
+                        result = await searchMissingMoney(cleanedFirstName, cleanedLastName, searchCity, searchState, use2Captcha || false, captchaApiKey || null);
+                        
+                        // If successful or non-retryable error, break
+                        if (result.success || !result.error || !result.error.includes('Server is processing')) {
+                            break;
+                        }
+                        
+                        // If resource exhaustion, wait and retry
+                        if (result.error && result.error.includes('Server is processing')) {
+                            retries++;
+                            if (retries <= MAX_RETRIES) {
+                                const waitTime = Math.min(1000 * Math.pow(2, retries), 5000); // Exponential backoff, max 5s
+                                console.log(`[SEARCH] Resource exhaustion detected, waiting ${waitTime}ms before retry ${retries}/${MAX_RETRIES}...`);
+                                await new Promise(resolve => setTimeout(resolve, waitTime));
+                                continue;
+                            }
+                        }
+                        break;
+                    } catch (searchError) {
+                        console.error('[SEARCH] Error in searchMissingMoney:', searchError);
+                        
+                        // Check if it's a retryable error
+                        const isRetryable = searchError.message && (
+                            searchError.message.includes('Resource temporarily unavailable') ||
+                            searchError.message.includes('ENOMEM') ||
+                            searchError.message.includes('EMFILE') ||
+                            searchError.message.includes('pthread_create')
+                        );
+                        
+                        if (isRetryable && retries < MAX_RETRIES) {
+                            retries++;
+                            const waitTime = Math.min(1000 * Math.pow(2, retries), 5000);
+                            console.log(`[SEARCH] Retryable error detected, waiting ${waitTime}ms before retry ${retries}/${MAX_RETRIES}...`);
+                            await new Promise(resolve => setTimeout(resolve, waitTime));
+                            continue;
+                        }
+                        
+                        // Non-retryable or max retries reached
+                        res.writeHead(500, corsHeaders);
+                        res.end(JSON.stringify({ 
+                            success: false, 
+                            error: searchError.message || 'Search failed due to server error. Please try again.',
+                            results: []
+                        }));
+                        return;
+                    }
                 }
                 
                 res.writeHead(200, corsHeaders);

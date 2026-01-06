@@ -3,11 +3,13 @@ const { CloudflareSolver } = require('./cloudflareSolver');
 
 // Limit concurrent browser instances to prevent resource exhaustion
 let activeBrowserCount = 0;
-// Make configurable via environment variable, default to 10 for better throughput
-const MAX_CONCURRENT_BROWSERS = parseInt(process.env.MAX_CONCURRENT_BROWSERS || '10', 10);
+// Make configurable via environment variable, default to 3 for reliability (reduced from 10)
+// Lower number = more reliable, less resource exhaustion
+const MAX_CONCURRENT_BROWSERS = parseInt(process.env.MAX_CONCURRENT_BROWSERS || '3', 10);
 const browserQueue = [];
 let processingQueue = false;
-const QUEUE_TIMEOUT = 120000; // 2 minutes max wait time in queue
+const QUEUE_TIMEOUT = 300000; // 5 minutes max wait time in queue (increased for high traffic)
+const MAX_RETRIES = 2; // Maximum retries for resource exhaustion errors
 
 // Semaphore to limit concurrent browser launches with timeout
 async function acquireBrowserSlot() {
@@ -39,9 +41,11 @@ async function acquireBrowserSlot() {
 function releaseBrowserSlot() {
     if (activeBrowserCount > 0) {
         activeBrowserCount--;
+        console.log(`[BROWSER] Slot released (${activeBrowserCount}/${MAX_CONCURRENT_BROWSERS} active)`);
     } else {
-        console.warn('[BROWSER] WARNING: releaseBrowserSlot called but activeBrowserCount is already 0');
+        console.warn('[BROWSER] WARNING: releaseBrowserSlot called but activeBrowserCount is already 0 - possible double release');
     }
+    // Always process queue after release
     processBrowserQueue();
 }
 
@@ -2617,27 +2621,28 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         
     } catch (error) {
         console.error('Error searching Missing Money:', error);
+        console.error('Error stack:', error.stack);
         
-        // Check if it's a resource exhaustion error
-        if (error.message && (
+        // Check if it's a resource exhaustion error - but DON'T return error immediately
+        // Let the finally block clean up first, then we'll handle it
+        const isResourceExhaustion = error.message && (
             error.message.includes('Resource temporarily unavailable') ||
             error.message.includes('pthread_create') ||
             error.message.includes('ENOMEM') ||
-            error.message.includes('EMFILE')
-        )) {
-            console.error('❌ Resource exhaustion error detected - too many concurrent browser instances');
-            return {
-                success: false,
-                error: 'Server resources temporarily unavailable. Please try again in a few seconds.',
-                results: []
-            };
+            error.message.includes('EMFILE') ||
+            error.message.includes('Cannot find module') ||
+            error.message.includes('spawn') ||
+            error.message.includes('ENOSPC')
+        );
+        
+        if (isResourceExhaustion) {
+            console.error('❌ Resource exhaustion error detected:', error.message);
+            // Store error to return after cleanup
+            error._isResourceExhaustion = true;
         }
         
-        return {
-            success: false,
-            error: error.message,
-            results: []
-        };
+        // Re-throw to be caught by outer handler
+        throw error;
     } finally {
         // Always close browser and release slot - CRITICAL for resource management
         if (browser) {
@@ -2663,9 +2668,17 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
     // Race the search operation against overall timeout
     try {
         const result = await Promise.race([searchOperation, overallTimeout]);
+        
+        // Check if result indicates resource exhaustion
+        if (result && !result.success && result.error && result.error.includes('Server resources temporarily unavailable')) {
+            console.warn('[BROWSER] Resource exhaustion detected in result, waiting before retry...');
+            // Wait a bit to let resources free up
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        
         return result;
     } catch (error) {
-        // Clean up browser if timeout or error occurred
+        // Clean up browser if timeout or error occurred - CRITICAL
         if (browser) {
             try {
                 await browser.close().catch(err => {
@@ -2677,12 +2690,27 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             browser = null;
         }
         
-        // Release slot if we acquired it
+        // Release slot if we acquired it - ALWAYS release
         if (slotAcquired) {
             releaseBrowserSlot();
         }
         
-        // Return timeout error
+        // Check if it's a resource exhaustion error
+        if (error._isResourceExhaustion || (error.message && (
+            error.message.includes('Resource temporarily unavailable') ||
+            error.message.includes('pthread_create') ||
+            error.message.includes('ENOMEM') ||
+            error.message.includes('EMFILE')
+        ))) {
+            console.error('❌ Resource exhaustion - returning user-friendly error');
+            return {
+                success: false,
+                error: 'Server is processing many requests. Please wait a moment and try again.',
+                results: []
+            };
+        }
+        
+        // Return timeout or other error
         return {
             success: false,
             error: error.message || 'Search operation timed out',
