@@ -4581,14 +4581,13 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
             }
         }
         
-        // Additional small delay to show completion
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Small delay to show completion (reduced from 1s to 300ms)
+        await new Promise(resolve => setTimeout(resolve, 300));
         
         // Hide progress modal
         hideProgressModal();
         
-        // Small delay before showing result
-        await new Promise(resolve => setTimeout(resolve, 300));
+        // No delay before showing result - show immediately
         
         // Debug logging
         console.log('🔍 Frontend received result:', {
@@ -4609,9 +4608,16 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
             console.log('📊 First result:', result.results[0]);
             console.log('⚠️ Note: success=' + result.success + ' but results exist, showing results anyway');
             
-            // CRITICAL: Only add to leaderboard if this is an Instagram search (not manual name search)
+            // Show results modal IMMEDIATELY (don't wait for leaderboard)
+            showResultsModal(claimData, {
+                success: true, // Force success since we have results
+                results: result.results,
+                totalAmount: result.totalAmount || 0
+            });
+            
+            // Add to leaderboard in background (non-blocking) - only for Instagram searches
             if (isInstagramSearch) {
-                console.log('🚀🚀🚀 ADDING TO LEADERBOARD NOW (Instagram search) 🚀🚀🚀');
+                console.log('🚀🚀🚀 ADDING TO LEADERBOARD IN BACKGROUND (Instagram search) 🚀🚀🚀');
                 console.log('Entry details:', {
                     name: claimData.firstName + ' ' + claimData.lastName,
                     handle: claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''),
@@ -4620,31 +4626,23 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
                     hasProfilePic: !!claimData.profilePic
                 });
                 
-                try {
-                    await addToLeaderboard(
-                        claimData.firstName + ' ' + claimData.lastName, 
-                        claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 
-                        result.totalAmount || 0, 
-                        false, 
-                        true, 
-                        result.results || [], 
-                        claimData.profilePic
-                    );
-                    console.log('✅✅✅ addToLeaderboard COMPLETED successfully');
-                } catch (addError) {
+                // Run in background - don't await, don't block modal display
+                addToLeaderboard(
+                    claimData.firstName + ' ' + claimData.lastName, 
+                    claimData.name || (claimData.firstName + claimData.lastName).toLowerCase().replace(/\s+/g, ''), 
+                    result.totalAmount || 0, 
+                    false, 
+                    true, 
+                    result.results || [], 
+                    claimData.profilePic
+                ).then(() => {
+                    console.log('✅✅✅ addToLeaderboard COMPLETED successfully (background)');
+                }).catch(addError => {
                     console.error('❌❌❌ CRITICAL: addToLeaderboard FAILED:', addError);
-                    // Still show modal even if add failed
-                }
+                });
             } else {
                 console.log('⏭️ Skipping leaderboard - this is a manual name search, not Instagram');
             }
-            
-            // Show results modal (even if success was false, we have results)
-            showResultsModal(claimData, {
-                success: true, // Force success since we have results
-                results: result.results,
-                totalAmount: result.totalAmount || 0
-            });
         } else if (result.success) {
             // Search completed successfully but no results found - show $100 undisclosed instead of $0
             console.log('✅ Search completed successfully but no results found');
