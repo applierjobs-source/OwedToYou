@@ -429,6 +429,8 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
     });
     
     const searchOperation = (async () => {
+    let context = null;
+    let page = null;
     try {
         // Launch browser with stealth settings
         // Note: Must use headless: true on Railway (no display server available)
@@ -463,7 +465,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         console.log('[BROWSER] Browser launched successfully');
         
         // Create context with realistic browser fingerprint
-        const context = await browser.newContext({
+        context = await browser.newContext({
             viewport: { width: 1920, height: 1080 },
             userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             locale: 'en-US',
@@ -515,7 +517,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             });
         });
         
-        const page = await context.newPage();
+        page = await context.newPage();
         
         // Inject script to intercept turnstile.render BEFORE navigating
         // This is critical for Cloudflare Challenge pages
@@ -2644,10 +2646,40 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         // Re-throw to be caught by outer handler
         throw error;
     } finally {
+        // CRITICAL: Close pages and contexts FIRST, then browser
+        // This prevents resource leaks (file descriptors, memory, processes)
+        if (page) {
+            try {
+                await page.close().catch(err => {
+                    console.error('[BROWSER] Error closing page:', err);
+                });
+                console.log('[BROWSER] Page closed');
+            } catch (closeError) {
+                console.error('[BROWSER] Error closing page:', closeError);
+            }
+            page = null;
+        }
+        
+        if (context) {
+            try {
+                await context.close().catch(err => {
+                    console.error('[BROWSER] Error closing context:', err);
+                });
+                console.log('[BROWSER] Context closed');
+            } catch (closeError) {
+                console.error('[BROWSER] Error closing context:', closeError);
+            }
+            context = null;
+        }
+        
         // Always close browser and release slot - CRITICAL for resource management
         if (browser) {
             try {
-                await browser.close().catch(err => {
+                // Force close with timeout to prevent hanging
+                await Promise.race([
+                    browser.close(),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Browser close timeout')), 5000))
+                ]).catch(err => {
                     console.error('[BROWSER] Error closing browser in finally:', err);
                 });
                 console.log('[BROWSER] Browser closed successfully');
