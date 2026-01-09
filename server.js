@@ -2618,57 +2618,74 @@ const server = http.createServer((req, res) => {
                 }
                 
                 // Execute search with timeout protection and retry logic
+                // Increased retries to ensure searches never fail
                 let result;
                 let retries = 0;
-                const MAX_RETRIES = 2;
+                const MAX_RETRIES = 5; // Increased from 2 to 5 to ensure searches complete
                 
                 while (retries <= MAX_RETRIES) {
                     try {
                         result = await searchMissingMoney(cleanedFirstName, cleanedLastName, searchCity, searchState, use2Captcha || false, captchaApiKey || null);
                         
-                        // If successful or non-retryable error, break
-                        if (result.success || !result.error || !result.error.includes('Server is processing')) {
+                        // If successful, break immediately
+                        if (result.success) {
                             break;
                         }
                         
-                        // If resource exhaustion, wait and retry
-                        if (result.error && result.error.includes('Server is processing')) {
-                            retries++;
-                            if (retries <= MAX_RETRIES) {
-                                const waitTime = Math.min(1000 * Math.pow(2, retries), 5000); // Exponential backoff, max 5s
-                                console.log(`[SEARCH] Resource exhaustion detected, waiting ${waitTime}ms before retry ${retries}/${MAX_RETRIES}...`);
-                                await new Promise(resolve => setTimeout(resolve, waitTime));
-                                continue;
-                            }
+                        // Check if error is retryable (resource exhaustion, timeouts, etc.)
+                        const isRetryableError = result._isRetryable || 
+                            (result.error && (
+                                result.error.includes('Server is processing') ||
+                                result.error.includes('timed out') ||
+                                result.error.includes('timeout')
+                            ));
+                        
+                        // If non-retryable error, break
+                        if (!isRetryableError) {
+                            break;
                         }
-                        break;
-                    } catch (searchError) {
-                        console.error('[SEARCH] Error in searchMissingMoney:', searchError);
                         
-                        // Check if it's a retryable error
-                        const isRetryable = searchError.message && (
-                            searchError.message.includes('Resource temporarily unavailable') ||
-                            searchError.message.includes('ENOMEM') ||
-                            searchError.message.includes('EMFILE') ||
-                            searchError.message.includes('pthread_create')
-                        );
-                        
-                        if (isRetryable && retries < MAX_RETRIES) {
-                            retries++;
-                            const waitTime = Math.min(1000 * Math.pow(2, retries), 5000);
-                            console.log(`[SEARCH] Retryable error detected, waiting ${waitTime}ms before retry ${retries}/${MAX_RETRIES}...`);
+                        // If retryable error, retry with exponential backoff
+                        retries++;
+                        if (retries <= MAX_RETRIES) {
+                            const waitTime = Math.min(1000 * Math.pow(2, retries), 10000); // Exponential backoff, max 10s
+                            console.log(`[SEARCH] Retryable error detected: "${result.error}". Waiting ${waitTime}ms before retry ${retries}/${MAX_RETRIES}...`);
                             await new Promise(resolve => setTimeout(resolve, waitTime));
                             continue;
                         }
                         
-                        // Non-retryable or max retries reached
-                        res.writeHead(500, corsHeaders);
-                        res.end(JSON.stringify({ 
-                            success: false, 
+                        // Max retries reached but still retryable - return the error
+                        break;
+                    } catch (searchError) {
+                        console.error('[SEARCH] Error in searchMissingMoney:', searchError);
+                        
+                        // Check if it's a retryable error (timeout, resource exhaustion, etc.)
+                        const isRetryable = searchError._isRetryable || 
+                            searchError._isTimeout ||
+                            (searchError.message && (
+                                searchError.message.includes('Resource temporarily unavailable') ||
+                                searchError.message.includes('ENOMEM') ||
+                                searchError.message.includes('EMFILE') ||
+                                searchError.message.includes('pthread_create') ||
+                                searchError.message.includes('timed out') ||
+                                searchError.message.includes('timeout')
+                            ));
+                        
+                        if (isRetryable && retries < MAX_RETRIES) {
+                            retries++;
+                            const waitTime = Math.min(1000 * Math.pow(2, retries), 10000); // Exponential backoff, max 10s
+                            console.log(`[SEARCH] Retryable error detected: "${searchError.message}". Waiting ${waitTime}ms before retry ${retries}/${MAX_RETRIES}...`);
+                            await new Promise(resolve => setTimeout(resolve, waitTime));
+                            continue;
+                        }
+                        
+                        // Non-retryable or max retries reached - convert to result format
+                        result = {
+                            success: false,
                             error: searchError.message || 'Search failed due to server error. Please try again.',
                             results: []
-                        }));
-                        return;
+                        };
+                        break;
                     }
                 }
                 

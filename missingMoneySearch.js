@@ -8,7 +8,7 @@ let activeBrowserCount = 0;
 const MAX_CONCURRENT_BROWSERS = parseInt(process.env.MAX_CONCURRENT_BROWSERS || '3', 10);
 const browserQueue = [];
 let processingQueue = false;
-const QUEUE_TIMEOUT = 300000; // 5 minutes max wait time in queue (increased for high traffic)
+const QUEUE_TIMEOUT = 300000; // 5 minutes max wait time in queue (allow searches to wait)
 const MAX_RETRIES = 2; // Maximum retries for resource exhaustion errors
 
 // Semaphore to limit concurrent browser launches with timeout
@@ -28,7 +28,9 @@ async function acquireBrowserSlot() {
                 const index = browserQueue.indexOf(queueEntry);
                 if (index !== -1) {
                     browserQueue.splice(index, 1);
-                    reject(new Error('Queue timeout: All browser slots are busy. Please try again in a moment.'));
+                    const waitTime = Math.round((Date.now() - queueEntry.timestamp) / 1000);
+                    console.warn(`[BROWSER] Queue timeout after ${waitTime}s (queue length: ${browserQueue.length}, active: ${activeBrowserCount}/${MAX_CONCURRENT_BROWSERS})`);
+                    reject(new Error('Server is processing many requests. Please wait a moment and try again.'));
                 }
             }, QUEUE_TIMEOUT);
             
@@ -416,16 +418,27 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         console.log(`[BROWSER] Acquired browser slot (${activeBrowserCount}/${MAX_CONCURRENT_BROWSERS} active)`);
     } catch (queueError) {
         // Queue timeout or other acquisition error
+        // Convert to user-friendly message if it's a queue timeout
+        let errorMessage = queueError.message || 'Unable to acquire browser slot. Please try again.';
+        if (errorMessage.includes('Queue timeout') || errorMessage.includes('browser slots are busy')) {
+            errorMessage = 'Server is processing many requests. Please wait a moment and try again.';
+        }
         return {
             success: false,
-            error: queueError.message || 'Unable to acquire browser slot. Please try again.',
+            error: errorMessage,
             results: []
         };
     }
     
-    // Overall timeout wrapper (75 seconds max) to prevent infinite hanging
+    // Overall timeout wrapper (5 minutes max) to allow searches to complete
+    // Increased from 75s to allow for Cloudflare challenges and slow networks
     const overallTimeout = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Search operation timed out after 75 seconds')), 75000);
+        setTimeout(() => {
+            const timeoutError = new Error('Search operation timed out - this is retryable');
+            timeoutError._isRetryable = true;
+            timeoutError._isTimeout = true;
+            reject(timeoutError);
+        }, 300000); // 5 minutes
     });
     
     const searchOperation = (async () => {
@@ -453,12 +466,17 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 '--disable-features=IsolateOrigins,site-per-process',
                 '--max-old-space-size=512' // Limit memory usage
             ],
-            timeout: 30000 // 30 second timeout for browser launch
+            timeout: 60000 // 60 second timeout for browser launch (increased for reliability)
         });
         
         // Race browser launch against timeout
         const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Browser launch timeout after 30 seconds')), 30000);
+            setTimeout(() => {
+                const timeoutError = new Error('Browser launch timeout - this is retryable');
+                timeoutError._isRetryable = true;
+                timeoutError._isTimeout = true;
+                reject(timeoutError);
+            }, 60000); // 60 seconds
         });
         
         browser = await Promise.race([browserLaunchPromise, timeoutPromise]);
@@ -619,7 +637,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         
         // Quick check for form
         try {
-            await page.waitForSelector('input, form', { timeout: 2000 });
+            await page.waitForSelector('input, form', { timeout: 10000 }); // Increased timeout for reliability
         } catch (e) {
             console.log('Form not immediately visible, but continuing anyway...');
         }
@@ -1082,7 +1100,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         try {
             // Wait for either navigation to results page OR Cloudflare challenge (reduced timeout)
             await Promise.race([
-                page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 8000 }).catch(() => {}),
+                page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {}), // Increased timeout
                 page.waitForTimeout(4000) // Reduced from 5s to 4s
             ]);
         } catch (e) {
@@ -1348,8 +1366,8 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         try {
             // Reduced timeouts to prevent hanging - use Promise.race with shorter timeouts
             await Promise.race([
-                page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {}),
-                page.waitForSelector('table, [class*="result"], [class*="claim"], [class*="table"], [id*="result"], [id*="claim"], tbody, [role="row"]', { timeout: 15000 }).catch(() => {}),
+                page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {}), // Increased timeout
+                page.waitForSelector('table, [class*="result"], [class*="claim"], [class*="table"], [id*="result"], [id*="claim"], tbody, [role="row"]', { timeout: 45000 }).catch(() => {}), // Increased timeout
                 page.waitForFunction(
                     () => {
                         const text = document.body.innerText;
@@ -2742,10 +2760,21 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             };
         }
         
-        // Return timeout or other error
+        // Check if it's a retryable timeout error
+        if (error._isTimeout || (error.message && error.message.includes('timed out'))) {
+            console.warn('⚠️ Timeout error detected - marking as retryable');
+            return {
+                success: false,
+                error: 'Server is processing many requests. Please wait a moment and try again.',
+                results: [],
+                _isRetryable: true
+            };
+        }
+        
+        // Return other errors
         return {
             success: false,
-            error: error.message || 'Search operation timed out',
+            error: error.message || 'Search operation failed',
             results: []
         };
     }

@@ -4502,34 +4502,64 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
         // Search Missing Money with 2captcha API key
         const apiBase = window.location.origin;
         
-        // Add timeout to prevent hanging (90 seconds max)
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 90000);
+        // Add timeout to prevent hanging (6 minutes max to allow server retries)
+        // Server has 5 minute timeout + retries, so client needs longer timeout
+        let controller = new AbortController();
+        let timeoutId = setTimeout(() => controller.abort(), 360000); // 6 minutes
         
         let response;
-        try {
-            response = await fetch(`${apiBase}/api/search-missing-money`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    firstName: claimData.firstName,
-                    lastName: claimData.lastName,
-                    city: claimData.city,
-                    state: claimData.state,
-                    use2Captcha: true,
-                    captchaApiKey: '35172944ef966249d7c2e102c3196f0c' // TODO: Move to environment variable or secure storage
-                }),
-                signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-        } catch (fetchError) {
-            clearTimeout(timeoutId);
-            if (fetchError.name === 'AbortError') {
-                throw new Error('Search timed out after 90 seconds. Please try again.');
+        let fetchRetries = 0;
+        const MAX_FETCH_RETRIES = 3;
+        
+        while (fetchRetries <= MAX_FETCH_RETRIES) {
+            try {
+                response = await fetch(`${apiBase}/api/search-missing-money`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        firstName: claimData.firstName,
+                        lastName: claimData.lastName,
+                        city: claimData.city,
+                        state: claimData.state,
+                        use2Captcha: true,
+                        captchaApiKey: '35172944ef966249d7c2e102c3196f0c' // TODO: Move to environment variable or secure storage
+                    }),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                break; // Success, exit retry loop
+            } catch (fetchError) {
+                clearTimeout(timeoutId);
+                
+                // Check if it's a retryable error
+                const isRetryable = fetchError.name === 'AbortError' || 
+                    (fetchError.message && (
+                        fetchError.message.includes('Failed to fetch') ||
+                        fetchError.message.includes('NetworkError') ||
+                        fetchError.message.includes('timeout')
+                    ));
+                
+                if (isRetryable && fetchRetries < MAX_FETCH_RETRIES) {
+                    fetchRetries++;
+                    const waitTime = Math.min(1000 * Math.pow(2, fetchRetries), 5000); // Exponential backoff
+                    console.log(`[CLIENT] Fetch error, retrying in ${waitTime}ms (attempt ${fetchRetries}/${MAX_FETCH_RETRIES})...`);
+                    updateProgressStep(6, `Retrying search (attempt ${fetchRetries}/${MAX_FETCH_RETRIES})...`);
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
+                    
+                    // Create new controller and timeout for retry
+                    controller = new AbortController();
+                    timeoutId = setTimeout(() => controller.abort(), 360000);
+                    continue;
+                }
+                
+                // Non-retryable or max retries reached
+                if (fetchError.name === 'AbortError') {
+                    throw new Error('Search is taking longer than expected. The server is still processing - please wait.');
+                }
+                throw fetchError;
             }
-            throw fetchError;
         }
         
         const result = await response.json();
