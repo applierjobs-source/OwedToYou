@@ -1266,25 +1266,53 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             }
         }
         
-        // Wait for navigation or Cloudflare challenge
+        // Wait for navigation OR results to appear (form might submit via AJAX)
         console.log('🔍🔍🔍 WAITING FOR FORM SUBMISSION RESPONSE 🔍🔍🔍');
+        
+        // Wait for either navigation OR results table to appear (AJAX submission)
+        let resultsAppeared = false;
+        let navigationOccurred = false;
+        
         try {
-            // Wait for either navigation to results page OR Cloudflare challenge (reduced timeout)
             await Promise.race([
-                page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {}), // Increased timeout
-                page.waitForTimeout(4000) // Reduced from 5s to 4s
+                // Wait for navigation
+                page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).then(() => {
+                    navigationOccurred = true;
+                    console.log('✅ Navigation occurred');
+                }).catch(() => {}),
+                // Wait for results table to appear (AJAX submission)
+                page.waitForSelector('table tbody tr, .results-table, [class*="result"]', { timeout: 30000 }).then(() => {
+                    resultsAppeared = true;
+                    console.log('✅ Results appeared on page (AJAX submission)');
+                }).catch(() => {}),
+                // Timeout after 5 seconds to check for Cloudflare
+                page.waitForTimeout(5000)
             ]);
         } catch (e) {
-            console.log('Navigation wait completed or timed out');
+            console.log('Wait completed or timed out');
         }
         
         // Check current URL to see if we navigated away from form page
         const currentUrlAfterSubmit = page.url();
         console.log('URL after form submission attempt:', currentUrlAfterSubmit);
         
-        // NOW handle Cloudflare challenge that appears AFTER form submission (or before if still on form page)
-        console.log('🔍🔍🔍 CHECKING FOR CLOUDFLARE CHALLENGE 🔍🔍🔍');
-        await randomDelay(2000, 3000); // Wait for Cloudflare to appear
+        // If results appeared via AJAX, we're done - skip Cloudflare check
+        if (resultsAppeared) {
+            console.log('✅ Form submitted successfully via AJAX - results are on page');
+            // Continue to results extraction
+        } else if (navigationOccurred) {
+            console.log('✅ Form submitted successfully - navigation occurred');
+            // Continue to results extraction
+        } else {
+            console.log('⚠️ No results or navigation detected - checking for Cloudflare challenge...');
+        
+        // Skip Cloudflare check if results already appeared
+        if (resultsAppeared || navigationOccurred) {
+            console.log('✅ Skipping Cloudflare check - form already submitted successfully');
+        } else {
+            // NOW handle Cloudflare challenge that appears AFTER form submission (or before if still on form page)
+            console.log('🔍🔍🔍 CHECKING FOR CLOUDFLARE CHALLENGE 🔍🔍🔍');
+            await randomDelay(2000, 3000); // Wait for Cloudflare to appear
         
         // Check for Cloudflare challenge AFTER submission
         const challengeInfoAfterSubmission = await page.evaluate(() => {
