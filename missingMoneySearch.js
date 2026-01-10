@@ -1291,17 +1291,30 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         }
         
         if (!submitted) {
-            // Try submitting the form directly
+            // Try submitting the form directly - ensure Cloudflare token is included
             try {
                 const form = await page.$('form');
                 if (form) {
-                    await form.evaluate(f => f.submit());
-                    submitted = true;
-                    console.log('Form submitted via form.submit()');
-                    await randomDelay(1000, 2000);
+                    // Check if form has Cloudflare token before submitting
+                    const hasToken = await form.evaluate((f) => {
+                        const tokenInput = f.querySelector('input[name="cf-turnstile-response"]') ||
+                                         f.querySelector('input[id*="turnstile"]');
+                        return tokenInput && tokenInput.value && tokenInput.value.length > 10;
+                    });
+                    
+                    if (!hasToken) {
+                        console.warn('⚠️⚠️⚠️ Form does not have Cloudflare token - cannot submit! ⚠️⚠️⚠️');
+                        // Don't submit without token - it will fail
+                    } else {
+                        console.log('✅ Form has Cloudflare token - submitting via form.submit()...');
+                        await form.evaluate(f => f.submit());
+                        submitted = true;
+                        console.log('Form submitted via form.submit()');
+                        await randomDelay(3000, 5000); // Wait longer after submission
+                    }
                 }
             } catch (e) {
-                console.log('Could not submit form directly');
+                console.log('Could not submit form directly:', e.message);
             }
         }
         
