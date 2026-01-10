@@ -710,7 +710,22 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                     
                     if (tokenInjected) {
                         console.log('✅ Pre-submission Cloudflare token injected');
-                        await randomDelay(2000, 3000); // Wait for Cloudflare to process
+                        // Wait longer and verify Cloudflare is cleared
+                        await randomDelay(3000, 5000);
+                        
+                        // Verify Cloudflare challenge is gone
+                        const cloudflareCleared = await page.evaluate(() => {
+                            const hasChallenge = document.body.innerText.includes('Please wait while we verify your browser') ||
+                                               document.body.innerText.includes('Checking your browser') ||
+                                               document.querySelectorAll('iframe[src*="cloudflare"], iframe[src*="challenge"]').length > 0;
+                            return !hasChallenge;
+                        });
+                        
+                        if (cloudflareCleared) {
+                            console.log('✅ Cloudflare challenge cleared, proceeding with form filling');
+                        } else {
+                            console.warn('⚠️ Cloudflare challenge may still be present, but proceeding anyway');
+                        }
                     } else {
                         console.warn('⚠️ Could not inject pre-submission token');
                     }
@@ -722,6 +737,21 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             }
         } else {
             console.log('✅ No Cloudflare challenge detected on initial page load');
+        }
+        
+        // Check for Cloudflare one more time right before form filling
+        const finalPreFillCheck = await page.evaluate(() => {
+            return {
+                hasChallenge: document.body.innerText.includes('Please wait while we verify your browser') ||
+                              document.body.innerText.includes('Checking your browser') ||
+                              document.querySelectorAll('iframe[src*="cloudflare"], iframe[src*="challenge"]').length > 0,
+                hasTurnstile: document.querySelectorAll('[data-sitekey], [class*="cf-"], [id*="cf-"]').length > 0
+            };
+        });
+        
+        if ((finalPreFillCheck.hasChallenge || finalPreFillCheck.hasTurnstile) && captchaSolver) {
+            console.warn('⚠️ Cloudflare challenge detected right before form filling - waiting longer...');
+            await randomDelay(5000, 7000); // Wait longer for Cloudflare to clear
         }
         
         // IMMEDIATELY start filling form
@@ -1064,6 +1094,21 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         
         // Submit the form with human-like behavior
         console.log('Submitting form...');
+        
+        // Final check for Cloudflare right before submission
+        const preSubmitCheck = await page.evaluate(() => {
+            return {
+                hasChallenge: document.body.innerText.includes('Please wait while we verify your browser') ||
+                              document.body.innerText.includes('Checking your browser'),
+                hasTurnstile: document.querySelectorAll('[data-sitekey]').length > 0,
+                hasTokenInput: document.querySelector('input[name="cf-turnstile-response"]') !== null
+            };
+        });
+        
+        if (preSubmitCheck.hasChallenge || (preSubmitCheck.hasTurnstile && !preSubmitCheck.hasTokenInput)) {
+            console.warn('⚠️ Cloudflare challenge detected right before submission - waiting...');
+            await randomDelay(3000, 5000);
+        }
         
         // Wait a bit to ensure form is ready
         await randomDelay(1000, 2000);
