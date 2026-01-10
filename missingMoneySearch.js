@@ -626,8 +626,100 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         
         if (initialChallengeCheck && captchaSolver) {
             console.log('🚨 Cloudflare challenge detected BEFORE form filling! Solving...');
-            // Handle Cloudflare challenge before form filling
-            // (Similar logic to after-submission handling)
+            
+            // Extract site key and parameters
+            const preSubmissionChallenge = await page.evaluate(() => {
+                const info = {
+                    siteKey: null,
+                    action: null,
+                    cData: null,
+                    pagedata: null
+                };
+                
+                // Try to get intercepted params
+                if (window.__turnstileParams) {
+                    info.siteKey = window.__turnstileParams.sitekey;
+                    info.action = window.__turnstileParams.action;
+                    info.cData = window.__turnstileParams.cData;
+                    info.pagedata = window.__turnstileParams.chlPageData;
+                }
+                
+                // Try to find site key in elements
+                const turnstileEl = document.querySelector('[data-sitekey]');
+                if (turnstileEl && !info.siteKey) {
+                    info.siteKey = turnstileEl.getAttribute('data-sitekey');
+                }
+                
+                // Try to extract from HTML
+                if (!info.siteKey) {
+                    const html = document.body.innerHTML + document.documentElement.outerHTML;
+                    const matches = [
+                        html.match(/sitekey["\s:=]+([^"'\s]{20,})/i),
+                        html.match(/data-sitekey=["']([^"']+)["']/i),
+                        html.match(/"sitekey":\s*"([^"]+)"/i)
+                    ];
+                    for (const match of matches) {
+                        if (match && match[1] && match[1].length > 20) {
+                            info.siteKey = match[1];
+                            break;
+                        }
+                    }
+                }
+                
+                return info;
+            });
+            
+            if (preSubmissionChallenge.siteKey && preSubmissionChallenge.siteKey.length > 20) {
+                try {
+                    console.log('🎯 Solving pre-submission Cloudflare challenge...');
+                    const result = await captchaSolver.solveTurnstile(
+                        preSubmissionChallenge.siteKey,
+                        page.url(),
+                        preSubmissionChallenge.action,
+                        preSubmissionChallenge.cData,
+                        preSubmissionChallenge.pagedata
+                    );
+                    
+                    // Inject token
+                    const tokenInjected = await page.evaluate(({ token }) => {
+                        const selectors = [
+                            'input[name="cf-turnstile-response"]',
+                            'input[id*="cf-turnstile"]',
+                            'input[id*="turnstile"]',
+                            'textarea[name="cf-turnstile-response"]'
+                        ];
+                        
+                        for (const selector of selectors) {
+                            const input = document.querySelector(selector);
+                            if (input) {
+                                input.value = token;
+                                input.dispatchEvent(new Event('input', { bubbles: true }));
+                                input.dispatchEvent(new Event('change', { bubbles: true }));
+                                return true;
+                            }
+                        }
+                        
+                        // Try callback
+                        if (window.__turnstileCallback && typeof window.__turnstileCallback === 'function') {
+                            window.__turnstileCallback(token);
+                            return true;
+                        }
+                        
+                        return false;
+                    }, { token: result.token });
+                    
+                    if (tokenInjected) {
+                        console.log('✅ Pre-submission Cloudflare token injected');
+                        await randomDelay(2000, 3000); // Wait for Cloudflare to process
+                    } else {
+                        console.warn('⚠️ Could not inject pre-submission token');
+                    }
+                } catch (e) {
+                    console.error('❌ Error solving pre-submission Cloudflare:', e.message);
+                }
+            } else {
+                console.warn('⚠️ Pre-submission Cloudflare detected but no site key found');
+            }
         } else {
             console.log('✅ No Cloudflare challenge detected on initial page load');
         }
@@ -2390,11 +2482,58 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         }
         
         // CRITICAL: If we're still on the form page, the search likely failed
+        // But first, check if there's a Cloudflare challenge we missed
         if (isStillOnFormPage && uniqueResults.length === 0) {
             console.error('❌❌❌ SEARCH FAILED: Still on form page with no results ❌❌❌');
-            console.error('This indicates form submission failed - likely Cloudflare blocking');
             console.error('Final URL:', finalUrl);
             console.error('Page title:', finalTitle);
+            
+            // One more check for Cloudflare challenge
+            const finalChallengeCheck = await page.evaluate(() => {
+                return {
+                    hasMessage: document.body.innerText.includes('Please wait while we verify your browser') ||
+                               document.body.innerText.includes('Checking your browser') ||
+                               document.body.innerText.includes('Just a moment'),
+                    hasIframe: document.querySelectorAll('iframe[src*="cloudflare"], iframe[src*="challenge"]').length > 0,
+                    hasTurnstile: document.querySelectorAll('[data-sitekey], [class*="cf-"], [id*="cf-"]').length > 0
+                };
+            });
+            
+            if ((finalChallengeCheck.hasMessage || finalChallengeCheck.hasIframe || finalChallengeCheck.hasTurnstile) && captchaSolver) {
+                console.log('🚨 Cloudflare challenge still present - attempting to solve...');
+                // Try one more time to solve Cloudflare
+                try {
+                    const siteKey = await page.evaluate(() => {
+                        const el = document.querySelector('[data-sitekey]');
+                        return el ? el.getAttribute('data-sitekey') : null;
+                    });
+                    
+                    if (siteKey && siteKey.length > 20) {
+                        const result = await captchaSolver.solveTurnstile(siteKey, page.url());
+                        await page.evaluate((token) => {
+                            const input = document.querySelector('input[name="cf-turnstile-response"]') ||
+                                         document.querySelector('input[id*="turnstile"]');
+                            if (input) {
+                                input.value = token;
+                                input.dispatchEvent(new Event('input', { bubbles: true }));
+                            }
+                        }, result.token);
+                        
+                        // Wait and check again
+                        await randomDelay(3000, 5000);
+                        const urlAfterRetry = page.url();
+                        if (urlAfterRetry !== finalUrl && !urlAfterRetry.includes('claim-search')) {
+                            console.log('✅ Form submitted after Cloudflare retry!');
+                            // Continue with results extraction
+                            return null; // Don't return error, let it continue
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error in final Cloudflare retry:', e.message);
+                }
+            }
+            
+            console.error('This indicates form submission failed - likely Cloudflare blocking');
             console.error('Page text sample:', pageText.substring(0, 500));
             return {
                 success: false,
