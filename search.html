@@ -462,6 +462,26 @@
         });
     </script>
     <script src="script.js"></script>
+    <script>
+        // Ensure startMissingMoneySearch is available after script.js loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Wait a bit for script.js to fully execute
+            setTimeout(function() {
+                if (typeof startMissingMoneySearch === 'function') {
+                    console.log('✅ startMissingMoneySearch is available');
+                } else {
+                    console.warn('⚠️ startMissingMoneySearch not found, checking window object...');
+                    if (typeof window.startMissingMoneySearch === 'function') {
+                        console.log('✅ startMissingMoneySearch found on window object');
+                        // Make it available globally
+                        startMissingMoneySearch = window.startMissingMoneySearch;
+                    } else {
+                        console.error('❌ startMissingMoneySearch still not found');
+                    }
+                }
+            }, 100);
+        });
+    </script>
 </body>
 </html>
 

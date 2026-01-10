@@ -4784,6 +4784,12 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
     }
 }
 
+// Export startMissingMoneySearch to window immediately after function definition
+if (typeof window !== 'undefined') {
+    window.startMissingMoneySearch = startMissingMoneySearch;
+    console.log('✅ startMissingMoneySearch exported to window');
+}
+
 // Handle claim form submission
 async function handleClaimSubmit(event) {
     event.preventDefault();
