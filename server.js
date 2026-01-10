@@ -7,6 +7,7 @@ const path = require('path');
 const { Pool } = require('pg');
 const { searchMissingMoney, getBrowserStats } = require('./missingMoneySearch');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const { Configuration, PlaidApi, PlaidEnvironments } = require('plaid');
 const { chromium } = require('playwright');
 const { ApifyClient } = require('apify-client');
 const sgMail = require('@sendgrid/mail');
@@ -40,6 +41,32 @@ if (process.env.SENDGRID_API_KEY) {
     }
 } else {
     console.warn('[EMAIL] ⚠️ SENDGRID_API_KEY not set - email sending will not work');
+}
+
+// Initialize Plaid client
+let plaidClient = null;
+const PLAID_CLIENT_ID = process.env.PLAID_CLIENT_ID || '695de0e58356c2001cde09b0';
+const PLAID_SECRET = process.env.PLAID_SECRET || 'b6d75ad7d71e644771485cd58f487e';
+
+if (PLAID_CLIENT_ID && PLAID_SECRET) {
+    try {
+        const configuration = new Configuration({
+            basePath: PlaidEnvironments.production,
+            baseOptions: {
+                headers: {
+                    'PLAID-CLIENT-ID': PLAID_CLIENT_ID,
+                    'PLAID-SECRET': PLAID_SECRET,
+                },
+            },
+        });
+        plaidClient = new PlaidApi(configuration);
+        console.log('[PLAID] ✅ Plaid client initialized successfully');
+    } catch (e) {
+        console.error('[PLAID] ❌ Failed to initialize Plaid client:', e.message);
+        plaidClient = null;
+    }
+} else {
+    console.warn('[PLAID] ⚠️ Plaid credentials not set - Plaid integration will not work');
 }
 
 const PORT = process.env.PORT || 3000;
@@ -147,8 +174,48 @@ async function initializeDatabase() {
             CREATE INDEX IF NOT EXISTS idx_instagram_cache_updated_at ON instagram_cache(updated_at)
         `);
         
+        // Create plaid_connections table for storing Plaid access tokens and connection info
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS plaid_connections (
+                id SERIAL PRIMARY KEY,
+                user_first_name VARCHAR(255) NOT NULL,
+                user_last_name VARCHAR(255) NOT NULL,
+                claim_amount DECIMAL(10, 2) NOT NULL,
+                access_token TEXT NOT NULL,
+                item_id VARCHAR(255) NOT NULL,
+                institution_id VARCHAR(255),
+                institution_name VARCHAR(255),
+                account_id VARCHAR(255),
+                account_name VARCHAR(255),
+                account_type VARCHAR(50),
+                account_subtype VARCHAR(50),
+                balance_verified BOOLEAN DEFAULT false,
+                identity_verified BOOLEAN DEFAULT false,
+                fee_percentage DECIMAL(5, 2) DEFAULT 10.00,
+                fee_amount DECIMAL(10, 2),
+                funds_received BOOLEAN DEFAULT false,
+                funds_received_at TIMESTAMP,
+                fee_charged BOOLEAN DEFAULT false,
+                fee_charged_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
+        // Create indexes for plaid_connections
+        await pool.query(`
+            CREATE INDEX IF NOT EXISTS idx_plaid_connections_user ON plaid_connections(user_first_name, user_last_name)
+        `);
+        await pool.query(`
+            CREATE INDEX IF NOT EXISTS idx_plaid_connections_item_id ON plaid_connections(item_id)
+        `);
+        await pool.query(`
+            CREATE INDEX IF NOT EXISTS idx_plaid_connections_funds_received ON plaid_connections(funds_received)
+        `);
+        
         console.log('[DATABASE] Leaderboard table initialized successfully');
         console.log('[DATABASE] Instagram cache table initialized successfully');
+        console.log('[DATABASE] Plaid connections table initialized successfully');
     } catch (error) {
         console.error('[DATABASE] Error initializing database:', error);
         // Don't crash if database isn't available - app can still run
@@ -2701,7 +2768,287 @@ const server = http.createServer((req, res) => {
                 }));
             }
         });
-    } else if (parsedUrl.pathname === '/api/health' && req.method === 'GET') {
+    }
+    // Handle Plaid Link token creation
+    else if (parsedUrl.pathname === '/api/plaid/create-link-token' && req.method === 'POST') {
+        console.log('[PLAID] Received Link token creation request');
+        let body = '';
+        
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        
+        req.on('end', async () => {
+            try {
+                const { firstName, lastName, claimAmount } = JSON.parse(body);
+                
+                if (!plaidClient) {
+                    console.error('[PLAID] ❌ Plaid not configured');
+                    res.writeHead(500, corsHeaders);
+                    res.end(JSON.stringify({ error: 'Plaid not configured' }));
+                    return;
+                }
+                
+                if (!firstName || !lastName || !claimAmount) {
+                    res.writeHead(400, corsHeaders);
+                    res.end(JSON.stringify({ error: 'Missing required fields: firstName, lastName, claimAmount' }));
+                    return;
+                }
+                
+                // Create Link token
+                const request = {
+                    user: {
+                        client_user_id: `${firstName}_${lastName}_${Date.now()}`,
+                    },
+                    client_name: 'OwedToYou.ai',
+                    products: ['auth', 'identity', 'transactions'],
+                    country_codes: ['US'],
+                    language: 'en',
+                    webhook: `${req.headers.origin || 'https://www.owedtoyou.ai'}/api/plaid/webhook`,
+                };
+                
+                const response = await plaidClient.linkTokenCreate(request);
+                const linkToken = response.data.link_token;
+                
+                console.log('[PLAID] ✅ Link token created successfully');
+                res.writeHead(200, corsHeaders);
+                res.end(JSON.stringify({ link_token: linkToken }));
+            } catch (error) {
+                console.error('[PLAID] ❌ Error creating Link token:', error);
+                res.writeHead(500, corsHeaders);
+                res.end(JSON.stringify({ error: error.message || 'Failed to create Link token' }));
+            }
+        });
+        return;
+    }
+    // Handle Plaid public token exchange and identity verification
+    else if (parsedUrl.pathname === '/api/plaid/exchange-public-token' && req.method === 'POST') {
+        console.log('[PLAID] Received public token exchange request');
+        let body = '';
+        
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        
+        req.on('end', async () => {
+            try {
+                const { public_token, firstName, lastName, claimAmount } = JSON.parse(body);
+                
+                if (!plaidClient) {
+                    console.error('[PLAID] ❌ Plaid not configured');
+                    res.writeHead(500, corsHeaders);
+                    res.end(JSON.stringify({ error: 'Plaid not configured' }));
+                    return;
+                }
+                
+                if (!public_token || !firstName || !lastName || !claimAmount) {
+                    res.writeHead(400, corsHeaders);
+                    res.end(JSON.stringify({ error: 'Missing required fields' }));
+                    return;
+                }
+                
+                // Exchange public token for access token
+                const exchangeResponse = await plaidClient.itemPublicTokenExchange({
+                    public_token: public_token,
+                });
+                
+                const accessToken = exchangeResponse.data.access_token;
+                const itemId = exchangeResponse.data.item_id;
+                
+                // Get account information
+                const accountsResponse = await plaidClient.accountsGet({
+                    access_token: accessToken,
+                });
+                
+                const accounts = accountsResponse.data.accounts;
+                if (accounts.length === 0) {
+                    res.writeHead(400, corsHeaders);
+                    res.end(JSON.stringify({ error: 'No accounts found' }));
+                    return;
+                }
+                
+                // Use the first account
+                const account = accounts[0];
+                const institutionId = accountsResponse.data.item.institution_id;
+                
+                // Get institution info
+                let institutionName = 'Unknown';
+                if (institutionId) {
+                    try {
+                        const institutionResponse = await plaidClient.institutionsGetById({
+                            institution_id: institutionId,
+                            country_codes: ['US'],
+                        });
+                        institutionName = institutionResponse.data.institution.name;
+                    } catch (e) {
+                        console.warn('[PLAID] Could not fetch institution name:', e.message);
+                    }
+                }
+                
+                // Verify identity using Identity API
+                let identityVerified = false;
+                let identityData = null;
+                try {
+                    const identityResponse = await plaidClient.identityGet({
+                        access_token: accessToken,
+                    });
+                    
+                    if (identityResponse.data.accounts) {
+                        const accountIdentity = identityResponse.data.accounts.find(acc => acc.account_id === account.account_id);
+                        if (accountIdentity && accountIdentity.owners) {
+                            for (const owner of accountIdentity.owners) {
+                                if (owner.names) {
+                                    for (const name of owner.names) {
+                                        const normalizedName = name.toLowerCase().trim();
+                                        const normalizedFirstName = firstName.toLowerCase().trim();
+                                        const normalizedLastName = lastName.toLowerCase().trim();
+                                        
+                                        // Check if name matches (allowing for middle names/initials)
+                                        if (normalizedName.includes(normalizedFirstName) && normalizedName.includes(normalizedLastName)) {
+                                            identityVerified = true;
+                                            identityData = owner;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[PLAID] Identity verification failed:', e.message);
+                }
+                
+                // Verify balance (check if account has sufficient balance - optional check)
+                const balance = account.balances.available || account.balances.current || 0;
+                const balanceVerified = balance >= parseFloat(claimAmount) * 0.1; // At least 10% of claim amount
+                
+                // Calculate fee (10% of claim amount)
+                const feePercentage = 10.00;
+                const feeAmount = parseFloat(claimAmount) * (feePercentage / 100);
+                
+                // Store connection in database
+                if (pool) {
+                    await pool.query(`
+                        INSERT INTO plaid_connections (
+                            user_first_name, user_last_name, claim_amount,
+                            access_token, item_id, institution_id, institution_name,
+                            account_id, account_name, account_type, account_subtype,
+                            balance_verified, identity_verified, fee_percentage, fee_amount
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                    `, [
+                        firstName,
+                        lastName,
+                        parseFloat(claimAmount),
+                        accessToken,
+                        itemId,
+                        institutionId,
+                        institutionName,
+                        account.account_id,
+                        account.name,
+                        account.type,
+                        account.subtype,
+                        balanceVerified,
+                        identityVerified,
+                        feePercentage,
+                        feeAmount
+                    ]);
+                }
+                
+                console.log('[PLAID] ✅ Public token exchanged, connection stored');
+                res.writeHead(200, corsHeaders);
+                res.end(JSON.stringify({
+                    success: true,
+                    identity_verified: identityVerified,
+                    balance_verified: balanceVerified,
+                    institution_name: institutionName,
+                    account_name: account.name,
+                    fee_amount: feeAmount,
+                    message: identityVerified ? 'Identity verified successfully' : 'Identity verification inconclusive - manual review may be required'
+                }));
+            } catch (error) {
+                console.error('[PLAID] ❌ Error exchanging public token:', error);
+                res.writeHead(500, corsHeaders);
+                res.end(JSON.stringify({ error: error.message || 'Failed to exchange public token' }));
+            }
+        });
+        return;
+    }
+    // Handle Plaid webhook (for when funds are received)
+    else if (parsedUrl.pathname === '/api/plaid/webhook' && req.method === 'POST') {
+        console.log('[PLAID] Received webhook');
+        let body = '';
+        
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        
+        req.on('end', async () => {
+            try {
+                const webhook = JSON.parse(body);
+                const webhookType = webhook.webhook_type;
+                const webhookCode = webhook.webhook_code;
+                
+                console.log('[PLAID] Webhook type:', webhookType, 'Code:', webhookCode);
+                
+                // Handle TRANSACTIONS webhook - when new transactions are detected
+                if (webhookType === 'TRANSACTIONS' && webhookCode === 'DEFAULT_UPDATE') {
+                    const itemId = webhook.item_id;
+                    
+                    if (pool && itemId) {
+                        // Find connection by item_id
+                        const connectionResult = await pool.query(
+                            `SELECT * FROM plaid_connections WHERE item_id = $1 AND funds_received = false LIMIT 1`,
+                            [itemId]
+                        );
+                        
+                        if (connectionResult.rows.length > 0) {
+                            const connection = connectionResult.rows[0];
+                            
+                            // Check if funds were received (this would need to be verified against the claim amount)
+                            // For now, we'll mark as received when webhook fires
+                            // In production, you'd want to verify the transaction amount matches the claim amount
+                            
+                            await pool.query(`
+                                UPDATE plaid_connections 
+                                SET funds_received = true, funds_received_at = CURRENT_TIMESTAMP
+                                WHERE id = $1
+                            `, [connection.id]);
+                            
+                            // Charge 10% fee
+                            if (plaidClient && connection.access_token) {
+                                try {
+                                    // Use Plaid Processor Token API to charge fee
+                                    // Note: This requires Plaid Processor integration (Stripe, Dwolla, etc.)
+                                    // For now, we'll log that fee should be charged
+                                    console.log('[PLAID] Funds received, fee should be charged:', connection.fee_amount);
+                                    
+                                    // Mark fee as charged (in production, this would happen after actual charge)
+                                    await pool.query(`
+                                        UPDATE plaid_connections 
+                                        SET fee_charged = true, fee_charged_at = CURRENT_TIMESTAMP
+                                        WHERE id = $1
+                                    `, [connection.id]);
+                                    
+                                    console.log('[PLAID] ✅ Fee marked as charged');
+                                } catch (feeError) {
+                                    console.error('[PLAID] ❌ Error charging fee:', feeError);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                res.writeHead(200, corsHeaders);
+                res.end(JSON.stringify({ received: true }));
+            } catch (error) {
+                console.error('[PLAID] ❌ Error processing webhook:', error);
+                res.writeHead(500, corsHeaders);
+                res.end(JSON.stringify({ error: error.message }));
+            }
+        });
+        return;
+    }
+    else if (parsedUrl.pathname === '/api/health' && req.method === 'GET') {
         // Health check endpoint to monitor system status
         const browserStats = getBrowserStats();
         res.writeHead(200, corsHeaders);

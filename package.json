@@ -17,6 +17,7 @@
     "apify-client": "^2.21.0",
     "axios": "^1.13.2",
     "pg": "^8.11.3",
+    "plaid": "^41.0.0",
     "playwright": "^1.57.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",

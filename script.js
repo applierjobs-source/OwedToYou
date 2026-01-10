@@ -5612,9 +5612,9 @@ async function showShareModal(firstName, lastName, amount, results = []) {
             </div>
             `}
             <div style="background: #fff; border: 2px solid #667eea; border-radius: 12px; padding: 20px; margin-bottom: 20px; text-align: center;">
-                <p style="margin: 0 0 15px 0; color: #333; font-size: 1rem; font-weight: 500;">${isSearchPage ? 'Pay $12.95 processing fee to begin the claim process' : 'OR skip notifying others and pay $12.95 processing to begin the claim process now'}</p>
-                <button class="btn-buy-now" onclick="handleBuyNow('${escapeHtml(firstName)}', '${escapeHtml(lastName)}', ${amount})" style="width: 100%; padding: 14px; font-size: 1.1rem; font-weight: 600; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);">
-                    Buy Now - $12.95
+                <p style="margin: 0 0 15px 0; color: #333; font-size: 1rem; font-weight: 500;">${isSearchPage ? 'Choose payment method to begin the claim process' : 'OR skip notifying others and choose a payment method to begin the claim process now'}</p>
+                <button class="btn-buy-now" onclick="showPaymentOptionsModal('${escapeHtml(firstName)}', '${escapeHtml(lastName)}', ${amount}); closeShareModal();" style="width: 100%; padding: 14px; font-size: 1.1rem; font-weight: 600; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);">
+                    Choose Payment Method
                 </button>
             </div>
             ${isSearchPage ? '' : `
@@ -6281,3 +6281,228 @@ async function handleBuyNow(firstName, lastName, amount) {
 }
 
 window.handleBuyNow = handleBuyNow;
+
+// ==================== PLAID INTEGRATION ====================
+
+let plaidLinkHandler = null;
+let currentClaimData = null;
+
+// Initialize Plaid Link
+async function initializePlaidLink(firstName, lastName, claimAmount) {
+    try {
+        const apiBase = window.location.origin;
+        const response = await fetch(`${apiBase}/api/plaid/create-link-token`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                firstName: firstName,
+                lastName: lastName,
+                claimAmount: claimAmount
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to create Plaid Link token');
+        }
+
+        const { link_token } = await response.json();
+
+        // Initialize Plaid Link
+        if (window.Plaid) {
+            plaidLinkHandler = window.Plaid.create({
+                token: link_token,
+                onSuccess: async (public_token, metadata) => {
+                    console.log('[PLAID] Link success:', metadata);
+                    await handlePlaidSuccess(public_token, metadata, firstName, lastName, claimAmount);
+                },
+                onExit: (err, metadata) => {
+                    if (err) {
+                        console.error('[PLAID] Link exit error:', err);
+                    }
+                    console.log('[PLAID] Link exited:', metadata);
+                },
+                onEvent: (eventName, metadata) => {
+                    console.log('[PLAID] Event:', eventName, metadata);
+                }
+            });
+        } else {
+            throw new Error('Plaid library not loaded');
+        }
+    } catch (error) {
+        console.error('[PLAID] Error initializing Link:', error);
+        alert('Failed to initialize Plaid. Please try again or use Stripe payment option.');
+    }
+}
+
+// Handle Plaid Link success
+async function handlePlaidSuccess(publicToken, metadata, firstName, lastName, claimAmount) {
+    try {
+        const apiBase = window.location.origin;
+        const response = await fetch(`${apiBase}/api/plaid/exchange-public-token`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                public_token: publicToken,
+                firstName: firstName,
+                lastName: lastName,
+                claimAmount: claimAmount
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to exchange public token');
+        }
+
+        const result = await response.json();
+        
+        if (result.success) {
+            // Show success message
+            const modal = document.getElementById('claimModal');
+            if (modal) {
+                const modalContent = modal.querySelector('.modal-content');
+                if (modalContent) {
+                    modalContent.innerHTML = `
+                        <div class="modal-header">
+                            <h2>Plaid Connection Successful</h2>
+                            <button class="modal-close" onclick="closeClaimModal()">&times;</button>
+                        </div>
+                        <div style="padding: 40px; text-align: center;">
+                            <div style="font-size: 3rem; margin-bottom: 20px;">✅</div>
+                            <h2 style="margin-bottom: 16px; color: #333;">Bank Account Connected</h2>
+                            <p style="color: #666; margin-bottom: 20px;">
+                                <strong>Institution:</strong> ${result.institution_name || 'Unknown'}<br>
+                                <strong>Account:</strong> ${result.account_name || 'Unknown'}<br>
+                                <strong>Identity Verified:</strong> ${result.identity_verified ? 'Yes ✅' : 'Pending Review ⏳'}<br>
+                                <strong>Balance Verified:</strong> ${result.balance_verified ? 'Yes ✅' : 'No ❌'}
+                            </p>
+                            <p style="color: #666; margin-bottom: 30px;">
+                                ${result.message || 'Your bank account has been connected. We will charge a 10% fee ($${result.fee_amount?.toFixed(2) || '0.00'}) when your funds are received.'}
+                            </p>
+                            <button class="btn btn-submit" onclick="closeClaimModal()" style="margin: 0 auto;">
+                                Close
+                            </button>
+                        </div>
+                    `;
+                    modal.classList.remove('hidden');
+                }
+            }
+        } else {
+            throw new Error(result.error || 'Failed to verify connection');
+        }
+    } catch (error) {
+        console.error('[PLAID] Error handling success:', error);
+        alert('Error processing Plaid connection: ' + error.message);
+    }
+}
+
+// Show payment options modal (Stripe vs Plaid)
+function showPaymentOptionsModal(firstName, lastName, claimAmount) {
+    currentClaimData = { firstName, lastName, claimAmount };
+    
+    const modal = document.getElementById('claimModal');
+    if (!modal) {
+        console.error('Claim modal not found');
+        return;
+    }
+
+    const modalContent = modal.querySelector('.modal-content');
+    if (!modalContent) {
+        console.error('Modal content not found');
+        return;
+    }
+
+    const feeAmount = (claimAmount * 0.10).toFixed(2);
+    const stripeFee = 12.95; // Stripe processing fee
+
+    modalContent.innerHTML = `
+        <div class="modal-header">
+            <h2>Choose Payment Method</h2>
+            <button class="modal-close" onclick="closeClaimModal()">&times;</button>
+        </div>
+        <div style="padding: 30px;">
+            <p style="text-align: center; color: #666; margin-bottom: 30px;">
+                Claim Amount: <strong>$${claimAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>
+            </p>
+            
+            <div style="display: grid; gap: 20px; margin-bottom: 30px;">
+                <!-- Plaid Option -->
+                <div style="border: 2px solid #667eea; border-radius: 12px; padding: 24px; background: #f8f9ff; cursor: pointer; transition: all 0.2s;" 
+                     onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 15px rgba(102, 126, 234, 0.3)'"
+                     onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none'"
+                     onclick="handlePlaidPaymentClick('${firstName}', '${lastName}', ${claimAmount})">
+                    <div style="display: flex; align-items: center; margin-bottom: 12px;">
+                        <div style="font-size: 2rem; margin-right: 12px;">🏦</div>
+                        <h3 style="margin: 0; color: #667eea;">Connect with Plaid</h3>
+                    </div>
+                    <p style="color: #666; margin: 8px 0; font-size: 0.95rem;">
+                        • Verify your identity and balance<br>
+                        • Pay 10% fee ($${feeAmount}) only when funds are received<br>
+                        • Secure bank connection
+                    </p>
+                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #ddd;">
+                        <strong style="color: #333;">Fee: $${feeAmount} (charged when funds received)</strong>
+                    </div>
+                </div>
+
+                <!-- Stripe Option -->
+                <div style="border: 2px solid #e0e0e0; border-radius: 12px; padding: 24px; background: #fff; cursor: pointer; transition: all 0.2s;"
+                     onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 15px rgba(0, 0, 0, 0.1)'"
+                     onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none'"
+                     onclick="handleStripePaymentClick('${firstName}', '${lastName}', ${claimAmount})">
+                    <div style="display: flex; align-items: center; margin-bottom: 12px;">
+                        <div style="font-size: 2rem; margin-right: 12px;">💳</div>
+                        <h3 style="margin: 0; color: #333;">Pay with Card (Stripe)</h3>
+                    </div>
+                    <p style="color: #666; margin: 8px 0; font-size: 0.95rem;">
+                        • Pay processing fee upfront<br>
+                        • Credit or debit card<br>
+                        • Instant processing
+                    </p>
+                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #ddd;">
+                        <strong style="color: #333;">Fee: $${stripeFee.toFixed(2)} (charged now)</strong>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-cancel" onclick="closeClaimModal()" style="width: 100%;">
+                Cancel
+            </button>
+        </div>
+    `;
+
+    modal.classList.remove('hidden');
+}
+
+// Handle Plaid payment click
+async function handlePlaidPaymentClick(firstName, lastName, claimAmount) {
+    try {
+        // Initialize Plaid Link
+        await initializePlaidLink(firstName, lastName, claimAmount);
+        
+        // Open Plaid Link
+        if (plaidLinkHandler) {
+            plaidLinkHandler.open();
+        } else {
+            throw new Error('Plaid Link not initialized');
+        }
+    } catch (error) {
+        console.error('[PLAID] Error opening Link:', error);
+        alert('Failed to open Plaid. Please try again.');
+    }
+}
+
+// Handle Stripe payment click
+function handleStripePaymentClick(firstName, lastName, claimAmount) {
+    // Use existing Stripe flow
+    handleBuyNow(firstName, lastName, claimAmount);
+    closeClaimModal();
+}
+
+// Make functions globally available
+window.showPaymentOptionsModal = showPaymentOptionsModal;
+window.handlePlaidPaymentClick = handlePlaidPaymentClick;
+window.handleStripePaymentClick = handleStripePaymentClick;
