@@ -1100,23 +1100,52 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         // Submit the form with human-like behavior
         console.log('Submitting form...');
         
-        // Final check for Cloudflare right before submission
+        // Final check for Cloudflare right before submission and solve if needed
         const preSubmitCheck = await page.evaluate(() => {
+            const turnstileEl = document.querySelector('[data-sitekey]');
+            const tokenInput = document.querySelector('input[name="cf-turnstile-response"]');
             return {
                 hasChallenge: document.body.innerText.includes('Please wait while we verify your browser') ||
                               document.body.innerText.includes('Checking your browser'),
-                hasTurnstile: document.querySelectorAll('[data-sitekey]').length > 0,
-                hasTokenInput: document.querySelector('input[name="cf-turnstile-response"]') !== null
+                hasTurnstile: turnstileEl !== null,
+                hasTokenInput: tokenInput !== null,
+                siteKey: turnstileEl ? turnstileEl.getAttribute('data-sitekey') : null,
+                tokenValue: tokenInput ? tokenInput.value : null
             };
         });
         
-        if (preSubmitCheck.hasChallenge || (preSubmitCheck.hasTurnstile && !preSubmitCheck.hasTokenInput)) {
-            console.warn('⚠️ Cloudflare challenge detected right before submission - waiting...');
-            await randomDelay(3000, 5000);
+        // If Cloudflare challenge detected but no token, try to solve it
+        if ((preSubmitCheck.hasChallenge || preSubmitCheck.hasTurnstile) && !preSubmitCheck.tokenValue && captchaSolver && preSubmitCheck.siteKey) {
+            console.warn('⚠️ Cloudflare challenge detected right before submission - solving...');
+            try {
+                const result = await captchaSolver.solveTurnstile(preSubmitCheck.siteKey, page.url());
+                const tokenInjected = await page.evaluate((token) => {
+                    const input = document.querySelector('input[name="cf-turnstile-response"]') ||
+                                 document.querySelector('input[id*="turnstile"]') ||
+                                 document.querySelector('textarea[name="cf-turnstile-response"]');
+                    if (input) {
+                        input.value = token;
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                        return true;
+                    }
+                    return false;
+                }, result.token);
+                
+                if (tokenInjected) {
+                    console.log('✅ Cloudflare token injected before submission');
+                    await randomDelay(3000, 5000); // Wait for Cloudflare to process
+                }
+            } catch (e) {
+                console.error('❌ Error solving Cloudflare before submission:', e.message);
+            }
+        } else if (preSubmitCheck.hasChallenge || (preSubmitCheck.hasTurnstile && !preSubmitCheck.tokenValue)) {
+            console.warn('⚠️ Cloudflare challenge detected but no solver available - waiting...');
+            await randomDelay(5000, 7000); // Wait longer if we can't solve
         }
         
         // Wait a bit to ensure form is ready
-        await randomDelay(1000, 2000);
+        await randomDelay(2000, 3000); // Increased wait time
         
         let submitted = false;
         
