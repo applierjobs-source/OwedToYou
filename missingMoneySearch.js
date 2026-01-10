@@ -1311,7 +1311,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             await randomDelay(2000, 3000); // Wait for Cloudflare to appear
             
             // Check for Cloudflare challenge AFTER submission
-        const challengeInfoAfterSubmission = await page.evaluate(() => {
+            const challengeInfoAfterSubmission = await page.evaluate(() => {
             const info = {
                 hasMessage: document.body.innerText.includes('Please wait while we verify your browser') ||
                            document.body.innerText.includes('Checking your browser'),
@@ -1347,12 +1347,12 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             });
             
             return info;
-        });
-        
-        console.log('Cloudflare detection after submission:', JSON.stringify(challengeInfoAfterSubmission, null, 2));
-        
-        // Handle Cloudflare challenge if present AFTER submission
-        if (challengeInfoAfterSubmission.hasMessage || challengeInfoAfterSubmission.iframes.some(f => f.isCloudflare) || challengeInfoAfterSubmission.turnstileElements.length > 0) {
+            });
+            
+            console.log('Cloudflare detection after submission:', JSON.stringify(challengeInfoAfterSubmission, null, 2));
+            
+            // Handle Cloudflare challenge if present AFTER submission
+            if (challengeInfoAfterSubmission.hasMessage || challengeInfoAfterSubmission.iframes.some(f => f.isCloudflare) || challengeInfoAfterSubmission.turnstileElements.length > 0) {
             console.log('🚨 Cloudflare challenge detected AFTER submission! Solving with 2captcha...');
             
             // Get intercepted params if available
@@ -1563,8 +1563,9 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             } else {
                 console.log('⚠️ No 2captcha solver or site key found after submission');
             }
-        } else {
-            console.log('✅ No Cloudflare challenge detected after submission');
+            } else {
+                console.log('✅ No Cloudflare challenge detected after submission');
+            }
         }
         
         // Wait for results to load - try multiple strategies
