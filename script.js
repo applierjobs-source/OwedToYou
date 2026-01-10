@@ -6387,7 +6387,7 @@ async function handlePlaidSuccess(publicToken, metadata, firstName, lastName, cl
                                 <strong>Balance Verified:</strong> ${result.balance_verified ? 'Yes ✅' : 'No ❌'}
                             </p>
                             <p style="color: #666; margin-bottom: 30px;">
-                                ${result.message || 'Your bank account has been connected. We will charge a 10% fee ($${result.fee_amount?.toFixed(2) || '0.00'}) when your funds are received.'}
+                                ${result.message || 'Your bank account has been connected. We will charge a 10% fee ($' + (result.fee_amount?.toFixed(2) || '0.00') + ') when your funds are received.'}
                             </p>
                             <button class="btn btn-submit" onclick="closeClaimModal()" style="margin: 0 auto;">
                                 Close
