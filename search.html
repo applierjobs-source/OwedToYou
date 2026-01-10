@@ -385,8 +385,10 @@
         </div>
     </footer>
 
+    <script src="script.js"></script>
     <script>
         // Handle name search (for /search page)
+        // This script runs AFTER script.js loads
         async function handleNameSearch() {
             const firstNameInput = document.getElementById('searchFirstName');
             const lastNameInput = document.getElementById('searchLastName');
@@ -398,11 +400,16 @@
                 return false;
             }
             
-            // Wait for script.js to load, then call startMissingMoneySearch
-            // This function will be called after script.js loads
-            if (typeof startMissingMoneySearch === 'function') {
+            // Check for function - try both direct and window object
+            const searchFunction = typeof startMissingMoneySearch === 'function' 
+                ? startMissingMoneySearch 
+                : (typeof window !== 'undefined' && typeof window.startMissingMoneySearch === 'function' 
+                    ? window.startMissingMoneySearch 
+                    : null);
+            
+            if (searchFunction) {
                 try {
-                    await startMissingMoneySearch(firstName, lastName, '', null, false); // false = not Instagram search
+                    await searchFunction(firstName, lastName, '', null, false); // false = not Instagram search
                 } catch (error) {
                     console.error('Error in startMissingMoneySearch:', error);
                     alert('An error occurred while searching. Please try again.');
@@ -410,16 +417,23 @@
             } else {
                 // If script.js hasn't loaded yet, wait a bit and try again (with multiple retries)
                 let retries = 0;
-                const maxRetries = 10; // Wait up to 5 seconds (10 * 500ms)
+                const maxRetries = 20; // Wait up to 10 seconds (20 * 500ms)
                 const checkFunction = setInterval(() => {
                     retries++;
-                    if (typeof startMissingMoneySearch === 'function') {
+                    const func = typeof startMissingMoneySearch === 'function' 
+                        ? startMissingMoneySearch 
+                        : (typeof window !== 'undefined' && typeof window.startMissingMoneySearch === 'function' 
+                            ? window.startMissingMoneySearch 
+                            : null);
+                    
+                    if (func) {
                         clearInterval(checkFunction);
-                        startMissingMoneySearch(firstName, lastName, '', null, false);
+                        func(firstName, lastName, '', null, false);
                     } else if (retries >= maxRetries) {
                         clearInterval(checkFunction);
                         console.error('startMissingMoneySearch function not found after', retries * 500, 'ms');
-                        alert('Search function not loaded. Please refresh the page. If the problem persists, check your internet connection.');
+                        console.error('Available window functions:', Object.keys(window).filter(k => k.includes('start') || k.includes('Missing')));
+                        alert('Search function not loaded. Please refresh the page. If the problem persists, check your internet connection and browser console for errors.');
                     }
                 }, 500);
             }
@@ -429,8 +443,8 @@
         // Make handleNameSearch available globally
         window.handleNameSearch = handleNameSearch;
         
-        // Allow Enter key to trigger search
-        document.addEventListener('DOMContentLoaded', function() {
+        // Wait for DOM and script.js to be ready
+        function initializeSearchHandlers() {
             const firstNameInput = document.getElementById('searchFirstName');
             const lastNameInput = document.getElementById('searchLastName');
             const searchBtn = document.getElementById('searchBtn');
@@ -459,28 +473,22 @@
                     handleNameSearch();
                 });
             }
-        });
-    </script>
-    <script src="script.js"></script>
-    <script>
-        // Ensure startMissingMoneySearch is available after script.js loads
-        document.addEventListener('DOMContentLoaded', function() {
-            // Wait a bit for script.js to fully execute
-            setTimeout(function() {
-                if (typeof startMissingMoneySearch === 'function') {
-                    console.log('✅ startMissingMoneySearch is available');
-                } else {
-                    console.warn('⚠️ startMissingMoneySearch not found, checking window object...');
-                    if (typeof window.startMissingMoneySearch === 'function') {
-                        console.log('✅ startMissingMoneySearch found on window object');
-                        // Make it available globally
-                        startMissingMoneySearch = window.startMissingMoneySearch;
-                    } else {
-                        console.error('❌ startMissingMoneySearch still not found');
-                    }
-                }
-            }, 100);
-        });
+            
+            // Verify function is available
+            if (typeof startMissingMoneySearch === 'function' || (typeof window !== 'undefined' && typeof window.startMissingMoneySearch === 'function')) {
+                console.log('✅ Search function is ready');
+            } else {
+                console.warn('⚠️ Search function not yet available, will retry on search');
+            }
+        }
+        
+        // Initialize when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeSearchHandlers);
+        } else {
+            // DOM already loaded
+            setTimeout(initializeSearchHandlers, 100); // Small delay to ensure script.js executed
+        }
     </script>
 </body>
 </html>
