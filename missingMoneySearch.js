@@ -1144,6 +1144,95 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             await randomDelay(5000, 7000); // Wait longer if we can't solve
         }
         
+        // Verify Cloudflare token is in form before submitting
+        const tokenVerification = await page.evaluate(() => {
+            const tokenInput = document.querySelector('input[name="cf-turnstile-response"]') ||
+                             document.querySelector('input[id*="turnstile"]') ||
+                             document.querySelector('textarea[name="cf-turnstile-response"]');
+            return {
+                hasTokenInput: tokenInput !== null,
+                tokenValue: tokenInput ? tokenInput.value : null,
+                tokenLength: tokenInput ? tokenInput.value.length : 0
+            };
+        });
+        
+        console.log('🔍 Token verification before submission:', {
+            hasTokenInput: tokenVerification.hasTokenInput,
+            tokenLength: tokenVerification.tokenLength,
+            hasToken: tokenVerification.tokenValue && tokenVerification.tokenValue.length > 0
+        });
+        
+        if (!tokenVerification.hasTokenInput || !tokenVerification.tokenValue || tokenVerification.tokenValue.length < 10) {
+            console.warn('⚠️⚠️⚠️ WARNING: Cloudflare token missing or invalid before form submission! ⚠️⚠️⚠️');
+            console.warn('Token input exists:', tokenVerification.hasTokenInput);
+            console.warn('Token value length:', tokenVerification.tokenLength);
+            
+            // Try to solve Cloudflare one more time if we have a solver
+            if (captchaSolver && preSubmitCheck.siteKey) {
+                console.log('🔄 Attempting to solve Cloudflare one more time before submission...');
+                try {
+                    const result = await captchaSolver.solveTurnstile(preSubmitCheck.siteKey, page.url());
+                    const tokenInjected = await page.evaluate((token) => {
+                        // Try multiple ways to inject token
+                        const selectors = [
+                            'input[name="cf-turnstile-response"]',
+                            'input[id*="turnstile"]',
+                            'input[id*="cf-"]',
+                            'textarea[name="cf-turnstile-response"]'
+                        ];
+                        
+                        for (const selector of selectors) {
+                            const input = document.querySelector(selector);
+                            if (input) {
+                                input.value = token;
+                                input.setAttribute('value', token);
+                                input.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+                                input.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+                                input.dispatchEvent(new Event('keyup', { bubbles: true, cancelable: true }));
+                                
+                                // Also try to trigger Cloudflare callback if it exists
+                                if (window.__turnstileCallback && typeof window.__turnstileCallback === 'function') {
+                                    try {
+                                        window.__turnstileCallback(token);
+                                    } catch (e) {
+                                        console.error('Callback error:', e);
+                                    }
+                                }
+                                
+                                return true;
+                            }
+                        }
+                        
+                        // If no input found, try to create one
+                        const form = document.querySelector('form');
+                        if (form) {
+                            const hiddenInput = document.createElement('input');
+                            hiddenInput.type = 'hidden';
+                            hiddenInput.name = 'cf-turnstile-response';
+                            hiddenInput.value = token;
+                            form.appendChild(hiddenInput);
+                            return true;
+                        }
+                        
+                        return false;
+                    }, result.token);
+                    
+                    if (tokenInjected) {
+                        console.log('✅ Cloudflare token injected successfully before submission');
+                        await randomDelay(5000, 7000); // Wait longer for Cloudflare to process
+                    } else {
+                        console.error('❌ Failed to inject Cloudflare token before submission');
+                    }
+                } catch (e) {
+                    console.error('❌ Error solving Cloudflare before submission:', e.message);
+                }
+            }
+        } else {
+            console.log('✅ Cloudflare token verified in form before submission');
+            // Still wait a bit to ensure Cloudflare has processed the token
+            await randomDelay(3000, 5000);
+        }
+        
         // Wait a bit to ensure form is ready
         await randomDelay(2000, 3000); // Increased wait time
         
