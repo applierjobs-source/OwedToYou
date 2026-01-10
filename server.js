@@ -45,8 +45,8 @@ if (process.env.SENDGRID_API_KEY) {
 
 // Initialize Plaid client
 let plaidClient = null;
-const PLAID_CLIENT_ID = process.env.PLAID_CLIENT_ID || '695de0e58356c2001cde09b0';
-const PLAID_SECRET = process.env.PLAID_SECRET || 'b6d75ad7d71e644771485cd58f487e';
+const PLAID_CLIENT_ID = process.env.PLAID_CLIENT_ID;
+const PLAID_SECRET = process.env.PLAID_SECRET;
 
 if (PLAID_CLIENT_ID && PLAID_SECRET) {
     try {
@@ -66,7 +66,7 @@ if (PLAID_CLIENT_ID && PLAID_SECRET) {
         plaidClient = null;
     }
 } else {
-    console.warn('[PLAID] ⚠️ Plaid credentials not set - Plaid integration will not work');
+    console.warn('[PLAID] ⚠️ Plaid credentials not set (PLAID_CLIENT_ID and PLAID_SECRET environment variables required) - Plaid integration will not work');
 }
 
 const PORT = process.env.PORT || 3000;
