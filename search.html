@@ -408,12 +408,18 @@
                     alert('An error occurred while searching. Please try again.');
                 }
             } else {
-                // If script.js hasn't loaded yet, wait a bit and try again
-                setTimeout(() => {
+                // If script.js hasn't loaded yet, wait a bit and try again (with multiple retries)
+                let retries = 0;
+                const maxRetries = 10; // Wait up to 5 seconds (10 * 500ms)
+                const checkFunction = setInterval(() => {
+                    retries++;
                     if (typeof startMissingMoneySearch === 'function') {
+                        clearInterval(checkFunction);
                         startMissingMoneySearch(firstName, lastName, '', null, false);
-                    } else {
-                        alert('Search function not loaded. Please refresh the page.');
+                    } else if (retries >= maxRetries) {
+                        clearInterval(checkFunction);
+                        console.error('startMissingMoneySearch function not found after', retries * 500, 'ms');
+                        alert('Search function not loaded. Please refresh the page. If the problem persists, check your internet connection.');
                     }
                 }, 500);
             }

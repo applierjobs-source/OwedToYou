@@ -6139,6 +6139,7 @@ window.handleClaimPaid = handleClaimPaid;
 window.handleClaimFree = handleClaimFree;
 window.handleClaimFreeClick = handleClaimFreeClick;
 window.handleClaimYourFundsClick = handleClaimYourFundsClick;
+window.startMissingMoneySearch = startMissingMoneySearch;
 window.showNameSearchModal = showNameSearchModal;
 window.showShareModal = showShareModal;
 window.shareToInstagram = shareToInstagram;
