@@ -1305,16 +1305,12 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             // Continue to results extraction
         } else {
             console.log('⚠️ No results or navigation detected - checking for Cloudflare challenge...');
-        
-        // Skip Cloudflare check if results already appeared
-        if (resultsAppeared || navigationOccurred) {
-            console.log('✅ Skipping Cloudflare check - form already submitted successfully');
-        } else {
+            
             // NOW handle Cloudflare challenge that appears AFTER form submission (or before if still on form page)
             console.log('🔍🔍🔍 CHECKING FOR CLOUDFLARE CHALLENGE 🔍🔍🔍');
             await randomDelay(2000, 3000); // Wait for Cloudflare to appear
-        
-        // Check for Cloudflare challenge AFTER submission
+            
+            // Check for Cloudflare challenge AFTER submission
         const challengeInfoAfterSubmission = await page.evaluate(() => {
             const info = {
                 hasMessage: document.body.innerText.includes('Please wait while we verify your browser') ||
