@@ -1459,13 +1459,26 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                         
                         if (formSubmitted) {
                             console.log('✅ Form resubmitted with token');
+                            // Wait longer after resubmission
+                            await randomDelay(5000, 7000);
+                            
+                            // Check if navigation occurred
+                            const urlAfterResubmit = page.url();
+                            console.log('URL after resubmission:', urlAfterResubmit);
+                            
+                            // Wait for navigation
+                            try {
+                                await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+                            } catch (e) {
+                                console.log('Navigation wait after resubmission completed');
+                            }
                         }
                     } catch (e) {
                         console.log('Could not resubmit form:', e.message);
                     }
                     
                     console.log('✅ Token injection complete, waiting for Cloudflare to process...');
-                    await randomDelay(3000, 5000);
+                    await randomDelay(5000, 7000); // Increased wait time
                     
                     // Wait for verification to complete
                     let verificationComplete = false;
