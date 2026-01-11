@@ -1277,10 +1277,36 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                             await randomDelay(200, 400);
                         }
                         
+                        // Verify token one more time before clicking
+                        const tokenBeforeClick = await page.evaluate(() => {
+                            const tokenInput = document.querySelector('input[name="cf-turnstile-response"]') ||
+                                             document.querySelector('input[id*="turnstile"]');
+                            return tokenInput && tokenInput.value && tokenInput.value.length > 10;
+                        });
+                        
+                        if (!tokenBeforeClick) {
+                            console.warn('⚠️ Token missing before button click - skipping this button');
+                            continue;
+                        }
+                        
                         await button.click();
                         submitted = true;
                         console.log('Form submitted via button click');
-                        await randomDelay(500, 1000);
+                        
+                        // Wait for network request to complete
+                        await randomDelay(2000, 3000);
+                        
+                        // Check if form submission request was made
+                        const submissionMade = formSubmissionRequests.length > 0 && 
+                                              formSubmissionRequests[formSubmissionRequests.length - 1].timestamp > Date.now() - 5000;
+                        
+                        if (!submissionMade) {
+                            console.warn('⚠️ No form submission request detected after button click');
+                        } else {
+                            console.log('✅ Form submission request detected');
+                        }
+                        
+                        await randomDelay(2000, 3000); // Additional wait
                         break;
                     }
                 }
