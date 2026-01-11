@@ -542,6 +542,36 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         
         page = await context.newPage();
         
+        // Track form submission requests
+        const formSubmissionRequests = [];
+        
+        // Set up network request interception to monitor form submissions
+        await page.route('**/*', async (route) => {
+            const request = route.request();
+            const url = request.url();
+            const method = request.method();
+            
+            // Monitor POST requests (form submissions)
+            if (method === 'POST' && (url.includes('claim-search') || url.includes('search') || url.includes('submit'))) {
+                const postData = request.postData();
+                const hasToken = postData && (postData.includes('cf-turnstile-response') || postData.includes('turnstile'));
+                
+                formSubmissionRequests.push({
+                    url,
+                    method,
+                    timestamp: Date.now(),
+                    hasToken: !!hasToken,
+                    postData: postData ? postData.substring(0, 200) : null // First 200 chars for logging
+                });
+                
+                console.log(`📤 Form submission request detected: ${method} ${url}`);
+                console.log(`   Token present: ${hasToken}`);
+            }
+            
+            // Continue with the request
+            await route.continue();
+        });
+        
         // Inject script to intercept turnstile.render BEFORE navigating
         // This is critical for Cloudflare Challenge pages
         await page.addInitScript(() => {
@@ -1144,15 +1174,30 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             await randomDelay(5000, 7000); // Wait longer if we can't solve
         }
         
-        // Verify Cloudflare token is in form before submitting
+        // Verify Cloudflare token is in form before submitting (check multiple selectors for dynamic IDs)
         const tokenVerification = await page.evaluate(() => {
-            const tokenInput = document.querySelector('input[name="cf-turnstile-response"]') ||
-                             document.querySelector('input[id*="turnstile"]') ||
-                             document.querySelector('textarea[name="cf-turnstile-response"]');
+            const selectors = [
+                'input[name="cf-turnstile-response"]',
+                'input[id*="turnstile"]',
+                'input[id*="cf-chl-widget"]',
+                'input[id*="cf-turnstile"]',
+                'textarea[name="cf-turnstile-response"]'
+            ];
+            
+            let tokenInput = null;
+            for (const selector of selectors) {
+                tokenInput = document.querySelector(selector);
+                if (tokenInput && tokenInput.value && tokenInput.value.length > 10) {
+                    break;
+                }
+            }
+            
             return {
                 hasTokenInput: tokenInput !== null,
                 tokenValue: tokenInput ? tokenInput.value : null,
-                tokenLength: tokenInput ? tokenInput.value.length : 0
+                tokenLength: tokenInput ? tokenInput.value.length : 0,
+                inputId: tokenInput ? tokenInput.id : null,
+                inputName: tokenInput ? tokenInput.name : null
             };
         });
         
@@ -1277,11 +1322,23 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                             await randomDelay(200, 400);
                         }
                         
-                        // Verify token one more time before clicking
+                        // Verify token one more time before clicking (check multiple selectors for dynamic IDs)
                         const tokenBeforeClick = await page.evaluate(() => {
-                            const tokenInput = document.querySelector('input[name="cf-turnstile-response"]') ||
-                                             document.querySelector('input[id*="turnstile"]');
-                            return tokenInput && tokenInput.value && tokenInput.value.length > 10;
+                            const selectors = [
+                                'input[name="cf-turnstile-response"]',
+                                'input[id*="turnstile"]',
+                                'input[id*="cf-chl-widget"]',
+                                'input[id*="cf-turnstile"]',
+                                'textarea[name="cf-turnstile-response"]'
+                            ];
+                            
+                            for (const selector of selectors) {
+                                const tokenInput = document.querySelector(selector);
+                                if (tokenInput && tokenInput.value && tokenInput.value.length > 10) {
+                                    return true;
+                                }
+                            }
+                            return false;
                         });
                         
                         if (!tokenBeforeClick) {
@@ -1297,13 +1354,15 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                         await randomDelay(2000, 3000);
                         
                         // Check if form submission request was made
-                        const submissionMade = formSubmissionRequests.length > 0 && 
-                                              formSubmissionRequests[formSubmissionRequests.length - 1].timestamp > Date.now() - 5000;
+                        const recentSubmissions = formSubmissionRequests.filter(req => req.timestamp > Date.now() - 5000);
+                        const submissionMade = recentSubmissions.length > 0;
                         
                         if (!submissionMade) {
                             console.warn('⚠️ No form submission request detected after button click');
                         } else {
-                            console.log('✅ Form submission request detected');
+                            const latest = recentSubmissions[recentSubmissions.length - 1];
+                            console.log(`✅ Form submission request detected: ${latest.method} ${latest.url}`);
+                            console.log(`   Token present in request: ${latest.hasToken}`);
                         }
                         
                         await randomDelay(2000, 3000); // Additional wait
