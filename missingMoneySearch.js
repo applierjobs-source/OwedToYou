@@ -546,7 +546,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         const formSubmissionRequests = [];
         const ajaxResponses = [];
         
-        // Set up network request interception to monitor form submissions and AJAX responses
+        // Set up network request interception to monitor form submissions
         await page.route('**/*', async (route) => {
             const request = route.request();
             const url = request.url();
@@ -569,36 +569,35 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 console.log(`   Token present: ${hasToken}`);
             }
             
-            // Monitor AJAX responses (GET requests that might be blocked by Cloudflare)
-            if (method === 'GET' && (url.includes('claim-search') || url.includes('search') || url.includes('results'))) {
-                console.log(`📥 Monitoring AJAX response: ${method} ${url}`);
+            // Continue with the request
+            await route.continue();
+        });
+        
+        // Set up response monitoring to detect Cloudflare blocking
+        page.on('response', async (response) => {
+            const url = response.url();
+            const status = response.status();
+            
+            // Monitor AJAX responses that might be blocked by Cloudflare
+            if ((url.includes('claim-search') || url.includes('search') || url.includes('results') || url.includes('api'))) {
+                if (status === 403 || status === 429 || status === 503) {
+                    console.warn(`🚨 Cloudflare blocking detected in response: ${status} ${url}`);
+                    ajaxResponses.push({
+                        url: url,
+                        status: status,
+                        timestamp: Date.now(),
+                        blocked: true
+                    });
+                } else if (status >= 200 && status < 300) {
+                    ajaxResponses.push({
+                        url: url,
+                        status: status,
+                        timestamp: Date.now(),
+                        blocked: false
+                    });
+                    console.log(`✅ AJAX response received: ${status} ${url}`);
+                }
             }
-            
-            // Continue with the request and capture response
-            const response = await route.fetch();
-            
-            // Check response for Cloudflare blocking
-            const responseStatus = response.status();
-            const responseUrl = response.url();
-            
-            if (responseStatus === 403 || responseStatus === 429 || responseStatus === 503) {
-                console.warn(`🚨 Cloudflare blocking detected in response: ${responseStatus} ${responseUrl}`);
-                ajaxResponses.push({
-                    url: responseUrl,
-                    status: responseStatus,
-                    timestamp: Date.now(),
-                    blocked: true
-                });
-            } else if (responseStatus >= 200 && responseStatus < 300) {
-                ajaxResponses.push({
-                    url: responseUrl,
-                    status: responseStatus,
-                    timestamp: Date.now(),
-                    blocked: false
-                });
-            }
-            
-            return response;
         });
         
         // Inject script to intercept turnstile.render BEFORE navigating
