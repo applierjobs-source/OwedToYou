@@ -1834,27 +1834,91 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                         console.log('Could not resubmit form:', e.message);
                     }
                     
-                    console.log('✅ Token injection complete, waiting for Cloudflare to process...');
+                    console.log('✅ Token injected, waiting for Cloudflare to process...');
                     await randomDelay(5000, 7000); // Increased wait time
                     
-                    // Wait for verification to complete
+                    // Wait for verification to complete AND form to resubmit
                     let verificationComplete = false;
-                    for (let i = 0; i < 20; i++) {
+                    let formResubmitted = false;
+                    const originalUrl = page.url();
+                    
+                    for (let i = 0; i < 30; i++) { // Increased from 20 to 30 iterations
                         const pageText = await page.evaluate(() => document.body.innerText);
                         const url = page.url();
-                        console.log(`[CLOUDFLARE] Verification check ${i + 1}/20 - URL: ${url.substring(0, 100)}`);
-                        if (!pageText.includes('Please wait while we verify your browser') &&
-                            !pageText.includes('Checking your browser') &&
-                            !url.includes('challenge')) {
-                            console.log('✅ Cloudflare verification completed after submission!');
+                        console.log(`[CLOUDFLARE] Verification check ${i + 1}/30 - URL: ${url.substring(0, 100)}`);
+                        
+                        // Check if Cloudflare verification completed
+                        const cloudflareGone = !pageText.includes('Please wait while we verify your browser') &&
+                                             !pageText.includes('Checking your browser') &&
+                                             !pageText.includes('Please check the box below to continue') &&
+                                             !url.includes('challenge');
+                        
+                        // Check if form was resubmitted (URL changed or results appeared)
+                        const urlChanged = url !== originalUrl && !url.includes('claim-search');
+                        const hasResultsTable = await page.evaluate(() => {
+                            return document.querySelector('table tbody') !== null;
+                        });
+                        const resultsAppeared = pageText.includes('No properties to display') || 
+                                               hasResultsTable ||
+                                               (pageText.match(/\$[\d,]+\.?\d*/) !== null);
+                        
+                        if (cloudflareGone && (urlChanged || resultsAppeared)) {
+                            console.log('✅ Cloudflare verification completed AND form resubmitted!');
                             verificationComplete = true;
+                            formResubmitted = true;
                             break;
+                        } else if (cloudflareGone && i > 10) {
+                            // Cloudflare is gone but form hasn't resubmitted - try to trigger it
+                            console.log('⚠️ Cloudflare gone but form not resubmitted - attempting to trigger submission...');
+                            const formTriggered = await page.evaluate(() => {
+                                // Try to find and click submit button
+                                const submitBtn = document.querySelector('button[type="submit"], input[type="submit"], button:not([type])');
+                                if (submitBtn && submitBtn.offsetParent !== null) { // Check if visible
+                                    submitBtn.click();
+                                    return true;
+                                }
+                                // Try to submit form directly
+                                const form = document.querySelector('form');
+                                if (form) {
+                                    form.submit();
+                                    return true;
+                                }
+                                return false;
+                            });
+                            
+                            if (formTriggered) {
+                                console.log('✅ Form submission triggered - waiting for results...');
+                                await randomDelay(5000, 7000);
+                                // Check again after triggering
+                                const newUrl = page.url();
+                                const newText = await page.evaluate(() => document.body.innerText);
+                                const hasNewResultsTable = await page.evaluate(() => {
+                                    return document.querySelector('table tbody') !== null;
+                                });
+                                if (newUrl !== url || newText.includes('No properties to display') || newText.match(/\$[\d,]+\.?\d*/) !== null || hasNewResultsTable) {
+                                    formResubmitted = true;
+                                    break;
+                                }
+                            }
                         }
+                        
                         await randomDelay(1000, 2000);
                     }
                     
                     if (!verificationComplete) {
                         console.warn('⚠️ Cloudflare verification may not have completed - continuing anyway');
+                    }
+                    if (formResubmitted) {
+                        console.log('✅ Form resubmitted after Cloudflare solve - updating flags...');
+                        // Update flags to indicate form was resubmitted
+                        resultsAppeared = true;
+                        const currentUrlAfterResubmit = page.url();
+                        navigationOccurred = (currentUrlAfterResubmit !== originalUrl && !currentUrlAfterResubmit.includes('claim-search'));
+                        console.log(`Navigation occurred: ${navigationOccurred}, URL changed from ${originalUrl.substring(0, 50)} to ${currentUrlAfterResubmit.substring(0, 50)}`);
+                        // Wait a bit more for results to load
+                        await randomDelay(3000, 5000);
+                    } else {
+                        console.warn('⚠️ Form may not have resubmitted after Cloudflare solve - will check results anyway');
                     }
                 } catch (e) {
                     console.error('❌ 2captcha failed after submission:', e.message);
