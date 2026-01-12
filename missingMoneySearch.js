@@ -542,10 +542,11 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         
         page = await context.newPage();
         
-        // Track form submission requests
+        // Track form submission requests and responses
         const formSubmissionRequests = [];
+        const ajaxResponses = [];
         
-        // Set up network request interception to monitor form submissions
+        // Set up network request interception to monitor form submissions and AJAX responses
         await page.route('**/*', async (route) => {
             const request = route.request();
             const url = request.url();
@@ -568,8 +569,36 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 console.log(`   Token present: ${hasToken}`);
             }
             
-            // Continue with the request
-            await route.continue();
+            // Monitor AJAX responses (GET requests that might be blocked by Cloudflare)
+            if (method === 'GET' && (url.includes('claim-search') || url.includes('search') || url.includes('results'))) {
+                console.log(`📥 Monitoring AJAX response: ${method} ${url}`);
+            }
+            
+            // Continue with the request and capture response
+            const response = await route.fetch();
+            
+            // Check response for Cloudflare blocking
+            const responseStatus = response.status();
+            const responseUrl = response.url();
+            
+            if (responseStatus === 403 || responseStatus === 429 || responseStatus === 503) {
+                console.warn(`🚨 Cloudflare blocking detected in response: ${responseStatus} ${responseUrl}`);
+                ajaxResponses.push({
+                    url: responseUrl,
+                    status: responseStatus,
+                    timestamp: Date.now(),
+                    blocked: true
+                });
+            } else if (responseStatus >= 200 && responseStatus < 300) {
+                ajaxResponses.push({
+                    url: responseUrl,
+                    status: responseStatus,
+                    timestamp: Date.now(),
+                    blocked: false
+                });
+            }
+            
+            return response;
         });
         
         // Inject script to intercept turnstile.render BEFORE navigating
@@ -1459,6 +1488,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         // Wait for either navigation OR results table to appear (AJAX submission)
         let resultsAppeared = false;
         let navigationOccurred = false;
+        let ajaxBlocked = false;
         
         try {
             await Promise.race([
@@ -1468,28 +1498,67 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                     console.log('✅ Navigation occurred');
                 }).catch(() => {}),
                 // Wait for results table to appear (AJAX submission)
-                page.waitForSelector('table tbody tr, .results-table, [class*="result"]', { timeout: 30000 }).then(() => {
+                // Check for table with data OR "No properties" message (both indicate form submitted)
+                page.waitForSelector('table, table tbody, .results-table, [class*="result"]', { timeout: 30000 }).then(() => {
                     resultsAppeared = true;
-                    console.log('✅ Results appeared on page (AJAX submission)');
+                    console.log('✅ Results table appeared on page (AJAX submission)');
                 }).catch(() => {}),
-                // Timeout after 5 seconds to check for Cloudflare
-                page.waitForTimeout(5000)
+                // Wait longer for AJAX responses
+                page.waitForTimeout(10000) // Increased from 5s to 10s
             ]);
         } catch (e) {
             console.log('Wait completed or timed out');
+        }
+        
+        // Check for Cloudflare blocking in AJAX responses
+        const recentAjaxResponses = ajaxResponses.filter(resp => resp.timestamp > Date.now() - 15000);
+        const blockedResponses = recentAjaxResponses.filter(resp => resp.blocked);
+        
+        if (blockedResponses.length > 0) {
+            ajaxBlocked = true;
+            console.warn(`🚨🚨🚨 CLOUDFLARE BLOCKING AJAX RESPONSES! 🚨🚨🚨`);
+            console.warn(`   Blocked ${blockedResponses.length} response(s):`, blockedResponses.map(r => `${r.status} ${r.url}`));
         }
         
         // Check current URL to see if we navigated away from form page
         const currentUrlAfterSubmit = page.url();
         console.log('URL after form submission attempt:', currentUrlAfterSubmit);
         
+        // Check if results table exists (even if empty - "No properties to display" means form submitted)
+        const hasResultsTable = await page.evaluate(() => {
+            const tables = document.querySelectorAll('table');
+            return tables.length > 0;
+        });
+        
+        if (hasResultsTable) {
+            const tableContent = await page.evaluate(() => {
+                const table = document.querySelector('table');
+                if (!table) return null;
+                return {
+                    hasRows: table.querySelectorAll('tbody tr').length > 0,
+                    text: table.innerText.substring(0, 200)
+                };
+            });
+            
+            console.log('📊 Results table status:', {
+                exists: true,
+                hasRows: tableContent?.hasRows || false,
+                content: tableContent?.text || 'empty'
+            });
+            
+            // If table exists (even with "No properties"), form submitted successfully
+            if (tableContent && (tableContent.hasRows || tableContent.text.includes('No properties'))) {
+                resultsAppeared = true;
+                console.log('✅ Form submitted successfully - results table found');
+            }
+        }
+        
         // If results appeared via AJAX, we're done - skip Cloudflare check
-        if (resultsAppeared) {
-            console.log('✅ Form submitted successfully via AJAX - results are on page');
-            // Continue to results extraction
-        } else if (navigationOccurred) {
-            console.log('✅ Form submitted successfully - navigation occurred');
-            // Continue to results extraction
+        if (resultsAppeared || navigationOccurred) {
+            console.log('✅ Form submission successful - results or navigation detected');
+        } else if (ajaxBlocked) {
+            console.warn('⚠️⚠️⚠️ AJAX responses blocked by Cloudflare - form may have submitted but results blocked ⚠️⚠️⚠️');
+            console.log('⚠️ Checking for Cloudflare challenge to solve...');
         } else {
             console.log('⚠️ No results or navigation detected - checking for Cloudflare challenge...');
             
