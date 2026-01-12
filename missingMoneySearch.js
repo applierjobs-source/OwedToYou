@@ -552,8 +552,8 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             const url = request.url();
             const method = request.method();
             
-            // Monitor POST requests (form submissions)
-            if (method === 'POST' && (url.includes('claim-search') || url.includes('search') || url.includes('submit'))) {
+            // Log ALL POST requests to missingmoney.com to debug form submission
+            if (method === 'POST' && url.includes('missingmoney.com')) {
                 const postData = request.postData();
                 const hasToken = postData && (postData.includes('cf-turnstile-response') || postData.includes('turnstile'));
                 
@@ -562,11 +562,35 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                     method,
                     timestamp: Date.now(),
                     hasToken: !!hasToken,
-                    postData: postData ? postData.substring(0, 200) : null // First 200 chars for logging
+                    postData: postData ? postData.substring(0, 500) : null // First 500 chars for logging
                 });
                 
-                console.log(`📤 Form submission request detected: ${method} ${url}`);
+                console.log(`📤 POST request to missingmoney.com: ${method} ${url}`);
                 console.log(`   Token present: ${hasToken}`);
+                if (postData) {
+                    console.log(`   POST data preview: ${postData.substring(0, 300)}`);
+                }
+            }
+            
+            // Also monitor POST requests that might be form submissions (broader pattern)
+            if (method === 'POST' && (url.includes('claim-search') || url.includes('search') || url.includes('submit') || url.includes('/app/'))) {
+                const postData = request.postData();
+                const hasToken = postData && (postData.includes('cf-turnstile-response') || postData.includes('turnstile'));
+                
+                // Avoid duplicates
+                const alreadyTracked = formSubmissionRequests.some(req => req.url === url && req.timestamp > Date.now() - 1000);
+                if (!alreadyTracked) {
+                    formSubmissionRequests.push({
+                        url,
+                        method,
+                        timestamp: Date.now(),
+                        hasToken: !!hasToken,
+                        postData: postData ? postData.substring(0, 500) : null
+                    });
+                    
+                    console.log(`📤 Form submission request detected: ${method} ${url}`);
+                    console.log(`   Token present: ${hasToken}`);
+                }
             }
             
             // Continue with the request
@@ -1552,9 +1576,22 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             }
         }
         
-        // If results appeared via AJAX, we're done - skip Cloudflare check
+        // If results appeared via AJAX, check if Cloudflare challenge is blocking results
         if (resultsAppeared || navigationOccurred) {
             console.log('✅ Form submission successful - results or navigation detected');
+            
+            // Even if results appeared, check if Cloudflare challenge is blocking actual data
+            const cloudflareBlocking = await page.evaluate(() => {
+                return document.body.innerText.includes('Please wait while we verify your browser') ||
+                       document.body.innerText.includes('Checking your browser') ||
+                       document.body.innerText.includes('Please check the box below to continue');
+            });
+            
+            if (cloudflareBlocking) {
+                console.warn('⚠️⚠️⚠️ Cloudflare challenge detected AFTER form submission - blocking results! ⚠️⚠️⚠️');
+                console.log('⚠️ Solving Cloudflare challenge to load results...');
+                ajaxBlocked = true; // Treat as blocked so we solve it
+            }
         } else if (ajaxBlocked) {
             console.warn('⚠️⚠️⚠️ AJAX responses blocked by Cloudflare - form may have submitted but results blocked ⚠️⚠️⚠️');
             console.log('⚠️ Checking for Cloudflare challenge to solve...');
