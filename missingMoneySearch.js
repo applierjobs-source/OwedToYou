@@ -1591,8 +1591,12 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 console.warn('⚠️⚠️⚠️ Cloudflare challenge detected AFTER form submission - blocking results! ⚠️⚠️⚠️');
                 console.log('⚠️ Solving Cloudflare challenge to load results...');
                 ajaxBlocked = true; // Treat as blocked so we solve it
+                resultsAppeared = false; // Reset so we go through Cloudflare solving flow
             }
-        } else if (ajaxBlocked) {
+        }
+        
+        // Handle Cloudflare challenges (either blocking AJAX or appearing after submission)
+        if (ajaxBlocked || (!resultsAppeared && !navigationOccurred)) {
             console.warn('⚠️⚠️⚠️ AJAX responses blocked by Cloudflare - form may have submitted but results blocked ⚠️⚠️⚠️');
             console.log('⚠️ Checking for Cloudflare challenge to solve...');
         } else {
