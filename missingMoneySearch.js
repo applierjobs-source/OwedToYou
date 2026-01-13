@@ -1,10 +1,8 @@
-const playwright = require('playwright-extra');
-const StealthPlugin = require('playwright-extra-plugin-stealth');
-const { chromium } = playwright;
+const { chromium } = require('playwright');
 const { CloudflareSolver } = require('./cloudflareSolver');
 
-// Use stealth plugin to evade detection
-playwright.use(StealthPlugin());
+// Note: playwright-extra-plugin-stealth doesn't exist for Playwright
+// We use manual stealth techniques instead (see browser context setup below)
 
 // Limit concurrent browser instances to prevent resource exhaustion
 let activeBrowserCount = 0;
