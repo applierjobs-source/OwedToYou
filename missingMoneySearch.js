@@ -1,5 +1,10 @@
-const { chromium } = require('playwright');
+const playwright = require('playwright-extra');
+const StealthPlugin = require('playwright-extra-plugin-stealth');
+const { chromium } = playwright;
 const { CloudflareSolver } = require('./cloudflareSolver');
+
+// Use stealth plugin to evade detection
+playwright.use(StealthPlugin());
 
 // Limit concurrent browser instances to prevent resource exhaustion
 let activeBrowserCount = 0;
@@ -88,6 +93,82 @@ async function humanType(page, selector, text) {
     }
     
     return true;
+}
+
+// Simulate human-like behavior to evade detection
+async function simulateHumanBehavior(page) {
+    try {
+        // Random mouse movements (simulate reading/interaction)
+        const viewport = page.viewportSize();
+        if (viewport) {
+            const moves = Math.floor(Math.random() * 3) + 2; // 2-4 moves
+            for (let i = 0; i < moves; i++) {
+                await page.mouse.move(
+                    Math.random() * viewport.width,
+                    Math.random() * viewport.height,
+                    { steps: Math.floor(Math.random() * 10) + 5 } // Smooth movement
+                );
+                await randomDelay(200, 500);
+            }
+        }
+        
+        // Human-like scrolling (not instant, with pauses)
+        const scrollAmount = Math.random() * 300 + 100;
+        await page.evaluate((amount) => {
+            window.scrollBy({
+                top: amount,
+                behavior: 'smooth'
+            });
+        }, scrollAmount);
+        await randomDelay(500, 1000);
+        
+        // Random pause (simulating reading time)
+        await randomDelay(1000, 2500);
+        
+        // Sometimes scroll back up a bit
+        if (Math.random() > 0.5) {
+            await page.evaluate(() => {
+                window.scrollBy({
+                    top: -Math.random() * 150,
+                    behavior: 'smooth'
+                });
+            });
+            await randomDelay(300, 700);
+        }
+    } catch (e) {
+        // Don't fail if behavior simulation fails
+        console.log('Human behavior simulation error (non-critical):', e.message);
+    }
+}
+
+// Warm up session by visiting pages before actual search
+async function warmUpSession(page) {
+    try {
+        console.log('🔥 Warming up session...');
+        // Visit homepage first
+        await page.goto('https://missingmoney.com/', { 
+            waitUntil: 'domcontentloaded',
+            timeout: 20000 
+        });
+        await simulateHumanBehavior(page);
+        await randomDelay(2000, 4000);
+        
+        // Visit about/help page
+        await page.goto('https://missingmoney.com/help', { 
+            waitUntil: 'domcontentloaded',
+            timeout: 20000 
+        }).catch(() => {
+            // If help page doesn't exist, that's okay
+            console.log('Help page not found, skipping...');
+        });
+        await simulateHumanBehavior(page);
+        await randomDelay(2000, 4000);
+        
+        console.log('✅ Session warmed up');
+    } catch (e) {
+        console.log('Warm-up error (non-critical):', e.message);
+        // Don't fail if warm-up fails
+    }
 }
 
 // Convert state abbreviation to full state name
@@ -510,8 +591,9 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             }
         });
         
-        // Override webdriver property
+        // Enhanced stealth: Override automation detection properties
         await context.addInitScript(() => {
+            // Override webdriver property (most important)
             Object.defineProperty(navigator, 'webdriver', {
                 get: () => false,
             });
@@ -519,6 +601,9 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             // Override chrome property
             window.chrome = {
                 runtime: {},
+                loadTimes: function() {},
+                csi: function() {},
+                app: {}
             };
             
             // Override permissions
@@ -529,15 +614,67 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                     originalQuery(parameters)
             );
             
-            // Override plugins
+            // Override plugins (make it look like real browser)
             Object.defineProperty(navigator, 'plugins', {
-                get: () => [1, 2, 3, 4, 5],
+                get: () => {
+                    const plugins = [];
+                    plugins.push({ name: 'Chrome PDF Plugin', description: 'Portable Document Format', filename: 'internal-pdf-viewer' });
+                    plugins.push({ name: 'Chrome PDF Viewer', description: '', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai' });
+                    plugins.push({ name: 'Native Client', description: '', filename: 'internal-nacl-plugin' });
+                    return plugins;
+                },
             });
             
             // Override languages
             Object.defineProperty(navigator, 'languages', {
                 get: () => ['en-US', 'en'],
             });
+            
+            // Override platform to match user agent
+            Object.defineProperty(navigator, 'platform', {
+                get: () => 'MacIntel',
+            });
+            
+            // Override hardwareConcurrency (make it realistic)
+            Object.defineProperty(navigator, 'hardwareConcurrency', {
+                get: () => 8, // Common CPU core count
+            });
+            
+            // Override deviceMemory
+            Object.defineProperty(navigator, 'deviceMemory', {
+                get: () => 8, // Common RAM amount
+            });
+            
+            // Canvas fingerprinting protection (add noise)
+            const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+            HTMLCanvasElement.prototype.toDataURL = function(type) {
+                if (type === 'image/png' || !type) {
+                    const context = this.getContext('2d');
+                    if (context) {
+                        const imageData = context.getImageData(0, 0, this.width, this.height);
+                        // Add minimal noise (too much breaks sites)
+                        for (let i = 0; i < imageData.data.length; i += 4) {
+                            if (Math.random() > 0.99) { // Only 1% of pixels
+                                imageData.data[i] += Math.floor(Math.random() * 3) - 1;
+                            }
+                        }
+                        context.putImageData(imageData, 0, 0);
+                    }
+                }
+                return originalToDataURL.apply(this, arguments);
+            };
+            
+            // WebGL fingerprinting protection
+            const getParameter = WebGLRenderingContext.prototype.getParameter;
+            WebGLRenderingContext.prototype.getParameter = function(parameter) {
+                if (parameter === 37445) { // UNMASKED_VENDOR_WEBGL
+                    return 'Intel Inc.';
+                }
+                if (parameter === 37446) { // UNMASKED_RENDERER_WEBGL
+                    return 'Intel Iris OpenGL Engine';
+                }
+                return getParameter.apply(this, arguments);
+            };
         });
         
         page = await context.newPage();
@@ -684,22 +821,23 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         });
         
         // Navigate to Missing Money search page
-        console.log('Navigating to Missing Money...');
+        // Warm up session first (builds reputation before search)
+        const useWarmUp = process.env.USE_WARMUP !== 'false'; // Default to true
+        if (useWarmUp) {
+            await warmUpSession(page);
+        }
+        
+        console.log('Navigating to Missing Money search page...');
         await page.goto('https://missingmoney.com/app/claim-search', { 
             waitUntil: 'domcontentloaded',
             timeout: 30000 
         });
         
+        // Simulate human behavior before form filling
+        await simulateHumanBehavior(page);
+        
         // IMMEDIATELY start filling form - Cloudflare happens AFTER submission, not before!
         console.log('🚀🚀🚀 FILLING FORM IMMEDIATELY - CLOUDFLARE COMES AFTER SUBMISSION! 🚀🚀🚀');
-        
-        // Minimal wait for page to settle
-        await randomDelay(500, 800);
-        
-        // Human-like behavior: scroll and move mouse (minimal delay)
-        await page.mouse.move(100, 100);
-        await randomDelay(100, 200);
-        await page.evaluate(() => window.scrollTo(0, 200));
         
         // Check for Cloudflare challenge BEFORE form filling (it might appear on initial page load)
         console.log('🔍 Checking for Cloudflare challenge on initial page load...');
