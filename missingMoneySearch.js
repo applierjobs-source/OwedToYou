@@ -14,6 +14,46 @@ let processingQueue = false;
 const QUEUE_TIMEOUT = 300000; // 5 minutes max wait time in queue (allow searches to wait)
 const MAX_RETRIES = 2; // Maximum retries for resource exhaustion errors
 
+function getProxyConfig() {
+    const proxyUrl = process.env.MISSINGMONEY_PROXY_URL || process.env.PROXY_URL || '';
+    if (!proxyUrl) {
+        return { playwrightProxy: null, captchaProxy: null };
+    }
+    
+    try {
+        const parsed = new URL(proxyUrl);
+        const server = `${parsed.protocol}//${parsed.host}`;
+        const username = parsed.username ? decodeURIComponent(parsed.username) : undefined;
+        const password = parsed.password ? decodeURIComponent(parsed.password) : undefined;
+        
+        const playwrightProxy = {
+            server,
+            ...(username ? { username } : {}),
+            ...(password ? { password } : {})
+        };
+        
+        let proxyType = 'http';
+        if (parsed.protocol.startsWith('https')) proxyType = 'https';
+        if (parsed.protocol.startsWith('socks5')) proxyType = 'socks5';
+        if (parsed.protocol.startsWith('socks4')) proxyType = 'socks4';
+        
+        const proxyPort = parsed.port ? parseInt(parsed.port, 10) : (proxyType === 'https' ? 443 : 80);
+        const captchaProxy = {
+            proxyType,
+            proxyAddress: parsed.hostname,
+            proxyPort,
+            ...(username ? { proxyLogin: username } : {}),
+            ...(password ? { proxyPassword: password } : {})
+        };
+        
+        console.log(`[PROXY] Using proxy ${parsed.hostname}:${proxyPort} (${proxyType})`);
+        return { playwrightProxy, captchaProxy };
+    } catch (e) {
+        console.warn('[PROXY] Invalid proxy URL, skipping proxy usage:', e.message);
+        return { playwrightProxy: null, captchaProxy: null };
+    }
+}
+
 // Semaphore to limit concurrent browser launches with timeout
 async function acquireBrowserSlot() {
     return new Promise((resolve, reject) => {
@@ -473,6 +513,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
     
     // Initialize 2captcha solver if API key provided
     let captchaSolver = null;
+    const { playwrightProxy, captchaProxy } = getProxyConfig();
     console.log('🔍 Initializing 2captcha solver...');
     console.log('🔍 use2Captcha:', use2Captcha);
     console.log('🔍 captchaApiKey provided:', !!captchaApiKey);
@@ -563,7 +604,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         
         // Create context with realistic browser fingerprint
         // Updated user agent to Chrome 131 (more recent) to avoid outdated browser detection
-        context = await browser.newContext({
+        const contextOptions = {
             viewport: { width: 1920, height: 1080 },
             userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
             locale: 'en-US',
@@ -587,7 +628,13 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 'sec-ch-ua-mobile': '?0',
                 'sec-ch-ua-platform': '"macOS"'
             }
-        });
+        };
+        
+        if (playwrightProxy) {
+            contextOptions.proxy = playwrightProxy;
+        }
+        
+        context = await browser.newContext(contextOptions);
         
         // Enhanced stealth: Override automation detection properties
         await context.addInitScript(() => {
@@ -900,7 +947,8 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                         page.url(),
                         preSubmissionChallenge.action,
                         preSubmissionChallenge.cData,
-                        preSubmissionChallenge.pagedata
+                        preSubmissionChallenge.pagedata,
+                        captchaProxy
                     );
                     
                     // Inject token
@@ -1336,7 +1384,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         if ((preSubmitCheck.hasChallenge || preSubmitCheck.hasTurnstile) && !preSubmitCheck.tokenValue && captchaSolver && preSubmitCheck.siteKey) {
             console.warn('⚠️ Cloudflare challenge detected right before submission - solving...');
             try {
-                const result = await captchaSolver.solveTurnstile(preSubmitCheck.siteKey, page.url());
+                const result = await captchaSolver.solveTurnstile(preSubmitCheck.siteKey, page.url(), null, null, null, captchaProxy);
                 const tokenInjected = await page.evaluate((token) => {
                     const input = document.querySelector('input[name="cf-turnstile-response"]') ||
                                  document.querySelector('input[id*="turnstile"]') ||
@@ -1404,7 +1452,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             if (captchaSolver && preSubmitCheck.siteKey) {
                 console.log('🔄 Attempting to solve Cloudflare one more time before submission...');
                 try {
-                    const result = await captchaSolver.solveTurnstile(preSubmitCheck.siteKey, page.url());
+                    const result = await captchaSolver.solveTurnstile(preSubmitCheck.siteKey, page.url(), null, null, null, captchaProxy);
                     const tokenInjected = await page.evaluate((token) => {
                         // Try multiple ways to inject token
                         const selectors = [
@@ -1842,7 +1890,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 console.log('🎯🎯🎯 SOLVING CLOUDFLARE WITH 2CAPTCHA AFTER SUBMISSION 🎯🎯🎯');
                 console.log(`Site key: ${siteKey.substring(0, 40)}...`);
                 try {
-                    const result = await captchaSolver.solveTurnstile(siteKey, page.url(), action, cData, pagedata);
+                    const result = await captchaSolver.solveTurnstile(siteKey, page.url(), action, cData, pagedata, captchaProxy);
                     const token = result.token;
                     const userAgent = result.userAgent;
                     console.log('✅✅✅ 2CAPTCHA TOKEN RECEIVED AFTER SUBMISSION! ✅✅✅');
@@ -3124,7 +3172,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                     });
                     
                     if (siteKey && siteKey.length > 20) {
-                        const result = await captchaSolver.solveTurnstile(siteKey, page.url());
+                        const result = await captchaSolver.solveTurnstile(siteKey, page.url(), null, null, null, captchaProxy);
                         await page.evaluate((token) => {
                             const input = document.querySelector('input[name="cf-turnstile-response"]') ||
                                          document.querySelector('input[id*="turnstile"]');
@@ -3134,13 +3182,69 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                             }
                         }, result.token);
                         
-                        // Wait and check again
-                        await randomDelay(3000, 5000);
+                        // Wait for Cloudflare to process, then explicitly submit the form
+                        await randomDelay(4000, 6000);
+                        const submittedAfterToken = await page.evaluate(() => {
+                            const form = document.querySelector('form');
+                            if (form) {
+                                const tokenInput = form.querySelector('input[name="cf-turnstile-response"]') || form.querySelector('input[id*="turnstile"]');
+                                if (tokenInput && tokenInput.value && tokenInput.value.length > 10) {
+                                    form.submit();
+                                    return true;
+                                }
+                            }
+                            const btn = document.querySelector('button[type="submit"]') || document.querySelector('input[type="submit"]');
+                            if (btn && btn.offsetParent !== null) {
+                                btn.click();
+                                return true;
+                            }
+                            return false;
+                        });
+                        if (submittedAfterToken) {
+                            console.log('✅ Form submitted after injecting Cloudflare token');
+                        }
+                        await randomDelay(5000, 8000);
                         const urlAfterRetry = page.url();
-                        if (urlAfterRetry !== finalUrl && !urlAfterRetry.includes('claim-search')) {
-                            console.log('✅ Form submitted after Cloudflare retry!');
-                            // Continue with results extraction
-                            return null; // Don't return error, let it continue
+                        const hasTableNow = await page.evaluate(() => document.querySelectorAll('table').length > 0);
+                        const retrySucceeded = (urlAfterRetry !== finalUrl && !urlAfterRetry.includes('claim-search')) || hasTableNow;
+                        if (retrySucceeded) {
+                            console.log('✅ Form submitted after Cloudflare retry - re-extracting results');
+                            const reExtracted = await page.evaluate(() => {
+                                const results = [];
+                                document.querySelectorAll('table').forEach(table => {
+                                    Array.from(table.querySelectorAll('tr')).forEach(row => {
+                                        const text = row.innerText || row.textContent || '';
+                                        if (/select|action/i.test(text) && /owner|action/i.test(text)) return;
+                                        const amountMatch = text.match(/(over\s+\$[\d,]+|\$\d+[\s,]*to[\s,]*\$\d+|\$[\d,]+)/i);
+                                        if (!amountMatch) return;
+                                        const cells = Array.from(row.querySelectorAll('td, th'));
+                                        let entity = 'Unclaimed Property';
+                                        for (const cell of cells) {
+                                            const cellText = cell.innerText.trim();
+                                            if (cellText && cellText.length > 2 && cellText.length < 200 && !/^(claim|select|view|\$[\d,]+)$/i.test(cellText)) {
+                                                entity = cellText;
+                                                break;
+                                            }
+                                        }
+                                        results.push({ entity, amount: amountMatch[0].toUpperCase(), details: text.substring(0, 300) });
+                                    });
+                                });
+                                return results;
+                            });
+                            const seen = new Set();
+                            const retryUnique = reExtracted.filter(r => {
+                                const key = `${(r.entity || '').trim()}-${r.amount}`;
+                                if (seen.has(key)) return false;
+                                seen.add(key);
+                                return (r.entity && r.entity.trim().length > 0);
+                            }).map(r => ({ entity: r.entity.trim(), amount: r.amount, details: r.details || '' }));
+                            if (retryUnique.length > 0) {
+                                const totalAmount = retryUnique.reduce((sum, r) => {
+                                    const m = r.amount.match(/\$?([\d,]+)/);
+                                    return sum + (m ? parseFloat(m[1].replace(/,/g, '')) : 0);
+                                }, 0);
+                                return { success: true, results: retryUnique, totalAmount };
+                            }
                         }
                     }
                 } catch (e) {
@@ -3148,11 +3252,75 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 }
             }
             
+            // Last-resort: try submitting form once more (with or without token) and wait longer
+            console.log('🔄 Last-resort: trying form submit again and waiting for response...');
+            try {
+                const lastResort = await page.evaluate(() => {
+                    const form = document.querySelector('form');
+                    if (!form) return { submitted: false, hadToken: false };
+                    const tokenInput = form.querySelector('input[name="cf-turnstile-response"]') || form.querySelector('input[id*="turnstile"]');
+                    const hadToken = !!(tokenInput && tokenInput.value && tokenInput.value.length > 10);
+                    form.submit();
+                    return { submitted: true, hadToken };
+                });
+                if (lastResort.submitted) {
+                    console.log('Last-resort form submit (had token:', lastResort.hadToken, ')');
+                    await randomDelay(12000, 18000);
+                    const urlAfterLastResort = page.url();
+                    const stillForm = urlAfterLastResort.includes('claim-search') && !urlAfterLastResort.includes('results') && !urlAfterLastResort.includes('claim-detail');
+                    const tablesAfter = await page.evaluate(() => document.querySelectorAll('table').length);
+                    if (!stillForm || tablesAfter > 0) {
+                        console.log('✅ Response after last-resort submit - re-extracting results');
+                        const reExtracted = await page.evaluate(() => {
+                            const results = [];
+                            document.querySelectorAll('table').forEach(table => {
+                                Array.from(table.querySelectorAll('tr')).forEach(row => {
+                                    const text = row.innerText || row.textContent || '';
+                                    if (/select|action/i.test(text) && /owner|action/i.test(text)) return;
+                                    const amountMatch = text.match(/(over\s+\$[\d,]+|\$\d+[\s,]*to[\s,]*\$\d+|\$[\d,]+)/i);
+                                    if (!amountMatch) return;
+                                    const cells = Array.from(row.querySelectorAll('td, th'));
+                                    let entity = 'Unclaimed Property';
+                                    for (const cell of cells) {
+                                        const cellText = cell.innerText.trim();
+                                        if (cellText && cellText.length > 2 && cellText.length < 200 && !/^(claim|select|view|\$[\d,]+)$/i.test(cellText)) {
+                                            entity = cellText;
+                                            break;
+                                        }
+                                    }
+                                    results.push({ entity, amount: amountMatch[0].toUpperCase(), details: text.substring(0, 300) });
+                                });
+                            });
+                            return results;
+                        });
+                        const seen2 = new Set();
+                        const retryUnique = reExtracted.filter(r => {
+                            const key = `${(r.entity || '').trim()}-${r.amount}`;
+                            if (seen2.has(key)) return false;
+                            seen2.add(key);
+                            return (r.entity && r.entity.trim().length > 0);
+                        }).map(r => ({ entity: r.entity.trim(), amount: r.amount, details: r.details || '' }));
+                        if (retryUnique.length > 0) {
+                            const totalAmount = retryUnique.reduce((sum, r) => {
+                                const m = r.amount.match(/\$?([\d,]+)/);
+                                return sum + (m ? parseFloat(m[1].replace(/,/g, '')) : 0);
+                            }, 0);
+                            return { success: true, results: retryUnique, totalAmount };
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Last-resort submit error:', e.message);
+            }
+            
             console.error('This indicates form submission failed - likely Cloudflare blocking');
             console.error('Page text sample:', pageText.substring(0, 500));
+            const noSolverHint = !captchaSolver
+                ? ' Set CAPTCHA_API_KEY in your environment to enable automatic Cloudflare solving.'
+                : '';
             return {
                 success: false,
-                error: 'Form submission failed - Cloudflare challenge may be blocking the search. The form was not submitted successfully.',
+                error: 'Form submission failed - Cloudflare challenge may be blocking the search. The form was not submitted successfully.' + noSolverHint,
                 results: []
             };
         }

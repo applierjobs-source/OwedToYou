@@ -7,7 +7,7 @@ class CloudflareSolver {
         this.baseUrl = 'https://api.2captcha.com';
     }
     
-    async solveTurnstile(siteKey, pageUrl, action = null, cData = null, pagedata = null) {
+    async solveTurnstile(siteKey, pageUrl, action = null, cData = null, pagedata = null, proxy = null) {
         if (!this.apiKey) {
             throw new Error('2captcha API key not provided');
         }
@@ -21,10 +21,24 @@ class CloudflareSolver {
         try {
             // Build task object
             const task = {
-                type: 'TurnstileTaskProxyless',
+                type: proxy ? 'TurnstileTask' : 'TurnstileTaskProxyless',
                 websiteURL: pageUrl,
                 websiteKey: siteKey
             };
+            
+            if (proxy) {
+                if (!proxy.proxyType || !proxy.proxyAddress || !proxy.proxyPort) {
+                    console.warn('⚠️ Proxy config incomplete for 2captcha, falling back to proxyless.');
+                    task.type = 'TurnstileTaskProxyless';
+                } else {
+                    task.proxyType = proxy.proxyType;
+                    task.proxyAddress = proxy.proxyAddress;
+                    task.proxyPort = proxy.proxyPort;
+                    if (proxy.proxyLogin) task.proxyLogin = proxy.proxyLogin;
+                    if (proxy.proxyPassword) task.proxyPassword = proxy.proxyPassword;
+                    console.log(`📡 Using proxy for 2captcha: ${proxy.proxyAddress}:${proxy.proxyPort} (${proxy.proxyType})`);
+                }
+            }
             
             // Add Cloudflare Challenge page parameters if provided
             // Note: For Cloudflare Challenge pages, these parameters help 2captcha solve more accurately
