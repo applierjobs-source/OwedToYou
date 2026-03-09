@@ -4523,8 +4523,8 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
                         lastName: claimData.lastName,
                         city: claimData.city,
                         state: claimData.state,
-                        use2Captcha: true,
-                        captchaApiKey: '35172944ef966249d7c2e102c3196f0c' // TODO: Move to environment variable or secure storage
+                        use2Captcha: true
+                        // CAPTCHA_API_KEY is read from server env for security
                     }),
                     signal: controller.signal
                 });
@@ -4733,9 +4733,15 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
             // Check if there's an error message indicating what went wrong
             if (result.error) {
                 console.error('❌ Search error:', result.error);
-                // Show error modal with actual error message
+                const isCloudflare = result.error.includes('Cloudflare') || result.error.includes('Form submission failed');
+                let message = isCloudflare
+                    ? 'Search couldn\'t complete — the search site may be temporarily blocking requests. Please try again in a minute.'
+                    : `Search failed: ${result.error}. Please try again.`;
+                if (isCloudflare && result.error.includes('CAPTCHA_API_KEY')) {
+                    message += ' (Server admin: set CAPTCHA_API_KEY in the environment to enable automatic solving.)';
+                }
                 hideProgressModal();
-                showErrorModal(`Search failed: ${result.error}. This may be due to Cloudflare blocking or form submission issues. Please try again.`);
+                showErrorModal(message);
             } else {
                 console.log('⚠️ Showing "no results" modal instead');
                 // Search failed but no specific error - show "no results" modal

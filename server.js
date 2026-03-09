@@ -2679,10 +2679,12 @@ const server = http.createServer((req, res) => {
                     console.log(`🧹 Cleaned names in server: "${firstName}" -> "${cleanedFirstName}", "${lastName}" -> "${cleanedLastName}"`);
                 }
                 
+                // Prefer server-side CAPTCHA key (env) over client-provided key (security)
+                const effectiveCaptchaKey = process.env.CAPTCHA_API_KEY || captchaApiKey || null;
                 console.log(`Searching Missing Money for ${cleanedFirstName} ${cleanedLastName}${searchCity ? `, ${searchCity}` : ''}${searchState ? `, ${searchState}` : ''}`);
-                console.log(`2captcha enabled: ${use2Captcha}, API key provided: ${!!captchaApiKey}`);
-                if (captchaApiKey) {
-                    console.log(`API key (first 10 chars): ${captchaApiKey.substring(0, 10)}...`);
+                console.log(`2captcha enabled: ${use2Captcha}, API key provided: ${!!effectiveCaptchaKey}`);
+                if (effectiveCaptchaKey) {
+                    console.log(`API key (first 10 chars): ${effectiveCaptchaKey.substring(0, 10)}...`);
                 }
                 
                 // Execute search with timeout protection and retry logic
@@ -2693,20 +2695,29 @@ const server = http.createServer((req, res) => {
                 
                 while (retries <= MAX_RETRIES) {
                     try {
-                        result = await searchMissingMoney(cleanedFirstName, cleanedLastName, searchCity, searchState, use2Captcha || false, captchaApiKey || null);
+                        result = await searchMissingMoney(cleanedFirstName, cleanedLastName, searchCity, searchState, use2Captcha || false, effectiveCaptchaKey);
                         
                         // If successful, break immediately
                         if (result.success) {
                             break;
                         }
                         
-                        // Check if error is retryable (resource exhaustion, timeouts, etc.)
+                        // Check if error is retryable (resource exhaustion, timeouts, Cloudflare, etc.)
+                        const isCloudflareError = result.error && (
+                            result.error.includes('Form submission failed') ||
+                            result.error.includes('Cloudflare')
+                        );
                         const isRetryableError = result._isRetryable || 
                             (result.error && (
                                 result.error.includes('Server is processing') ||
                                 result.error.includes('timed out') ||
-                                result.error.includes('timeout')
+                                result.error.includes('timeout') ||
+                                isCloudflareError
                             ));
+                        // Cap Cloudflare retries at 2 to avoid long waits
+                        if (isCloudflareError && retries >= 2) {
+                            break;
+                        }
                         
                         // If non-retryable error, break
                         if (!isRetryableError) {
