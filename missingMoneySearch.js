@@ -3164,21 +3164,47 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             
             if ((finalChallengeCheck.hasMessage || finalChallengeCheck.hasIframe || finalChallengeCheck.hasTurnstile) && captchaSolver) {
                 console.log('🚨 Cloudflare challenge still present - attempting to solve...');
-                // Try one more time to solve Cloudflare
+                // Try one more time to solve Cloudflare (with challenge params for better 2captcha solve rate)
                 try {
-                    const siteKey = await page.evaluate(() => {
+                    const challengeParams = await page.evaluate(() => {
                         const el = document.querySelector('[data-sitekey]');
-                        return el ? el.getAttribute('data-sitekey') : null;
+                        const info = {
+                            siteKey: el ? el.getAttribute('data-sitekey') : null,
+                            action: null,
+                            cData: null,
+                            pagedata: null
+                        };
+                        if (window.__turnstileParams) {
+                            info.action = window.__turnstileParams.action;
+                            info.cData = window.__turnstileParams.cData;
+                            info.pagedata = window.__turnstileParams.chlPageData;
+                        }
+                        return info;
                     });
+                    const siteKey = challengeParams.siteKey;
                     
                     if (siteKey && siteKey.length > 20) {
-                        const result = await captchaSolver.solveTurnstile(siteKey, page.url(), null, null, null, captchaProxy);
+                        const result = await captchaSolver.solveTurnstile(
+                            siteKey,
+                            page.url(),
+                            challengeParams.action,
+                            challengeParams.cData,
+                            challengeParams.pagedata,
+                            captchaProxy
+                        );
                         await page.evaluate((token) => {
                             const input = document.querySelector('input[name="cf-turnstile-response"]') ||
                                          document.querySelector('input[id*="turnstile"]');
                             if (input) {
                                 input.value = token;
                                 input.dispatchEvent(new Event('input', { bubbles: true }));
+                                input.dispatchEvent(new Event('change', { bubbles: true }));
+                                if (window.__turnstileCallback && typeof window.__turnstileCallback === 'function') {
+                                    try { window.__turnstileCallback(token); } catch (e) {}
+                                }
+                                if (window.turnstile && typeof window.turnstile.getResponse === 'function') {
+                                    try { window.turnstile.getResponse(); } catch (e) {}
+                                }
                             }
                         }, result.token);
                         
@@ -3318,6 +3344,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             const noSolverHint = !captchaSolver
                 ? ' Set CAPTCHA_API_KEY in your environment to enable automatic Cloudflare solving.'
                 : '';
+            console.error('[CLOUDFLARE_FAILURE] still_on_form_page=1 url=' + finalUrl + ' solver_used=' + !!captchaSolver + ' challenge_visible=' + (finalChallengeCheck && (finalChallengeCheck.hasMessage || finalChallengeCheck.hasIframe || finalChallengeCheck.hasTurnstile)));
             return {
                 success: false,
                 error: 'Form submission failed - Cloudflare challenge may be blocking the search. The form was not submitted successfully.' + noSolverHint,
