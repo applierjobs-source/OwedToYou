@@ -149,14 +149,21 @@
                             placeholderEl.style.display = 'block';
                             placeholderEl.innerHTML = '<strong>Search finished</strong>Run another search on the main site to see it here.';
                             frameEl.style.display = 'none';
+                            frameEl.removeAttribute('src');
                             return;
                         }
-                        if (data.image) {
+                        if (data.image && typeof data.image === 'string') {
                             statusEl.textContent = 'Live — search in progress';
                             statusEl.className = 'status live';
+                            frameEl.onerror = function () {
+                                placeholderEl.style.display = 'block';
+                                placeholderEl.innerHTML = '<strong>Image could not be displayed</strong>Frame may be too large. Try refreshing.';
+                                frameEl.style.display = 'none';
+                            };
                             placeholderEl.style.display = 'none';
-                            frameEl.src = 'data:image/png;base64,' + data.image;
                             frameEl.style.display = 'block';
+                            // Server sends JPEG to keep payload under data-URL size limits
+                            frameEl.src = 'data:image/jpeg;base64,' + data.image;
                         }
                     } catch (err) {
                         console.error(err);

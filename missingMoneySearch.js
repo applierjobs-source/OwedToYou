@@ -730,7 +730,13 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             screenshotIntervalId = setInterval(async () => {
                 if (!page) return;
                 try {
-                    const b64 = await page.screenshot({ encoding: 'base64', fullPage: false });
+                    // JPEG + reduced size so data URL fits browser limits (~2MB) and SSE doesn't choke
+                    const b64 = await page.screenshot({
+                        encoding: 'base64',
+                        type: 'jpeg',
+                        quality: 75,
+                        fullPage: false
+                    });
                     onScreenshot(b64);
                 } catch (e) { /* page may be closed */ }
             }, 1500);
