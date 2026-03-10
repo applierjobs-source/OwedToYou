@@ -479,7 +479,7 @@ function expandNameWithAliases(name) {
     return Array.from(aliases);
 }
 
-async function searchMissingMoney(firstName, lastName, city, state, use2Captcha = false, captchaApiKey = null) {
+async function searchMissingMoney(firstName, lastName, city, state, use2Captcha = false, captchaApiKey = null, onScreenshot = null) {
     // CRITICAL: Log the exact names being searched for debugging
     console.log(`🔍🔍🔍 SEARCHING MISSING MONEY 🔍🔍🔍`);
     console.log(`🔍 Original names received: firstName="${firstName}", lastName="${lastName}"`);
@@ -723,6 +723,18 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         });
         
         page = await context.newPage();
+        
+        // Live admin view: stream screenshots to admin page while search runs
+        let screenshotIntervalId = null;
+        if (onScreenshot && typeof onScreenshot === 'function') {
+            screenshotIntervalId = setInterval(async () => {
+                if (!page) return;
+                try {
+                    const b64 = await page.screenshot({ encoding: 'base64', fullPage: false });
+                    onScreenshot(b64);
+                } catch (e) { /* page may be closed */ }
+            }, 1500);
+        }
         
         // Track form submission requests and responses
         const formSubmissionRequests = [];
@@ -3617,6 +3629,11 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         // This prevents resource leaks (file descriptors, memory, processes)
         if (page) {
             try {
+                if (screenshotIntervalId) {
+                    clearInterval(screenshotIntervalId);
+                    screenshotIntervalId = null;
+                }
+                if (onScreenshot) try { onScreenshot(null); } catch (e) {}
                 await page.close().catch(err => {
                     console.error('[BROWSER] Error closing page:', err);
                 });
@@ -3626,6 +3643,12 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             }
             page = null;
         }
+        
+        if (screenshotIntervalId) {
+            clearInterval(screenshotIntervalId);
+            screenshotIntervalId = null;
+        }
+        if (onScreenshot) try { onScreenshot(null); } catch (e) {}
         
         if (context) {
             try {

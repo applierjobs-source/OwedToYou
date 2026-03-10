@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin — Live Search | OwedToYou</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+        h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 0 0 16px 0;
+            color: #f8fafc;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        input[type="password"], input[type="text"] {
+            padding: 8px 12px;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            background: #1e293b;
+            color: #e2e8f0;
+            width: 220px;
+        }
+        input::placeholder { color: #64748b; }
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            background: #3b82f6;
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        button:hover { background: #2563eb; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .status {
+            font-size: 0.875rem;
+            color: #94a3b8;
+        }
+        .status.connected { color: #22c55e; }
+        .status.live { color: #f59e0b; }
+        .viewport {
+            background: #1e293b;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            overflow: hidden;
+            max-width: 100%;
+            position: relative;
+            aspect-ratio: 16/10;
+            max-height: 75vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .viewport img {
+            max-width: 100%;
+            max-height: 75vh;
+            width: auto;
+            height: auto;
+            display: block;
+        }
+        .viewport .placeholder {
+            padding: 40px;
+            text-align: center;
+            color: #64748b;
+        }
+        .viewport .placeholder strong { display: block; margin-bottom: 8px; color: #94a3b8; }
+    </style>
+</head>
+<body>
+    <h1>Admin — Live Search</h1>
+    <p style="color: #94a3b8; font-size: 0.875rem; margin: 0 0 16px 0;">
+        Watch the virtual browser when someone runs a search on owedtoyou.ai. Set <code>ADMIN_SECRET</code> in your environment and enter it below.
+    </p>
+    <div class="controls">
+        <input type="password" id="token" placeholder="Admin secret" autocomplete="off" />
+        <button id="connect">Connect</button>
+        <span class="status" id="status">Disconnected</span>
+    </div>
+    <div class="viewport">
+        <div class="placeholder" id="placeholder">
+            <strong>No stream</strong>
+            Connect and run a search on the main site to see the browser here.
+        </div>
+        <img id="frame" alt="Live view" style="display: none;" />
+    </div>
+
+    <script>
+        (function () {
+            const tokenEl = document.getElementById('token');
+            const connectBtn = document.getElementById('connect');
+            const statusEl = document.getElementById('status');
+            const placeholderEl = document.getElementById('placeholder');
+            const frameEl = document.getElementById('frame');
+
+            const params = new URLSearchParams(location.search);
+            if (params.get('token')) {
+                tokenEl.value = params.get('token');
+            }
+
+            let eventSource = null;
+
+            function disconnect() {
+                if (eventSource) {
+                    eventSource.close();
+                    eventSource = null;
+                }
+                statusEl.textContent = 'Disconnected';
+                statusEl.className = 'status';
+            }
+
+            function connect() {
+                const token = tokenEl.value.trim();
+                if (!token) {
+                    statusEl.textContent = 'Enter admin secret';
+                    return;
+                }
+                disconnect();
+                const url = location.origin + '/api/admin/live-search/stream?token=' + encodeURIComponent(token);
+                eventSource = new EventSource(url);
+                statusEl.textContent = 'Connecting…';
+                statusEl.className = 'status';
+
+                eventSource.onopen = function () {
+                    statusEl.textContent = 'Connected — waiting for a search…';
+                    statusEl.className = 'status connected';
+                };
+
+                eventSource.onmessage = function (e) {
+                    try {
+                        const data = JSON.parse(e.data);
+                        if (data.done) {
+                            statusEl.textContent = 'Search finished — waiting for next…';
+                            statusEl.className = 'status connected';
+                            placeholderEl.style.display = 'block';
+                            placeholderEl.innerHTML = '<strong>Search finished</strong>Run another search on the main site to see it here.';
+                            frameEl.style.display = 'none';
+                            return;
+                        }
+                        if (data.image) {
+                            statusEl.textContent = 'Live — search in progress';
+                            statusEl.className = 'status live';
+                            placeholderEl.style.display = 'none';
+                            frameEl.src = 'data:image/png;base64,' + data.image;
+                            frameEl.style.display = 'block';
+                        }
+                    } catch (err) {
+                        console.error(err);
+                    }
+                };
+
+                eventSource.onerror = function () {
+                    statusEl.textContent = 'Connection lost or unauthorized';
+                    statusEl.className = 'status';
+                };
+            }
+
+            connectBtn.addEventListener('click', connect);
+        })();
+    </script>
+</body>
+</html>

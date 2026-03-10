@@ -2409,6 +2409,9 @@ async function fetchInstagramFullName_OLD(username) {
     });
 }
 
+// Admin live-search viewers (SSE clients) — get screenshots while a search runs
+const liveSearchClients = [];
+
 // Create server
 const server = http.createServer((req, res) => {
     // Serve content on both www and non-www domains
@@ -2693,9 +2696,15 @@ const server = http.createServer((req, res) => {
                 let retries = 0;
                 const MAX_RETRIES = 5; // Increased from 2 to 5 to ensure searches complete
                 
+                const onScreenshot = (base64) => {
+                    const payload = base64 === null ? { done: true } : { image: base64 };
+                    liveSearchClients.forEach(r => {
+                        try { r.write('data: ' + JSON.stringify(payload) + '\n\n'); } catch (e) {}
+                    });
+                };
                 while (retries <= MAX_RETRIES) {
                     try {
-                        result = await searchMissingMoney(cleanedFirstName, cleanedLastName, searchCity, searchState, use2Captcha || false, effectiveCaptchaKey);
+                        result = await searchMissingMoney(cleanedFirstName, cleanedLastName, searchCity, searchState, use2Captcha || false, effectiveCaptchaKey, onScreenshot);
                         
                         // If successful, break immediately
                         if (result.success) {
@@ -3070,7 +3079,47 @@ const server = http.createServer((req, res) => {
             message: 'Server is running',
             browserStats: browserStats
         }));
-    } else if (parsedUrl.pathname === '/api/leaderboard' && req.method === 'GET') {
+    }
+    // Admin: SSE stream of live search screenshots (requires ADMIN_SECRET in query)
+    else if (parsedUrl.pathname === '/api/admin/live-search/stream' && req.method === 'GET') {
+        const token = parsedUrl.query.token || '';
+        const adminSecret = process.env.ADMIN_SECRET || '';
+        if (!adminSecret || token !== adminSecret) {
+            res.writeHead(401, { ...corsHeaders, 'Content-Type': 'text/plain' });
+            res.end('Unauthorized');
+            return;
+        }
+        res.writeHead(200, {
+            ...corsHeaders,
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no'
+        });
+        res.write(': connected\n\n');
+        liveSearchClients.push(res);
+        req.on('close', () => {
+            const i = liveSearchClients.indexOf(res);
+            if (i !== -1) liveSearchClients.splice(i, 1);
+        });
+    }
+    // Admin: serve live-search viewer page
+    else if (parsedUrl.pathname === '/admin/live-search' || parsedUrl.pathname === '/admin/live-search.html') {
+        const adminPath = path.join(__dirname, 'admin-live-search.html');
+        fs.readFile(adminPath, (err, content) => {
+            if (err) {
+                res.writeHead(404, { 'Content-Type': 'text/plain' });
+                res.end('Not found');
+                return;
+            }
+            res.writeHead(200, {
+                'Content-Type': 'text/html',
+                'Cache-Control': 'no-store'
+            });
+            res.end(content, 'utf-8');
+        });
+    }
+    else if (parsedUrl.pathname === '/api/leaderboard' && req.method === 'GET') {
         // Get leaderboard entries from PostgreSQL
         (async () => {
             try {
