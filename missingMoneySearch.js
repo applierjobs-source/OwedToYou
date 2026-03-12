@@ -584,6 +584,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-blink-features=AutomationControlled',
+                '--headless=new', // New headless mode (Chrome 112+) - harder for sites to detect
                 '--disable-dev-shm-usage',
                 '--disable-accelerated-2d-canvas',
                 '--no-first-run',
@@ -727,6 +728,12 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 }
                 return getParameter.apply(this, arguments);
             };
+            
+            // Headless detection: document.hidden is often true in headless browsers
+            try {
+                Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
+                Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
+            } catch (e) { /* ignore if not configurable */ }
         });
         
         page = await context.newPage();
@@ -914,6 +921,11 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 throw gotoErr;
             }
         }
+        
+        // Simulate human "reading" the page before any interaction (reduces bot_detected)
+        const readDelay = 4000 + Math.floor(Math.random() * 5000); // 4–9 seconds
+        console.log('Simulating human reading page for', readDelay, 'ms...');
+        await new Promise(r => setTimeout(r, readDelay));
         
         // Simulate human behavior before form filling
         await simulateHumanBehavior(page);
@@ -3790,12 +3802,67 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
     }
 }
 
+async function getOutboundIp() {
+    try {
+        const https = require('https');
+        const body = await new Promise((resolve, reject) => {
+            https.get('https://api.ipify.org?format=json', { timeout: 5000 }, (res) => {
+                let data = '';
+                res.on('data', chunk => { data += chunk; });
+                res.on('end', () => resolve(data));
+            }).on('error', reject);
+        });
+        const j = JSON.parse(body);
+        return j.ip || 'unknown';
+    } catch (e) {
+        return 'unknown';
+    }
+}
+
 // Test if the configured proxy is reachable from this server (for debugging)
 async function testProxy() {
-    const { playwrightProxy } = getProxyConfig();
-    if (!playwrightProxy) {
+    const net = require('net');
+    const proxyUrl = process.env.MISSINGMONEY_PROXY_URL || process.env.PROXY_URL || '';
+    if (!proxyUrl) {
         return { ok: false, error: 'No proxy configured (MISSINGMONEY_PROXY_URL or PROXY_URL not set)' };
     }
+    let parsed;
+    try {
+        parsed = new URL(proxyUrl);
+    } catch (e) {
+        return { ok: false, error: 'Invalid proxy URL: ' + e.message };
+    }
+    const host = parsed.hostname;
+    const port = parseInt(parsed.port || '7000', 10);
+
+    // Step 1: Can we reach the proxy gateway at all? (TCP connect, no auth)
+    const tcpReachable = await new Promise((resolve) => {
+        const socket = new net.Socket();
+        const timeout = setTimeout(() => {
+            socket.destroy();
+            resolve(false);
+        }, 10000);
+        socket.connect(port, host, () => {
+            clearTimeout(timeout);
+            socket.destroy();
+            resolve(true);
+        });
+        socket.on('error', () => {
+            clearTimeout(timeout);
+            resolve(false);
+        });
+    });
+
+    if (!tcpReachable) {
+        return {
+            ok: false,
+            error: 'Cannot reach proxy gateway from this server (TCP connection to ' + host + ':' + port + ' failed or timed out)',
+            hint: 'Railway may be blocking outbound connections to this host:port, or the proxy host/port is wrong. In Smartproxy Proxy Setup, confirm the exact "Proxy Server" and "Port". Also confirm this server\'s IP (' + (await getOutboundIp()) + ') is in Smartproxy IP Whitelist.'
+        };
+    }
+
+    // Step 2: Try full browser request through proxy
+    const { playwrightProxy } = getProxyConfig();
     let browser;
     try {
         browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
@@ -3808,13 +3875,14 @@ async function testProxy() {
         const proxyIp = (await page.textContent('body')).trim();
         await context.close();
         await browser.close();
-        return { ok: true, proxyIp, message: 'Proxy is reachable from this server. This is the exit IP Smartproxy used.' };
+        return { ok: true, proxyIp, tcpReachable: true, message: 'Proxy is reachable from this server. This is the exit IP Smartproxy used.' };
     } catch (e) {
         if (browser) await browser.close().catch(() => {});
         return {
             ok: false,
             error: e.message || String(e),
-            hint: 'Check: (1) Railway IP is in Smartproxy IP Whitelist, (2) Proxy has active traffic, (3) URL format is http://user:pass@gate.decodo.com:7000'
+            tcpReachable: true,
+            hint: 'TCP to proxy works but the HTTP request through the proxy failed. Check: (1) Username and password are correct (password with special chars must be URL-encoded), (2) Sub-account is active, (3) In Smartproxy Proxy Setup get the exact Proxy Server and Port for your plan.'
         };
     }
 }
