@@ -2768,12 +2768,23 @@ const server = http.createServer((req, res) => {
                         }
                         
                         // Non-retryable or max retries reached - convert to result format
+                        let errMsg = searchError.message || 'Search failed due to server error. Please try again.';
+                        if (errMsg.includes('Timeout') && errMsg.includes('page.goto') && process.env.MISSINGMONEY_PROXY_URL) {
+                            errMsg += ' If using Smartproxy, add this server\'s IP to Smartproxy IP Whitelist (get IP from https://owedtoyou.ai/api/outbound-ip).';
+                        }
                         result = {
                             success: false,
-                            error: searchError.message || 'Search failed due to server error. Please try again.',
+                            error: errMsg,
                             results: []
                         };
                         break;
+                    }
+                }
+                
+                // If result has error and it's a timeout with proxy, append whitelist hint
+                if (result && !result.success && result.error && result.error.includes('Timeout') && result.error.includes('page.goto') && process.env.MISSINGMONEY_PROXY_URL) {
+                    if (!result.error.includes('Smartproxy')) {
+                        result.error += ' If using Smartproxy, add this server\'s IP to Smartproxy IP Whitelist (get IP from https://owedtoyou.ai/api/outbound-ip).';
                     }
                 }
                 

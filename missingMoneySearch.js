@@ -896,13 +896,24 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             await warmUpSession(page);
         }
         
-        // Use longer timeout when using a proxy (residential can be slower to connect)
-        const gotoTimeout = playwrightProxy ? 60000 : 30000;
+        // Use longer timeout when using a proxy (residential can be slower; also allow retry)
+        const gotoTimeout = playwrightProxy ? 90000 : 30000; // 90s with proxy
+        const claimSearchUrl = 'https://missingmoney.com/app/claim-search';
         console.log('Navigating to Missing Money search page...');
-        await page.goto('https://missingmoney.com/app/claim-search', { 
-            waitUntil: 'domcontentloaded',
-            timeout: gotoTimeout 
-        });
+        let gotoOk = false;
+        for (let attempt = 1; attempt <= 2 && !gotoOk; attempt++) {
+            try {
+                await page.goto(claimSearchUrl, { waitUntil: 'domcontentloaded', timeout: gotoTimeout });
+                gotoOk = true;
+            } catch (gotoErr) {
+                const isTimeout = gotoErr.message && gotoErr.message.includes('Timeout');
+                if (isTimeout && attempt === 1 && playwrightProxy) {
+                    console.warn('[PROXY] First navigation timed out. If this persists, add Railway\'s IP to Smartproxy IP Whitelist (get IP from /api/outbound-ip). Retrying once...');
+                    continue;
+                }
+                throw gotoErr;
+            }
+        }
         
         // Simulate human behavior before form filling
         await simulateHumanBehavior(page);
