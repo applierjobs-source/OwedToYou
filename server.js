@@ -3080,6 +3080,26 @@ const server = http.createServer((req, res) => {
             browserStats: browserStats
         }));
     }
+    else if (parsedUrl.pathname === '/api/outbound-ip' && req.method === 'GET') {
+        // Return this server's public outbound IP (e.g. for Smartproxy IP Whitelist)
+        https.get('https://api.ipify.org?format=json', { timeout: 5000 }, (ipRes) => {
+            let body = '';
+            ipRes.on('data', chunk => { body += chunk; });
+            ipRes.on('end', () => {
+                try {
+                    const data = JSON.parse(body);
+                    res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ ip: data.ip || null, note: 'Add this IP to Smartproxy IP Whitelist if using proxy.' }));
+                } catch (e) {
+                    res.writeHead(500, corsHeaders);
+                    res.end(JSON.stringify({ error: 'Could not get IP' }));
+                }
+            });
+        }).on('error', () => {
+            res.writeHead(500, corsHeaders);
+            res.end(JSON.stringify({ error: 'Could not get IP' }));
+        });
+    }
     // Admin: SSE stream of live search screenshots (requires ADMIN_SECRET in query)
     else if (parsedUrl.pathname === '/api/admin/live-search/stream' && req.method === 'GET') {
         const token = parsedUrl.query.token || '';

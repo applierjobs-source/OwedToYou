@@ -896,10 +896,12 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             await warmUpSession(page);
         }
         
+        // Use longer timeout when using a proxy (residential can be slower to connect)
+        const gotoTimeout = playwrightProxy ? 60000 : 30000;
         console.log('Navigating to Missing Money search page...');
         await page.goto('https://missingmoney.com/app/claim-search', { 
             waitUntil: 'domcontentloaded',
-            timeout: 30000 
+            timeout: gotoTimeout 
         });
         
         // Simulate human behavior before form filling
