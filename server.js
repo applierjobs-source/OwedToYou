@@ -5,7 +5,7 @@ const zlib = require('zlib');
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
-const { searchMissingMoney, getBrowserStats } = require('./missingMoneySearch');
+const { searchMissingMoney, getBrowserStats, testProxy } = require('./missingMoneySearch');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { Configuration, PlaidApi, PlaidEnvironments } = require('plaid');
 const { chromium } = require('playwright');
@@ -3090,6 +3090,19 @@ const server = http.createServer((req, res) => {
             message: 'Server is running',
             browserStats: browserStats
         }));
+    }
+    else if (parsedUrl.pathname === '/api/test-proxy' && req.method === 'GET') {
+        // Test if proxy works from this server (same config as search) - for debugging
+        (async () => {
+            try {
+                const result = await testProxy();
+                res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+                res.end(JSON.stringify(result));
+            } catch (e) {
+                res.writeHead(500, corsHeaders);
+                res.end(JSON.stringify({ ok: false, error: e.message || String(e) }));
+            }
+        })();
     }
     else if (parsedUrl.pathname === '/api/outbound-ip' && req.method === 'GET') {
         // Return this server's public outbound IP (e.g. for Smartproxy IP Whitelist)

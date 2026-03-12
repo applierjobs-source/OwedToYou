@@ -3790,6 +3790,35 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
     }
 }
 
+// Test if the configured proxy is reachable from this server (for debugging)
+async function testProxy() {
+    const { playwrightProxy } = getProxyConfig();
+    if (!playwrightProxy) {
+        return { ok: false, error: 'No proxy configured (MISSINGMONEY_PROXY_URL or PROXY_URL not set)' };
+    }
+    let browser;
+    try {
+        browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+        const context = await browser.newContext({
+            proxy: playwrightProxy,
+            ignoreHTTPSErrors: true
+        });
+        const page = await context.newPage();
+        await page.goto('https://api.ipify.org', { waitUntil: 'domcontentloaded', timeout: 25000 });
+        const proxyIp = (await page.textContent('body')).trim();
+        await context.close();
+        await browser.close();
+        return { ok: true, proxyIp, message: 'Proxy is reachable from this server. This is the exit IP Smartproxy used.' };
+    } catch (e) {
+        if (browser) await browser.close().catch(() => {});
+        return {
+            ok: false,
+            error: e.message || String(e),
+            hint: 'Check: (1) Railway IP is in Smartproxy IP Whitelist, (2) Proxy has active traffic, (3) URL format is http://user:pass@gate.decodo.com:7000'
+        };
+    }
+}
+
 // Export browser stats for monitoring
 function getBrowserStats() {
     return {
@@ -3800,5 +3829,5 @@ function getBrowserStats() {
     };
 }
 
-module.exports = { searchMissingMoney, getBrowserStats };
+module.exports = { searchMissingMoney, getBrowserStats, testProxy };
 
