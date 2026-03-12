@@ -142,42 +142,45 @@ async function humanType(page, selector, text) {
 // Simulate human-like behavior to evade detection
 async function simulateHumanBehavior(page) {
     try {
-        // Random mouse movements (simulate reading/interaction)
+        // Random mouse movements (simulate reading/interaction) - more steps = smoother
         const viewport = page.viewportSize();
         if (viewport) {
-            const moves = Math.floor(Math.random() * 3) + 2; // 2-4 moves
+            const moves = Math.floor(Math.random() * 3) + 3; // 3-5 moves
+            let lastX = viewport.width * 0.3;
+            let lastY = viewport.height * 0.3;
             for (let i = 0; i < moves; i++) {
-                await page.mouse.move(
-                    Math.random() * viewport.width,
-                    Math.random() * viewport.height,
-                    { steps: Math.floor(Math.random() * 10) + 5 } // Smooth movement
-                );
-                await randomDelay(200, 500);
+                const targetX = Math.random() * viewport.width * 0.7 + viewport.width * 0.1;
+                const targetY = Math.random() * viewport.height * 0.6 + viewport.height * 0.1;
+                const steps = Math.floor(Math.random() * 15) + 10; // 10-24 steps for smooth curve
+                await page.mouse.move(targetX, targetY, { steps });
+                lastX = targetX;
+                lastY = targetY;
+                await randomDelay(250, 600);
             }
         }
         
         // Human-like scrolling (not instant, with pauses)
-        const scrollAmount = Math.random() * 300 + 100;
+        const scrollAmount = Math.random() * 280 + 120;
         await page.evaluate((amount) => {
             window.scrollBy({
                 top: amount,
                 behavior: 'smooth'
             });
         }, scrollAmount);
-        await randomDelay(500, 1000);
+        await randomDelay(600, 1200);
         
         // Random pause (simulating reading time)
-        await randomDelay(1000, 2500);
+        await randomDelay(1200, 2800);
         
-        // Sometimes scroll back up a bit
+        // Sometimes scroll back up a bit (human correction)
         if (Math.random() > 0.5) {
             await page.evaluate(() => {
                 window.scrollBy({
-                    top: -Math.random() * 150,
+                    top: -Math.random() * 120,
                     behavior: 'smooth'
                 });
             });
-            await randomDelay(300, 700);
+            await randomDelay(400, 800);
         }
     } catch (e) {
         // Don't fail if behavior simulation fails
@@ -592,6 +595,10 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 '--disable-gpu',
                 '--disable-web-security',
                 '--disable-features=IsolateOrigins,site-per-process',
+                '--disable-infobars',
+                '--window-size=1920,1080',
+                '--disable-automation',
+                '--disable-client-side-phishing-detection',
                 '--max-old-space-size=512' // Limit memory usage
             ],
             timeout: 60000 // 60 second timeout for browser launch (increased for reliability)
@@ -734,6 +741,39 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
                 Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
             } catch (e) { /* ignore if not configurable */ }
+            
+            // More bot evasion: navigator properties often checked by detectors
+            Object.defineProperty(navigator, 'vendor', { get: () => 'Google Inc.', configurable: true });
+            Object.defineProperty(navigator, 'productSub', { get: () => '20030107', configurable: true });
+            Object.defineProperty(navigator, 'product', { get: () => 'Gecko', configurable: true });
+            Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 0, configurable: true });
+            Object.defineProperty(navigator, 'pdfViewerEnabled', { get: () => true, configurable: true });
+            try {
+                Object.defineProperty(navigator, 'connection', {
+                    get: () => ({
+                        effectiveType: '4g',
+                        rtt: 50,
+                        downlink: 10,
+                        saveData: false
+                    }),
+                    configurable: true
+                });
+            } catch (e) { /* ignore */ }
+            // Prevent detection via iframe/cross-origin checks
+            try {
+                if (typeof navigator.getGamepads === 'function') {
+                    const orig = navigator.getGamepads;
+                    navigator.getGamepads = function() { return orig ? orig.call(navigator) : []; };
+                }
+            } catch (e) { /* ignore */ }
+            // Consistent window dimensions (some checks outerWidth/outerHeight)
+            try {
+                const desc = Object.getOwnPropertyDescriptor(window, 'outerWidth');
+                if (desc && desc.configurable && (window.outerWidth === 0 || window.outerHeight === 0)) {
+                    Object.defineProperty(window, 'outerWidth', { get: () => 1920, configurable: true });
+                    Object.defineProperty(window, 'outerHeight', { get: () => 1080, configurable: true });
+                }
+            } catch (e) { /* ignore */ }
         });
         
         page = await context.newPage();
@@ -908,11 +948,25 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         const claimSearchUrl = 'https://missingmoney.com/app/claim-search';
         console.log('Navigating to Missing Money search page...');
         let gotoOk = false;
+        let mainDocumentResponse = null;
         for (let attempt = 1; attempt <= 2 && !gotoOk; attempt++) {
             try {
-                await page.goto(claimSearchUrl, { waitUntil: 'domcontentloaded', timeout: gotoTimeout });
+                mainDocumentResponse = await page.goto(claimSearchUrl, { waitUntil: 'domcontentloaded', timeout: gotoTimeout });
+                const status = mainDocumentResponse ? mainDocumentResponse.status() : 0;
+                if (status === 403 || status === 503) {
+                    console.warn(`Initial page load returned ${status} (Cloudflare block). ${attempt < 2 ? 'Retrying in 5s...' : 'Failing.'}`);
+                    if (attempt < 2) {
+                        await new Promise(r => setTimeout(r, 5000));
+                        continue;
+                    }
+                    const err = new Error(`Missing Money returned ${status} - Cloudflare is blocking this request. Try again later or check proxy/whitelist.`);
+                    err._isRetryable = true;
+                    err._cloudflareBlock = true;
+                    throw err;
+                }
                 gotoOk = true;
             } catch (gotoErr) {
+                if (gotoErr._cloudflareBlock) throw gotoErr;
                 const isTimeout = gotoErr.message && gotoErr.message.includes('Timeout');
                 if (isTimeout && attempt === 1 && playwrightProxy) {
                     console.warn('[PROXY] First navigation timed out. If this persists, add Railway\'s IP to Smartproxy IP Whitelist (get IP from /api/outbound-ip). Retrying once...');
@@ -942,6 +996,26 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                                  document.querySelectorAll('[data-sitekey], [class*="cf-"], [id*="cf-"]').length > 0;
             return hasCloudflare;
         });
+        
+        // If no challenge visible but page has no search form, we may be on a block page (e.g. 403 body)
+        const formPresent = await page.evaluate(() => {
+            const inputs = document.querySelectorAll('input:not([type="hidden"]):not([name*="turnstile"]), select');
+            let visible = 0;
+            inputs.forEach(el => {
+                const style = window.getComputedStyle(el);
+                if (style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null) visible++;
+            });
+            const hasNameLike = !!document.querySelector('input[name*="first"], input[name*="last"], input[id*="first"], input[id*="last"], input[placeholder*="First"], input[placeholder*="Last"]');
+            return visible >= 2 || hasNameLike;
+        });
+        if (!formPresent && !initialChallengeCheck) {
+            const pageSample = await page.evaluate(() => document.body.innerText.substring(0, 200));
+            console.warn('Page has no search form and no challenge. Sample:', pageSample);
+            const err = new Error('Missing Money search page did not load (block or error page). Try again later or check proxy.');
+            err._isRetryable = true;
+            err._cloudflareBlock = true;
+            throw err;
+        }
         
         if (initialChallengeCheck && captchaSolver) {
             console.log('🚨 Cloudflare challenge detected BEFORE form filling! Solving...');
@@ -1126,11 +1200,13 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                         await element.scrollIntoViewIfNeeded();
                         await randomDelay(300, 500);
                         
-                        // Move mouse to element (human-like)
+                        // Move mouse to element (human-like, with steps to avoid instant jump)
                         const box = await element.boundingBox();
                         if (box) {
-                            await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-                            await randomDelay(200, 400);
+                            const cx = box.x + box.width / 2;
+                            const cy = box.y + box.height / 2;
+                            await page.mouse.move(cx, cy, { steps: Math.floor(Math.random() * 8) + 5 });
+                            await randomDelay(200, 450);
                         }
                         
                         const tagName = await element.evaluate(el => el.tagName.toLowerCase());
@@ -1169,20 +1245,21 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                             }
                             await randomDelay(300, 500);
                         } else {
-                            // Simple, reliable method: focus, clear, fill
+                            // Human-like: focus, clear, then type with variable delay (evasion)
                             await element.focus();
-                            await randomDelay(200, 300);
+                            await randomDelay(200, 350);
                             
                             // Select all and delete
                             await page.keyboard.press('Control+A');
-                            await randomDelay(50, 100);
+                            await randomDelay(40, 100);
                             await page.keyboard.press('Delete');
-                            await randomDelay(50, 100);
+                            await randomDelay(60, 120);
                             
-                            // Type the value
-                            await element.type(value, { delay: 50 });
+                            // Type with per-field random delay (45-125ms per char) to mimic human
+                            const charDelay = Math.floor(Math.random() * 80) + 45;
+                            await element.type(value, { delay: charDelay });
                             
-                            // Also use fill as backup
+                            // Ensure value is set (fill as backup for any missed chars)
                             await element.fill(value);
                             
                             // Trigger events
@@ -3403,6 +3480,15 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             
             console.error('This indicates form submission failed - likely Cloudflare blocking');
             console.error('Page text sample:', pageText.substring(0, 500));
+            // Diagnose: when server returns bot_detected, did we actually send a token?
+            const isBotDetected = pageText.includes('bot_detected');
+            const formPostsWithToken = (formSubmissionRequests || []).filter(r =>
+                (r.url.includes('claim-search') || r.url.includes('/app/')) && r.hasToken
+            );
+            if (isBotDetected) {
+                console.error('[BOT_DETECTED] Server returned bot_detected. Form POST(s) with token:', formPostsWithToken.length,
+                    formPostsWithToken.length ? '→ Captcha was sent; likely a separate bot check (fingerprint/behavior).' : '→ No token in form POST; captcha may not have been solved or included.');
+            }
             const noSolverHint = !captchaSolver
                 ? ' Set CAPTCHA_API_KEY in your environment to enable automatic Cloudflare solving.'
                 : '';
