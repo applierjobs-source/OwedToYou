@@ -1,4 +1,6 @@
 // Cloudflare Turnstile solver using 2captcha API v2
+// For Cloudflare *Challenge* pages, 2captcha requires you to use the userAgent
+// they return when submitting the token, or the token may be rejected (IP/fingerprint).
 const axios = require('axios');
 
 class CloudflareSolver {

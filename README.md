@@ -117,6 +117,7 @@ npm start
 - `PORT`: Server port (default: 3000, automatically set by Railway)
 - `DATABASE_URL`: PostgreSQL connection string (automatically set by Railway when you add PostgreSQL)
 - `CAPTCHA_API_KEY`: Your 2captcha API key
+- `MISSINGMONEY_PROXY_URL` or `PROXY_URL`: Optional. Single proxy used for **both** the Playwright browser and 2captcha when solving Cloudflare Turnstile. Use a **residential proxy** for best results with Missing Money (they often block datacenter IPs). Format: `http://user:pass@host:port` or `socks5://user:pass@host:port`.
 
 ## Project Structure
 
@@ -135,6 +136,22 @@ npm start
 - Playwright requires Chromium to be installed. This is handled automatically in Railway via the `postinstall` script.
 - The 2captcha API key should be kept secret and stored as an environment variable.
 - Railway automatically handles HTTPS/SSL certificates for custom domains.
+
+### Cloudflare / Missing Money and residential proxies
+
+If Missing Money searches often fail with "Form submission failed - Cloudflare...", set **both**:
+
+1. **CAPTCHA_API_KEY** – 2captcha API key (required for solving Turnstile).
+2. **MISSINGMONEY_PROXY_URL** – A **residential proxy** URL. The app uses this single proxy for the browser and for 2captcha, so the token is solved from the same IP that submits the form.
+
+You need to **purchase** a residential proxy from a provider; the app does not include any. Examples:
+
+- [Bright Data](https://brightdata.com) (residential proxies)
+- [Smartproxy](https://smartproxy.com)
+- [Oxylabs](https://oxylabs.io)
+- [IPRoyal](https://iproyal.com) (cheaper option)
+
+Add the proxy URL in Railway (or your host) as `MISSINGMONEY_PROXY_URL`, e.g. `http://user:pass@gate.provider.com:8080`.
 
 ## Troubleshooting
 

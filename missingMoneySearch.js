@@ -14,6 +14,12 @@ let processingQueue = false;
 const QUEUE_TIMEOUT = 300000; // 5 minutes max wait time in queue (allow searches to wait)
 const MAX_RETRIES = 2; // Maximum retries for resource exhaustion errors
 
+/**
+ * Single proxy for both Playwright and 2captcha when set.
+ * Using the same proxy for both ensures the Turnstile token is solved from the same IP
+ * that submits the form, which reduces Cloudflare rejections.
+ * Set MISSINGMONEY_PROXY_URL (or PROXY_URL) to e.g. http://user:pass@host:port
+ */
 function getProxyConfig() {
     const proxyUrl = process.env.MISSINGMONEY_PROXY_URL || process.env.PROXY_URL || '';
     if (!proxyUrl) {
@@ -46,7 +52,7 @@ function getProxyConfig() {
             ...(password ? { proxyPassword: password } : {})
         };
         
-        console.log(`[PROXY] Using proxy ${parsed.hostname}:${proxyPort} (${proxyType})`);
+        console.log(`[PROXY] Using same proxy for Playwright and 2captcha: ${parsed.hostname}:${proxyPort} (${proxyType})`);
         return { playwrightProxy, captchaProxy };
     } catch (e) {
         console.warn('[PROXY] Invalid proxy URL, skipping proxy usage:', e.message);
@@ -564,6 +570,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
     const searchOperation = (async () => {
     let context = null;
     let page = null;
+    let screenshotIntervalId = null;
     try {
         // Launch browser with stealth settings
         // Note: Must use headless: true on Railway (no display server available)
@@ -725,7 +732,6 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         page = await context.newPage();
         
         // Live admin view: stream screenshots to admin page while search runs
-        let screenshotIntervalId = null;
         if (onScreenshot && typeof onScreenshot === 'function') {
             screenshotIntervalId = setInterval(async () => {
                 if (!page) return;
@@ -968,7 +974,9 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                         preSubmissionChallenge.pagedata,
                         captchaProxy
                     );
-                    
+                    if (result.userAgent) {
+                        await page.setExtraHTTPHeaders({ 'User-Agent': result.userAgent });
+                    }
                     // Inject token
                     const tokenInjected = await page.evaluate(({ token }) => {
                         const selectors = [
@@ -1403,6 +1411,9 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             console.warn('⚠️ Cloudflare challenge detected right before submission - solving...');
             try {
                 const result = await captchaSolver.solveTurnstile(preSubmitCheck.siteKey, page.url(), null, null, null, captchaProxy);
+                if (result.userAgent) {
+                    await page.setExtraHTTPHeaders({ 'User-Agent': result.userAgent });
+                }
                 const tokenInjected = await page.evaluate((token) => {
                     const input = document.querySelector('input[name="cf-turnstile-response"]') ||
                                  document.querySelector('input[id*="turnstile"]') ||
@@ -1471,6 +1482,9 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 console.log('🔄 Attempting to solve Cloudflare one more time before submission...');
                 try {
                     const result = await captchaSolver.solveTurnstile(preSubmitCheck.siteKey, page.url(), null, null, null, captchaProxy);
+                    if (result.userAgent) {
+                        await page.setExtraHTTPHeaders({ 'User-Agent': result.userAgent });
+                    }
                     const tokenInjected = await page.evaluate((token) => {
                         // Try multiple ways to inject token
                         const selectors = [
@@ -1910,7 +1924,9 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 try {
                     const result = await captchaSolver.solveTurnstile(siteKey, page.url(), action, cData, pagedata, captchaProxy);
                     const token = result.token;
-                    const userAgent = result.userAgent;
+                    if (result.userAgent) {
+                        await page.setExtraHTTPHeaders({ 'User-Agent': result.userAgent });
+                    }
                     console.log('✅✅✅ 2CAPTCHA TOKEN RECEIVED AFTER SUBMISSION! ✅✅✅');
                     
                     // Inject token - try multiple selectors to find the correct input field
@@ -3210,6 +3226,9 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                             challengeParams.pagedata,
                             captchaProxy
                         );
+                        if (result.userAgent) {
+                            await page.setExtraHTTPHeaders({ 'User-Agent': result.userAgent });
+                        }
                         await page.evaluate((token) => {
                             const input = document.querySelector('input[name="cf-turnstile-response"]') ||
                                          document.querySelector('input[id*="turnstile"]');

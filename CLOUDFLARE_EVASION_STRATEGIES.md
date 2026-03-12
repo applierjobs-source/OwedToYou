@@ -1,5 +1,13 @@
 # Cloudflare Evasion Strategies
 
+## Why 2captcha Can Still Fail (and what we do about it)
+
+2captcha **can** solve Cloudflare Turnstile, but the token can be rejected if:
+
+1. **User-Agent mismatch** – For Cloudflare *Challenge* pages, 2captcha’s docs say you must use the **same User-Agent** they return when you submit the token. If our browser sends a different UA, Cloudflare may reject the token. We now set `page.setExtraHTTPHeaders({ 'User-Agent': result.userAgent })` after every 2captcha solve so the next request matches.
+2. **IP mismatch** – The token can be tied to the IP that solved it. If 2captcha solves from their worker’s IP and we submit from our server’s IP, validation can fail. Using **the same proxy** for both Playwright and 2captcha (`MISSINGMONEY_PROXY_URL` / `TurnstileTask` with proxy) makes the solver and the form submit use the same IP.
+3. **Datacenter IP blocking** – Missing Money may block or throttle datacenter IPs. A residential proxy for Playwright (and for 2captcha if using `TurnstileTask`) improves success.
+
 ## Current Issues
 Cloudflare is detecting non-human traffic because:
 1. **Automation signatures** - Playwright/Chromium leaves traces
