@@ -4499,7 +4499,7 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
     }
     
     try {
-        // Search Missing Money with 2captcha API key
+        // Search Missing Money; server uses CAPSOLVER_API_KEY / CAPTCHA_API_KEY for Turnstile
         const apiBase = window.location.origin;
         
         // Add timeout to prevent hanging (6 minutes max to allow server retries)
@@ -4524,7 +4524,7 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
                         city: claimData.city,
                         state: claimData.state,
                         use2Captcha: true
-                        // CAPTCHA_API_KEY is read from server env for security
+                        // CAPSOLVER_API_KEY / CAPTCHA_API_KEY read from server env for security
                     }),
                     signal: controller.signal
                 });
@@ -4737,8 +4737,8 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
                 let message = isCloudflare
                     ? 'Search couldn\'t complete — the search site may be temporarily blocking requests. Please try again in a minute.'
                     : `Search failed: ${result.error}. Please try again.`;
-                if (isCloudflare && result.error.includes('CAPTCHA_API_KEY')) {
-                    message += ' (Server admin: set CAPTCHA_API_KEY in the environment to enable automatic solving.)';
+                if (isCloudflare && (result.error.includes('CAPTCHA_API_KEY') || result.error.includes('CAPSOLVER'))) {
+                    message += ' (Server admin: set CAPSOLVER_API_KEY in the environment to enable automatic solving.)';
                 }
                 hideProgressModal();
                 showErrorModal(message);

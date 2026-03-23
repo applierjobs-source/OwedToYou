@@ -15,7 +15,7 @@ const QUEUE_TIMEOUT = 300000; // 5 minutes max wait time in queue (allow searche
 const MAX_RETRIES = 2; // Maximum retries for resource exhaustion errors
 
 /**
- * Single proxy for both Playwright and 2captcha when set.
+ * Single proxy for both Playwright and Capsolver when set.
  * Using the same proxy for both ensures the Turnstile token is solved from the same IP
  * that submits the form, which reduces Cloudflare rejections.
  * Set MISSINGMONEY_PROXY_URL (or PROXY_URL) to e.g. http://user:pass@host:port
@@ -52,7 +52,7 @@ function getProxyConfig() {
             ...(password ? { proxyPassword: password } : {})
         };
         
-        console.log(`[PROXY] Using same proxy for Playwright and 2captcha: ${parsed.hostname}:${proxyPort} (${proxyType})`);
+        console.log(`[PROXY] Using same proxy for Playwright and Capsolver: ${parsed.hostname}:${proxyPort} (${proxyType})`);
         return { playwrightProxy, captchaProxy };
     } catch (e) {
         console.warn('[PROXY] Invalid proxy URL, skipping proxy usage:', e.message);
@@ -520,10 +520,10 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
     const fullStateName = getFullStateName(state);
     console.log(`Converting state "${state}" to "${fullStateName}"`);
     
-    // Initialize 2captcha solver if API key provided
+    // Initialize Capsolver (Turnstile) when API key provided
     let captchaSolver = null;
     const { playwrightProxy, captchaProxy } = getProxyConfig();
-    console.log('🔍 Initializing 2captcha solver...');
+    console.log('🔍 Initializing Capsolver...');
     console.log('🔍 use2Captcha:', use2Captcha);
     console.log('🔍 captchaApiKey provided:', !!captchaApiKey);
     if (captchaApiKey) {
@@ -531,9 +531,9 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
     }
     if (use2Captcha && captchaApiKey) {
         captchaSolver = new CloudflareSolver(captchaApiKey);
-        console.log('✅✅✅ 2CAPTCHA SOLVER INITIALIZED SUCCESSFULLY! ✅✅✅');
+        console.log('✅✅✅ CAPSOLVER INITIALIZED SUCCESSFULLY ✅✅✅');
     } else {
-        console.log('⚠️⚠️⚠️ 2CAPTCHA SOLVER NOT INITIALIZED ⚠️⚠️⚠️');
+        console.log('⚠️⚠️⚠️ CAPSOLVER NOT INITIALIZED ⚠️⚠️⚠️');
         console.log('⚠️ Reason: use2Captcha=' + use2Captcha + ', captchaApiKey=' + !!captchaApiKey);
     }
     
@@ -575,48 +575,60 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
     let page = null;
     let screenshotIntervalId = null;
     try {
-        // Launch browser with stealth settings
-        // Note: Must use headless: true on Railway (no display server available)
-        // The stealth techniques (user agent, viewport, etc.) still work in headless mode
-        console.log('[BROWSER] Launching Chromium browser...');
-        
-        // Add timeout for browser launch to prevent hanging
-        const browserLaunchPromise = chromium.launch({ 
-            headless: true, // Required for Railway deployment (no X server)
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-blink-features=AutomationControlled',
-                '--headless=new', // New headless mode (Chrome 112+) - harder for sites to detect
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--no-first-run',
-                '--no-zygote',
-                '--disable-gpu',
-                '--disable-web-security',
-                '--disable-features=IsolateOrigins,site-per-process',
-                '--disable-infobars',
-                '--window-size=1920,1080',
-                '--disable-automation',
-                '--disable-client-side-phishing-detection',
-                '--max-old-space-size=512' // Limit memory usage
-            ],
-            timeout: 60000 // 60 second timeout for browser launch (increased for reliability)
-        });
-        
-        // Race browser launch against timeout
-        const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => {
-                const timeoutError = new Error('Browser launch timeout - this is retryable');
-                timeoutError._isRetryable = true;
-                timeoutError._isTimeout = true;
-                reject(timeoutError);
-            }, 60000); // 60 seconds
-        });
-        
-        browser = await Promise.race([browserLaunchPromise, timeoutPromise]);
-        console.log('[BROWSER] Browser launched successfully');
-        
+        // Prefer real Google Chrome when available (better TLS fingerprint, fewer Cloudflare blocks)
+        const launchArgs = [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-blink-features=AutomationControlled',
+            '--headless=new',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--disable-gpu',
+            '--disable-web-security',
+            '--disable-features=IsolateOrigins,site-per-process',
+            '--disable-infobars',
+            '--window-size=1920,1080',
+            '--disable-automation',
+            '--disable-client-side-phishing-detection',
+            '--max-old-space-size=512'
+        ];
+        const launchOpts = { headless: true, args: launchArgs, timeout: 60000 };
+
+        if (process.env.USE_CHROME !== 'false') {
+            try {
+                console.log('[BROWSER] Trying Google Chrome (channel: chrome)...');
+                browser = await chromium.launch({ ...launchOpts, channel: 'chrome' });
+                console.log('[BROWSER] Launched Google Chrome (better for Cloudflare)');
+            } catch (e) {
+                const msg = (e.message || '').toLowerCase();
+                if (msg.includes('could not find') || msg.includes('executable') || msg.includes('channel')) {
+                    console.warn('[BROWSER] Chrome not installed, using Chromium');
+                } else {
+                    console.warn('[BROWSER] Chrome launch failed:', e.message?.substring(0, 60));
+                }
+                browser = null;
+            }
+        } else {
+            browser = null;
+        }
+
+        if (!browser) {
+            console.log('[BROWSER] Launching Chromium...');
+            const browserLaunchPromise = chromium.launch(launchOpts);
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => {
+                    const err = new Error('Browser launch timeout - this is retryable');
+                    err._isRetryable = true;
+                    err._isTimeout = true;
+                    reject(err);
+                }, 60000);
+            });
+            browser = await Promise.race([browserLaunchPromise, timeoutPromise]);
+            console.log('[BROWSER] Browser launched successfully (Chromium)');
+        }
+
         // Create context with realistic browser fingerprint
         // Updated user agent to Chrome 131 (more recent) to avoid outdated browser detection
         const contextOptions = {
@@ -941,6 +953,10 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         const useWarmUp = process.env.USE_WARMUP !== 'false'; // Default to true
         if (useWarmUp) {
             await warmUpSession(page);
+            // Pause after warmup so claim-search isn't hit immediately (can trigger 403)
+            const postWarmupDelay = 4000 + Math.floor(Math.random() * 4000); // 4-8s
+            console.log('Waiting', postWarmupDelay, 'ms after warmup before claim-search...');
+            await new Promise(r => setTimeout(r, postWarmupDelay));
         }
         
         // Use longer timeout when using a proxy (residential can be slower; also allow retry)
@@ -954,12 +970,13 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 mainDocumentResponse = await page.goto(claimSearchUrl, { waitUntil: 'domcontentloaded', timeout: gotoTimeout });
                 const status = mainDocumentResponse ? mainDocumentResponse.status() : 0;
                 if (status === 403 || status === 503) {
-                    console.warn(`Initial page load returned ${status} (Cloudflare block). ${attempt < 2 ? 'Retrying in 5s...' : 'Failing.'}`);
+                    const retryWait = 12000; // 12s before retry (longer than 5s - helps if WAF is rate-limiting)
+                    console.warn(`Initial page load returned ${status} (Cloudflare block). ${attempt < 2 ? 'Retrying in ' + (retryWait/1000) + 's...' : 'Failing.'}`);
                     if (attempt < 2) {
-                        await new Promise(r => setTimeout(r, 5000));
+                        await new Promise(r => setTimeout(r, retryWait));
                         continue;
                     }
-                    const err = new Error(`Missing Money returned ${status} - Cloudflare is blocking this request. Try again later or check proxy/whitelist.`);
+                    const err = new Error(`Missing Money returned ${status} - Cloudflare is blocking this request. Try again later, check proxy/whitelist, or try a different proxy session (residential IP may be flagged).`);
                     err._isRetryable = true;
                     err._cloudflareBlock = true;
                     throw err;
@@ -1970,7 +1987,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         
         // Handle Cloudflare challenge if present AFTER submission
         if (challengeInfoAfterSubmission.hasMessage || challengeInfoAfterSubmission.iframes.some(f => f.isCloudflare) || challengeInfoAfterSubmission.turnstileElements.length > 0) {
-            console.log('🚨 Cloudflare challenge detected AFTER submission! Solving with 2captcha...');
+            console.log('🚨 Cloudflare challenge detected AFTER submission! Solving with Capsolver...');
             
             // Get intercepted params if available
             const interceptedParams = await page.evaluate(() => {
@@ -2019,9 +2036,9 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                 }
             }
             
-            // Use 2captcha to solve if available
+            // Use Capsolver to solve if available
             if (captchaSolver && siteKey && siteKey.length > 20) {
-                console.log('🎯🎯🎯 SOLVING CLOUDFLARE WITH 2CAPTCHA AFTER SUBMISSION 🎯🎯🎯');
+                console.log('🎯🎯🎯 SOLVING CLOUDFLARE WITH CAPSOLVER AFTER SUBMISSION 🎯🎯🎯');
                 console.log(`Site key: ${siteKey.substring(0, 40)}...`);
                 try {
                     const result = await captchaSolver.solveTurnstile(siteKey, page.url(), action, cData, pagedata, captchaProxy);
@@ -2029,7 +2046,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                     if (result.userAgent) {
                         await page.setExtraHTTPHeaders({ 'User-Agent': result.userAgent });
                     }
-                    console.log('✅✅✅ 2CAPTCHA TOKEN RECEIVED AFTER SUBMISSION! ✅✅✅');
+                    console.log('✅✅✅ CAPSOLVER TOKEN RECEIVED AFTER SUBMISSION! ✅✅✅');
                     
                     // Inject token - try multiple selectors to find the correct input field
                     const tokenInjected = await page.evaluate(({ token }) => {
@@ -2241,10 +2258,10 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                         console.warn('⚠️ Form may not have resubmitted after Cloudflare solve - will check results anyway');
                     }
                 } catch (e) {
-                    console.error('❌ 2captcha failed after submission:', e.message);
+                    console.error('❌ Capsolver failed after submission:', e.message);
                 }
             } else {
-                console.log('⚠️ No 2captcha solver or site key found after submission');
+                console.log('⚠️ No Capsolver or site key found after submission');
             }
         } else {
             console.log('✅ No Cloudflare challenge detected after submission');
@@ -2279,8 +2296,8 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             console.log('Waiting for results timed out, continuing...');
         }
         
-        // Note: verificationComplete is set in the 2captcha block above if token injection succeeds
-        // If we reach here and 2captcha wasn't used or didn't complete, we'll continue to results extraction
+        // Note: verificationComplete is set in the Capsolver block above if token injection succeeds
+        // If we reach here and Capsolver wasn't used or didn't complete, we'll continue to results extraction
         
         // Wait for any AJAX/API calls to complete (with shorter timeout to prevent hanging)
         await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {
@@ -3300,7 +3317,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             
             if ((finalChallengeCheck.hasMessage || finalChallengeCheck.hasIframe || finalChallengeCheck.hasTurnstile) && captchaSolver) {
                 console.log('🚨 Cloudflare challenge still present - attempting to solve...');
-                // Try one more time to solve Cloudflare (with challenge params for better 2captcha solve rate)
+                // Try one more time to solve Cloudflare (with challenge params for better Capsolver solve rate)
                 try {
                     const challengeParams = await page.evaluate(() => {
                         const el = document.querySelector('[data-sitekey]');
@@ -3490,7 +3507,7 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
                     formPostsWithToken.length ? '→ Captcha was sent; likely a separate bot check (fingerprint/behavior).' : '→ No token in form POST; captcha may not have been solved or included.');
             }
             const noSolverHint = !captchaSolver
-                ? ' Set CAPTCHA_API_KEY in your environment to enable automatic Cloudflare solving.'
+                ? ' Set CAPSOLVER_API_KEY (or CAPTCHA_API_KEY) in your environment to enable automatic Cloudflare solving.'
                 : '';
             console.error('[CLOUDFLARE_FAILURE] still_on_form_page=1 url=' + finalUrl + ' solver_used=' + !!captchaSolver + ' challenge_visible=' + (finalChallengeCheck && (finalChallengeCheck.hasMessage || finalChallengeCheck.hasIframe || finalChallengeCheck.hasTurnstile)));
             return {

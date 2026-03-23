@@ -2682,10 +2682,10 @@ const server = http.createServer((req, res) => {
                     console.log(`🧹 Cleaned names in server: "${firstName}" -> "${cleanedFirstName}", "${lastName}" -> "${cleanedLastName}"`);
                 }
                 
-                // Prefer server-side CAPTCHA key (env) over client-provided key (security)
-                const effectiveCaptchaKey = process.env.CAPTCHA_API_KEY || captchaApiKey || null;
+                // Prefer Capsolver key, then legacy CAPTCHA_API_KEY, then client (security: prefer env)
+                const effectiveCaptchaKey = process.env.CAPSOLVER_API_KEY || process.env.CAPTCHA_API_KEY || captchaApiKey || null;
                 console.log(`Searching Missing Money for ${cleanedFirstName} ${cleanedLastName}${searchCity ? `, ${searchCity}` : ''}${searchState ? `, ${searchState}` : ''}`);
-                console.log(`2captcha enabled: ${use2Captcha}, API key provided: ${!!effectiveCaptchaKey}`);
+                console.log(`Capsolver/Turnstile enabled: ${use2Captcha}, API key provided: ${!!effectiveCaptchaKey}`);
                 if (effectiveCaptchaKey) {
                     console.log(`API key (first 10 chars): ${effectiveCaptchaKey.substring(0, 10)}...`);
                 }

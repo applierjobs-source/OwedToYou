@@ -1,146 +1,144 @@
-// Cloudflare Turnstile solver using 2captcha API v2
-// For Cloudflare *Challenge* pages, 2captcha requires you to use the userAgent
-// they return when submitting the token, or the token may be rejected (IP/fingerprint).
+// Cloudflare Turnstile solver via Capsolver (https://www.capsolver.com)
+// Same contract as before: returns { token, userAgent } so Playwright can set User-Agent when present.
 const axios = require('axios');
+
+const CAPSOLVER_BASE = 'https://api.capsolver.com';
+
+/**
+ * Capsolver accepts a single `proxy` string (see their "How to use proxy" docs).
+ */
+function captchaProxyToCapsolverProxyString(proxy) {
+    if (!proxy || !proxy.proxyAddress || !proxy.proxyPort) return null;
+    const type = (proxy.proxyType || 'http').toLowerCase();
+    const host = proxy.proxyAddress;
+    const port = proxy.proxyPort;
+    const user = proxy.proxyLogin;
+    const pass = proxy.proxyPassword;
+    if (user != null && user !== '' && pass != null && pass !== '') {
+        return `${type}:${host}:${port}:${user}:${pass}`;
+    }
+    return `${type}:${host}:${port}`;
+}
 
 class CloudflareSolver {
     constructor(apiKey) {
         this.apiKey = apiKey;
-        this.baseUrl = 'https://api.2captcha.com';
     }
-    
+
     async solveTurnstile(siteKey, pageUrl, action = null, cData = null, pagedata = null, proxy = null) {
         if (!this.apiKey) {
-            throw new Error('2captcha API key not provided');
+            throw new Error('Capsolver API key not provided (set CAPSOLVER_API_KEY or CAPTCHA_API_KEY)');
         }
-        
-        console.log('🚀🚀🚀 SOLVING CLOUDFLARE TURNSTILE WITH 2CAPTCHA API v2 🚀🚀🚀');
+
+        console.log('🚀 SOLVING CLOUDFLARE TURNSTILE WITH CAPSOLVER');
         console.log(`Site key: ${siteKey}`);
         console.log(`Page URL: ${pageUrl}`);
-        console.log(`Action: ${action || 'not provided (standalone)'}`);
-        console.log(`API key (first 10 chars): ${this.apiKey.substring(0, 10)}...`);
-        
+        console.log(`Action: ${action || 'not provided'}`);
+
+        const task = {
+            type: 'AntiTurnstileTaskProxyLess',
+            websiteURL: pageUrl,
+            websiteKey: siteKey
+        };
+
+        const metadata = {};
+        if (action) metadata.action = action;
+        if (cData) metadata.cdata = cData;
+        // Some Cloudflare challenge flows pass extra page data; Capsolver may use extended metadata
+        if (pagedata) metadata.chlPageData = pagedata;
+        if (Object.keys(metadata).length > 0) {
+            task.metadata = metadata;
+        }
+
+        const proxyStr = captchaProxyToCapsolverProxyString(proxy);
+        if (proxyStr) {
+            task.proxy = proxyStr;
+            console.log(`📡 Capsolver task includes proxy (same IP as browser when possible)`);
+        }
+
+        const doCreate = async (taskPayload) => {
+            return axios.post(
+                `${CAPSOLVER_BASE}/createTask`,
+                { clientKey: this.apiKey, task: taskPayload },
+                { timeout: 30000, headers: { 'Content-Type': 'application/json' } }
+            );
+        };
+
         try {
-            // Build task object
-            const task = {
-                type: proxy ? 'TurnstileTask' : 'TurnstileTaskProxyless',
-                websiteURL: pageUrl,
-                websiteKey: siteKey
-            };
-            
-            if (proxy) {
-                if (!proxy.proxyType || !proxy.proxyAddress || !proxy.proxyPort) {
-                    console.warn('⚠️ Proxy config incomplete for 2captcha, falling back to proxyless.');
-                    task.type = 'TurnstileTaskProxyless';
-                } else {
-                    task.proxyType = proxy.proxyType;
-                    task.proxyAddress = proxy.proxyAddress;
-                    task.proxyPort = proxy.proxyPort;
-                    if (proxy.proxyLogin) task.proxyLogin = proxy.proxyLogin;
-                    if (proxy.proxyPassword) task.proxyPassword = proxy.proxyPassword;
-                    console.log(`📡 Using proxy for 2captcha: ${proxy.proxyAddress}:${proxy.proxyPort} (${proxy.proxyType})`);
-                }
+            let createRes = await doCreate(task);
+            let createData = createRes.data;
+            // Proxyless task type may reject explicit proxy — retry without it
+            if (
+                createData.errorId !== 0 &&
+                proxyStr &&
+                (String(createData.errorDescription || '').toLowerCase().includes('proxy') ||
+                    String(createData.errorCode || '').toLowerCase().includes('proxy'))
+            ) {
+                console.warn('⚠️ Capsolver rejected proxy on Turnstile task; retrying without proxy');
+                delete task.proxy;
+                createRes = await doCreate(task);
+                createData = createRes.data;
             }
-            
-            // Add Cloudflare Challenge page parameters if provided
-            // Note: For Cloudflare Challenge pages, these parameters help 2captcha solve more accurately
-            if (action || cData || pagedata) {
-                if (action) {
-                    task.action = action;
-                    console.log(`📋 Action parameter: ${action.substring(0, 50)}...`);
-                }
-                if (cData) {
-                    task.data = cData;
-                    console.log(`📋 cData parameter: ${cData.substring(0, 50)}...`);
-                }
-                if (pagedata) {
-                    task.pagedata = pagedata;
-                    console.log(`📋 pagedata parameter: ${pagedata.substring(0, 50)}...`);
-                }
-                console.log('📋 Using Cloudflare Challenge page mode (with available parameters)');
-            } else {
-                console.log('📋 Using Standalone Captcha mode (no challenge page parameters)');
+
+            console.log('📥 Capsolver createTask:', JSON.stringify({ errorId: createData.errorId, taskId: createData.taskId, status: createData.status }));
+
+            if (createData.errorId !== 0 && createData.errorId != null) {
+                throw new Error(
+                    `Capsolver createTask error: ${createData.errorCode || createData.errorId} - ${createData.errorDescription || 'unknown'}`
+                );
             }
-            
-            // Submit task to 2captcha API v2
-            console.log('📤 SUBMITTING TASK TO 2CAPTCHA API v2...');
-            console.log(`URL: ${this.baseUrl}/createTask`);
-            console.log(`API Key (first 10 chars): ${this.apiKey.substring(0, 10)}...`);
-            console.log(`Task object:`, JSON.stringify(task, null, 2));
-            
-            const requestBody = {
-                clientKey: this.apiKey,
-                task: task
-            };
-            console.log(`Full request body:`, JSON.stringify(requestBody, null, 2));
-            
-            const createTaskResponse = await axios.post(`${this.baseUrl}/createTask`, requestBody, {
-                timeout: 30000,
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            console.log('📥 2CAPTCHA CREATE TASK RESPONSE:', JSON.stringify(createTaskResponse.data, null, 2));
-            
-            if (createTaskResponse.data.errorId !== 0) {
-                throw new Error(`2captcha error: ${createTaskResponse.data.errorCode} - ${createTaskResponse.data.errorDescription}`);
+
+            const taskId = createData.taskId;
+            if (!taskId) {
+                throw new Error('Capsolver did not return taskId');
             }
-            
-            const taskId = createTaskResponse.data.taskId;
-            console.log(`✅ Task submitted to 2captcha, ID: ${taskId}`);
-            console.log('⏳ Waiting for 2captcha to solve (this may take 10-30 seconds)...');
-            
-            // Poll for result (max 2 minutes, check every 3 seconds for faster response)
-            for (let i = 0; i < 40; i++) { // More iterations but shorter delays
-                await new Promise(resolve => setTimeout(resolve, 3000)); // Reduced from 5 to 3 seconds
-                
+
+            console.log(`✅ Capsolver taskId: ${taskId}, polling for result...`);
+
+            for (let i = 0; i < 45; i++) {
+                await new Promise((r) => setTimeout(r, 3000));
+
                 if (i % 3 === 0) {
-                    console.log(`🔍 Checking 2captcha status... (${(i + 1) * 3} seconds)`);
+                    console.log(`🔍 Capsolver status check ${i + 1}...`);
                 }
-                
-                const getResultResponse = await axios.post(`${this.baseUrl}/getTaskResult`, {
-                    clientKey: this.apiKey,
-                    taskId: taskId
-                }, {
-                    timeout: 10000,
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                console.log(`📊 Status check ${i + 1}:`, JSON.stringify(getResultResponse.data, null, 2));
-                
-                if (getResultResponse.data.status === 'ready') {
-                    const solution = getResultResponse.data.solution;
-                    const token = solution.token;
-                    const userAgent = solution.userAgent;
-                    
-                    console.log('✅✅✅ CLOUDFLARE CHALLENGE SOLVED BY 2CAPTCHA! ✅✅✅');
-                    console.log(`Token received (first 50 chars): ${token.substring(0, 50)}...`);
-                    if (userAgent) {
-                        console.log(`User Agent from 2captcha: ${userAgent}`);
-                    }
-                    
-                    return {
-                        token: token,
-                        userAgent: userAgent
-                    };
-                } else if (getResultResponse.data.status === 'processing') {
-                    // Continue polling
-                    continue;
-                } else {
-                    throw new Error(`2captcha error: ${getResultResponse.data.errorCode || 'Unknown error'} - ${getResultResponse.data.errorDescription || 'Unknown'}`);
+
+                const resultRes = await axios.post(
+                    `${CAPSOLVER_BASE}/getTaskResult`,
+                    { clientKey: this.apiKey, taskId },
+                    { timeout: 15000, headers: { 'Content-Type': 'application/json' } }
+                );
+
+                const data = resultRes.data;
+
+                if (data.status === 'ready' && data.solution && data.solution.token) {
+                    const token = data.solution.token;
+                    const userAgent = data.solution.userAgent || null;
+                    console.log('✅ CAPSOLVER TURNSTILE SOLVED');
+                    console.log(`Token (first 50 chars): ${token.substring(0, 50)}...`);
+                    if (userAgent) console.log(`User-Agent from Capsolver: ${userAgent.substring(0, 80)}...`);
+                    return { token, userAgent };
                 }
+
+                if (data.status === 'failed') {
+                    throw new Error(
+                        `Capsolver failed: ${data.errorCode || ''} - ${data.errorDescription || JSON.stringify(data)}`
+                    );
+                }
+                if (data.errorId != null && data.errorId !== 0 && data.status !== 'processing' && data.status !== 'idle') {
+                    throw new Error(
+                        `Capsolver error: ${data.errorCode || data.errorId} - ${data.errorDescription || JSON.stringify(data)}`
+                    );
+                }
+                // status processing / idle — continue polling
             }
-            
-            throw new Error('2captcha timeout after 2 minutes');
-        } catch (error) {
-            console.error('❌ 2captcha error:', error.message);
-            if (error.response) {
-                console.error('❌ 2captcha response:', JSON.stringify(error.response.data, null, 2));
+
+            throw new Error('Capsolver timeout waiting for Turnstile solution');
+        } catch (err) {
+            console.error('❌ Capsolver error:', err.message);
+            if (err.response && err.response.data) {
+                console.error('❌ Capsolver response:', JSON.stringify(err.response.data, null, 2));
             }
-            throw error;
+            throw err;
         }
     }
 }

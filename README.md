@@ -6,7 +6,7 @@ A web application that helps users discover unclaimed funds by searching Instagr
 
 - Search Instagram usernames to find profile pictures
 - Search Missing Money database for unclaimed funds
-- Automated Cloudflare Turnstile solving via 2captcha
+- Automated Cloudflare Turnstile solving via [Capsolver](https://www.capsolver.com)
 - Modern, responsive UI
 
 ## Tech Stack
@@ -14,7 +14,7 @@ A web application that helps users discover unclaimed funds by searching Instagr
 - **Frontend**: HTML, CSS, JavaScript
 - **Backend**: Node.js, Express (http server)
 - **Automation**: Playwright
-- **Captcha Solving**: 2captcha API
+- **Captcha Solving**: Capsolver API
 
 ## Deployment to Railway
 
@@ -23,7 +23,7 @@ A web application that helps users discover unclaimed funds by searching Instagr
 1. GitHub account
 2. Railway.app account (sign up at https://railway.app)
 3. GoDaddy domain (optional, for custom domain)
-4. 2captcha API key
+4. Capsolver API key
 
 ### Step 1: Push to GitHub
 
@@ -70,7 +70,7 @@ In Railway dashboard:
 
 ```
 PORT=3000
-CAPTCHA_API_KEY=your_2captcha_api_key_here
+CAPSOLVER_API_KEY=your_capsolver_api_key_here
 ```
 
 **Note**: 
@@ -116,8 +116,10 @@ npm start
 
 - `PORT`: Server port (default: 3000, automatically set by Railway)
 - `DATABASE_URL`: PostgreSQL connection string (automatically set by Railway when you add PostgreSQL)
-- `CAPTCHA_API_KEY`: Your 2captcha API key
-- `MISSINGMONEY_PROXY_URL` or `PROXY_URL`: Optional. Single proxy used for **both** the Playwright browser and 2captcha when solving Cloudflare Turnstile. Use a **residential proxy** for best results with Missing Money (they often block datacenter IPs). Format: `http://user:pass@host:port` or `socks5://user:pass@host:port`.
+- `CAPSOLVER_API_KEY`: Your Capsolver API key (keys often start with `CAP-`). **Preferred.**
+- `CAPTCHA_API_KEY`: Legacy alias; used if `CAPSOLVER_API_KEY` is not set.
+- `MISSINGMONEY_PROXY_URL` or `PROXY_URL`: Optional. Single proxy used for **both** the Playwright browser and Capsolver when solving Turnstile (proxy is attached to the Capsolver task when supported). Use a **residential proxy** for best results. Format: `http://user:pass@host:port` or `socks5://user:pass@host:port`.
+- `USE_CHROME`: Optional. When not set to `false`, the app tries to launch **Google Chrome** (if installed) instead of bundled Chromium. Real Chrome has a better TLS fingerprint and can reduce Cloudflare 403 blocks. On Railway, Chrome is not installed by default; set `USE_CHROME=false` to skip the attempt, or use a Docker image that includes Chrome.
 
 ## Project Structure
 
@@ -127,22 +129,22 @@ npm start
 ├── script.js           # Frontend JavaScript
 ├── server.js           # Backend server
 ├── missingMoneySearch.js  # Playwright automation script
-├── cloudflareSolver.js    # 2captcha integration
+├── cloudflareSolver.js    # Capsolver Turnstile integration
 └── package.json        # Dependencies
 ```
 
 ## Notes
 
 - Playwright requires Chromium to be installed. This is handled automatically in Railway via the `postinstall` script.
-- The 2captcha API key should be kept secret and stored as an environment variable.
+- The Capsolver API key should be kept secret and stored as an environment variable.
 - Railway automatically handles HTTPS/SSL certificates for custom domains.
 
 ### Cloudflare / Missing Money and residential proxies
 
 If Missing Money searches often fail with "Form submission failed - Cloudflare...", set **both**:
 
-1. **CAPTCHA_API_KEY** – 2captcha API key (required for solving Turnstile).
-2. **MISSINGMONEY_PROXY_URL** – A **residential proxy** URL. The app uses this single proxy for the browser and for 2captcha, so the token is solved from the same IP that submits the form.
+1. **CAPSOLVER_API_KEY** – Capsolver API key (required for solving Turnstile). You can use **CAPTCHA_API_KEY** instead for backward compatibility.
+2. **MISSINGMONEY_PROXY_URL** – A **residential proxy** URL. The app uses this single proxy for the browser and passes it to Capsolver when possible so the solve and form submit use the same IP.
 
 You need to **purchase** a residential proxy from a provider; the app does not include any. Examples:
 
@@ -154,6 +156,14 @@ You need to **purchase** a residential proxy from a provider; the app does not i
 Add the proxy URL in Railway (or your host) as `MISSINGMONEY_PROXY_URL`, e.g. `http://user:pass@gate.provider.com:8080`.
 
 ## Troubleshooting
+
+### Cloudflare 403 on Missing Money
+
+If you get "Missing Money returned 403" on the first request:
+
+- The app now **tries Google Chrome first** (when available). Chrome’s TLS fingerprint is less likely to be blocked than Chromium’s. On your local machine, install Chrome and leave `USE_CHROME` unset.
+- On **Railway**, Chrome is usually not installed, so the app falls back to Chromium. To use Chrome there, you’d need a Dockerfile or buildpack that installs Chrome (e.g. a Playwright/Chrome base image). Otherwise rely on a good **residential proxy** and optional **USE_WARMUP** / retries.
+- Ensure your **proxy** is residential and (if required) that your server IP is whitelisted in the proxy dashboard.
 
 ### Playwright not installing on Railway
 
