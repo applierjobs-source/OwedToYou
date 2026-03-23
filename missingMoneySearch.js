@@ -575,12 +575,15 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
     let page = null;
     let screenshotIntervalId = null;
     try {
-        // Prefer real Google Chrome when available (better TLS fingerprint, fewer Cloudflare blocks)
+        // Headed mode: local window (USE_HEADED=true) or virtual display (USE_XVFB_HEADED=true + Xvfb on Railway/Docker).
+        // Force headless: USE_HEADLESS_ONLY=true
+        const useHeaded =
+            process.env.USE_HEADLESS_ONLY !== 'true' &&
+            (process.env.USE_XVFB_HEADED === 'true' || process.env.USE_HEADED === 'true');
         const launchArgs = [
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-blink-features=AutomationControlled',
-            '--headless=new',
             '--disable-dev-shm-usage',
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
@@ -594,7 +597,19 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             '--disable-client-side-phishing-detection',
             '--max-old-space-size=512'
         ];
-        const launchOpts = { headless: true, args: launchArgs, timeout: 60000 };
+        if (!useHeaded) {
+            launchArgs.splice(3, 0, '--headless=new'); // after AutomationControlled arg
+        }
+        const launchOpts = { headless: !useHeaded, args: launchArgs, timeout: 60000 };
+        if (useHeaded) {
+            if (process.env.USE_XVFB_HEADED === 'true') {
+                console.log('[BROWSER] Headed Chromium on Xvfb (DISPLAY=' + (process.env.DISPLAY || ':99') + ') — not headless');
+            } else {
+                console.log('[BROWSER] USE_HEADED=true — visible window (not headless)');
+            }
+        } else {
+            console.log('[BROWSER] Running headless. For live site + Xvfb use Dockerfile and USE_XVFB_HEADED=true.');
+        }
 
         if (process.env.USE_CHROME !== 'false') {
             try {
@@ -3891,6 +3906,21 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
             return {
                 success: false,
                 error: 'Server is processing many requests. Please wait a moment and try again.',
+                results: [],
+                _isRetryable: true
+            };
+        }
+        
+        // Cloudflare / 403 / block page — let API layer retry with backoff
+        if (error._cloudflareBlock || (error.message && (
+            error.message.includes('Cloudflare') ||
+            error.message.includes('returned 403') ||
+            error.message.includes('did not load') ||
+            error.message.includes('bot_detect')
+        ))) {
+            return {
+                success: false,
+                error: error.message || 'Search operation failed',
                 results: [],
                 _isRetryable: true
             };

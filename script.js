@@ -1472,6 +1472,21 @@ function saveInstagramNameToStorage(handle, fullName) {
     }
 }
 
+/** User-friendly message when Missing Money / Cloudflare / captcha blocks the search */
+function formatMissingMoneyBlockingError(serverError) {
+    const err = (serverError || '').toLowerCase();
+    if (err.includes('capsolver') || err.includes('captcha_api') || err.includes('api key')) {
+        return 'We couldn’t finish the security check on the official site. Please try again in a minute.';
+    }
+    if (err.includes('bot_detect')) {
+        return 'The official search site didn’t accept this visit. Please wait a few minutes and try again.';
+    }
+    if (err.includes('403') || err.includes('did not load') || err.includes('block or error page')) {
+        return 'The official unclaimed-money site temporarily blocked our connection. Please try again in a few minutes.';
+    }
+    return 'We couldn’t complete the search on the official site right now — this is often temporary. Please try again in a minute.';
+}
+
 // Load MissingMoney search results from localStorage
 function loadMissingMoneyResultsFromStorage(firstName, lastName) {
     try {
@@ -4733,12 +4748,18 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
             // Check if there's an error message indicating what went wrong
             if (result.error) {
                 console.error('❌ Search error:', result.error);
-                const isCloudflare = result.error.includes('Cloudflare') || result.error.includes('Form submission failed');
-                let message = isCloudflare
-                    ? 'Search couldn\'t complete — the search site may be temporarily blocking requests. Please try again in a minute.'
+                const isSiteBlocking = result.error.includes('Cloudflare') ||
+                    result.error.includes('Form submission failed') ||
+                    result.error.includes('returned 403') ||
+                    result.error.includes('did not load') ||
+                    result.error.includes('bot_detect') ||
+                    result.error.includes('Missing Money returned') ||
+                    result.error.includes('Capsolver');
+                let message = isSiteBlocking
+                    ? formatMissingMoneyBlockingError(result.error)
                     : `Search failed: ${result.error}. Please try again.`;
-                if (isCloudflare && (result.error.includes('CAPTCHA_API_KEY') || result.error.includes('CAPSOLVER'))) {
-                    message += ' (Server admin: set CAPSOLVER_API_KEY in the environment to enable automatic solving.)';
+                if (isSiteBlocking && (result.error.includes('CAPTCHA_API_KEY') || result.error.includes('CAPSOLVER') || result.error.includes('automatic Cloudflare'))) {
+                    message += ' (If you run the server: set CAPSOLVER_API_KEY in Railway.)';
                 }
                 hideProgressModal();
                 showErrorModal(message);

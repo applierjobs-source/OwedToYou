@@ -2714,7 +2714,11 @@ const server = http.createServer((req, res) => {
                         // Check if error is retryable (resource exhaustion, timeouts, Cloudflare, etc.)
                         const isCloudflareError = result.error && (
                             result.error.includes('Form submission failed') ||
-                            result.error.includes('Cloudflare')
+                            result.error.includes('Cloudflare') ||
+                            result.error.includes('returned 403') ||
+                            result.error.includes('did not load') ||
+                            result.error.includes('bot_detect') ||
+                            result.error.includes('Capsolver')
                         );
                         const isRetryableError = result._isRetryable || 
                             (result.error && (
@@ -2723,8 +2727,8 @@ const server = http.createServer((req, res) => {
                                 result.error.includes('timeout') ||
                                 isCloudflareError
                             ));
-                        // Cap Cloudflare retries at 2 to avoid long waits
-                        if (isCloudflareError && retries >= 2) {
+                        // Allow a few Cloudflare/block retries (transient 403 / captcha)
+                        if (isCloudflareError && retries >= 4) {
                             break;
                         }
                         
@@ -2750,13 +2754,16 @@ const server = http.createServer((req, res) => {
                         // Check if it's a retryable error (timeout, resource exhaustion, etc.)
                         const isRetryable = searchError._isRetryable || 
                             searchError._isTimeout ||
+                            searchError._cloudflareBlock ||
                             (searchError.message && (
                                 searchError.message.includes('Resource temporarily unavailable') ||
                                 searchError.message.includes('ENOMEM') ||
                                 searchError.message.includes('EMFILE') ||
                                 searchError.message.includes('pthread_create') ||
                                 searchError.message.includes('timed out') ||
-                                searchError.message.includes('timeout')
+                                searchError.message.includes('timeout') ||
+                                searchError.message.includes('Cloudflare') ||
+                                searchError.message.includes('403')
                             ));
                         
                         if (isRetryable && retries < MAX_RETRIES) {

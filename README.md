@@ -50,7 +50,10 @@ git push -u origin main
 2. Click "New Project"
 3. Select "Deploy from GitHub repo"
 4. Choose your repository
-5. Railway will automatically detect the project and start building
+5. **Dockerfile (recommended for Missing Money):** If the repo contains a `Dockerfile`, Railway will build with Docker. That image runs **headed Chromium on Xvfb** (virtual display), which behaves more like a real browser and can reduce Cloudflare blocks. The container sets `USE_XVFB_HEADED=true` automatically.
+6. **Nixpacks only:** If you remove or rename the `Dockerfile`, Railway falls back to `nixpacks.toml` (smaller image, but **headless** Chromium only).
+
+Do **not** set `USE_HEADLESS_ONLY=true` when using the Dockerfile, or the browser will stay headless.
 
 ### Step 3: Add PostgreSQL Database
 
@@ -112,6 +115,11 @@ npm start
 # Server runs on http://localhost:3000
 ```
 
+### Headed browser locally
+
+- **Mac/Windows (real window):** `USE_HEADED=true npm start`
+- **Linux (no display, like CI):** install `xvfb` then `npm run start:xvfb` (also sets headed mode via the script + env in `start-with-xvfb.sh` — export `USE_XVFB_HEADED=true` before `node` if you run `xvfb-run` manually).
+
 ## Environment Variables
 
 - `PORT`: Server port (default: 3000, automatically set by Railway)
@@ -120,10 +128,15 @@ npm start
 - `CAPTCHA_API_KEY`: Legacy alias; used if `CAPSOLVER_API_KEY` is not set.
 - `MISSINGMONEY_PROXY_URL` or `PROXY_URL`: Optional. Single proxy used for **both** the Playwright browser and Capsolver when solving Turnstile (proxy is attached to the Capsolver task when supported). Use a **residential proxy** for best results. Format: `http://user:pass@host:port` or `socks5://user:pass@host:port`.
 - `USE_CHROME`: Optional. When not set to `false`, the app tries to launch **Google Chrome** (if installed) instead of bundled Chromium. Real Chrome has a better TLS fingerprint and can reduce Cloudflare 403 blocks. On Railway, Chrome is not installed by default; set `USE_CHROME=false` to skip the attempt, or use a Docker image that includes Chrome.
+- `USE_HEADED`: Optional. On your **local** machine, set to `true` for a **real** browser window (not headless).
+- `USE_XVFB_HEADED`: Optional. Set to `true` when the process runs under **Xvfb** (virtual framebuffer). The **Dockerfile** sets this for production so Chromium runs **headed** without a physical monitor.
+- `USE_HEADLESS_ONLY`: Optional. Set to `true` to force **headless** even if `USE_XVFB_HEADED` is set (debugging only).
 
 ## Project Structure
 
 ```
+├── Dockerfile          # Optional: Playwright + Xvfb for headed Chromium on Railway
+├── scripts/start-with-xvfb.sh  # Starts xvfb-run then node (used by Dockerfile)
 ├── index.html          # Main HTML file
 ├── styles.css          # CSS styles
 ├── script.js           # Frontend JavaScript

@@ -1,3 +1,4 @@
+# Nixpacks = headless Chromium (no Xvfb). For headed + Xvfb on Railway, deploy with the repo Dockerfile instead.
 [phases.setup]
 nixPkgs = ["nodejs_20", "python3"]
 

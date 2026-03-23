@@ -5,6 +5,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
+    "start:xvfb": "bash scripts/start-with-xvfb.sh",
     "postinstall": "npx playwright install chromium"
   },
   "keywords": [],
