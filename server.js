@@ -43,6 +43,22 @@ if (process.env.SENDGRID_API_KEY) {
     console.warn('[EMAIL] ⚠️ SENDGRID_API_KEY not set - email sending will not work');
 }
 
+// Where manual lookup + mailing-form notifications are delivered (set in Railway)
+function getNotificationToEmail() {
+    const addr =
+        process.env.NOTIFICATION_TO_EMAIL ||
+        process.env.CONTACT_EMAIL ||
+        process.env.SENDGRID_TO_EMAIL ||
+        '';
+    return addr.trim() || 'owedtoyoucontact@gmail.com';
+}
+
+if (sendGridConfigured) {
+    const inbox = getNotificationToEmail();
+    const masked = inbox.includes('@') ? inbox.replace(/(^.).*(@.*$)/, '$1***$2') : inbox;
+    console.log('[EMAIL] Notification inbox (manual lookup + mailing):', masked);
+}
+
 // Initialize Plaid client
 // NOTE: For testing only - in production, use environment variables only
 let plaidClient = null;
@@ -3415,6 +3431,82 @@ const server = http.createServer((req, res) => {
                 res.end(JSON.stringify({ success: false, error: error.message }));
             }
         })();
+    } else if (parsedUrl.pathname === '/api/manual-lookup-request') {
+        if (req.method === 'OPTIONS') {
+            res.writeHead(200, corsHeaders);
+            res.end();
+            return;
+        }
+        if (req.method !== 'POST') {
+            res.writeHead(405, corsHeaders);
+            res.end(JSON.stringify({ success: false, error: 'Method not allowed' }));
+            return;
+        }
+        let lookupBody = '';
+        req.on('data', (chunk) => { lookupBody += chunk.toString(); });
+        req.on('end', async () => {
+            const escapeHtml = (s) => String(s || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+            try {
+                const data = JSON.parse(lookupBody);
+                const fullName = (data.fullName || '').trim();
+                const email = (data.email || '').trim();
+                const phone = (data.phone || '').trim();
+                if (!fullName || fullName.length < 2 || !email || !phone || phone.length < 7) {
+                    res.writeHead(400, corsHeaders);
+                    res.end(JSON.stringify({ success: false, error: 'Full name, email, and phone are required.' }));
+                    return;
+                }
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                    res.writeHead(400, corsHeaders);
+                    res.end(JSON.stringify({ success: false, error: 'Invalid email address.' }));
+                    return;
+                }
+                if (!sendGridConfigured) {
+                    console.error('[MANUAL LOOKUP] SendGrid not configured');
+                    res.writeHead(500, corsHeaders);
+                    res.end(JSON.stringify({ success: false, error: 'Email service is not configured.' }));
+                    return;
+                }
+                const fromEmail = process.env.SENDGRID_FROM_EMAIL || 'owedtoyoucontact@gmail.com';
+                const toEmail = getNotificationToEmail();
+                const submitted = new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' });
+                const safeName = escapeHtml(fullName);
+                const safeEmail = escapeHtml(email);
+                const safePhone = escapeHtml(phone);
+                const textBody = [
+                    'Manual unclaimed-funds lookup request (/search)',
+                    '',
+                    `Full name: ${fullName}`,
+                    `Email: ${email}`,
+                    `Phone: ${phone}`,
+                    '',
+                    `Submitted: ${submitted} CST`
+                ].join('\n');
+                const msg = {
+                    to: toEmail,
+                    from: { email: fromEmail, name: 'OwedToYou.ai' },
+                    subject: `Manual lookup request — ${fullName}`,
+                    text: textBody,
+                    html: `<h2>Manual unclaimed-funds lookup request</h2><p><strong>/search</strong> — respond within 24 hours.</p><ul>
+                        <li><strong>Full name:</strong> ${safeName}</li>
+                        <li><strong>Email:</strong> ${safeEmail}</li>
+                        <li><strong>Phone:</strong> ${safePhone}</li>
+                    </ul><p><em>Submitted: ${escapeHtml(submitted)} CST</em></p>`
+                };
+                await sgMail.send(msg);
+                console.log('[MANUAL LOOKUP] Email sent for:', fullName, '→', toEmail);
+                res.writeHead(200, corsHeaders);
+                res.end(JSON.stringify({ success: true }));
+            } catch (err) {
+                console.error('[MANUAL LOOKUP] Error:', err);
+                res.writeHead(500, corsHeaders);
+                res.end(JSON.stringify({ success: false, error: 'Could not submit request. Please try again later.' }));
+            }
+        });
     } else if (parsedUrl.pathname === '/api/submit-mailing-address') {
         // Handle CORS preflight
         if (req.method === 'OPTIONS') {
@@ -3498,7 +3590,7 @@ Submitted: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })
                 }
                 
                 const fromEmail = process.env.SENDGRID_FROM_EMAIL || 'owedtoyoucontact@gmail.com';
-                const toEmail = 'owedtoyoucontact@gmail.com';
+                const toEmail = getNotificationToEmail();
                 
                 const msg = {
                     to: toEmail,
@@ -3548,7 +3640,7 @@ Submitted: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })
                     }, null, 2));
                     
                     const emailResult = await sgMail.send(msg);
-                    console.log('[MAILING ADDRESS] ✅ Email sent successfully to owedtoyoucontact@gmail.com');
+                    console.log('[MAILING ADDRESS] ✅ Email sent successfully to', toEmail);
                     console.log('[MAILING ADDRESS] Email status code:', emailResult[0]?.statusCode);
                     console.log('[MAILING ADDRESS] Email response:', JSON.stringify(emailResult, null, 2));
                 } catch (sgError) {

@@ -4,8 +4,9 @@ A web application that helps users discover unclaimed funds by searching Instagr
 
 ## Features
 
-- Search Instagram usernames to find profile pictures
-- Search Missing Money database for unclaimed funds
+- **[/search](https://owedtoyou.ai/search)** — Manual lookup requests (full name, email, phone). Submissions are emailed via SendGrid (`SENDGRID_API_KEY`); team follows up within 24 hours. No automated Missing Money scrape on that page.
+- Search Instagram usernames to find profile pictures (main `/` flow)
+- Search Missing Money database for unclaimed funds (API + home flow)
 - Automated Cloudflare Turnstile solving via [Capsolver](https://www.capsolver.com)
 - Modern, responsive UI
 
@@ -124,6 +125,9 @@ npm start
 
 - `PORT`: Server port (default: 3000, automatically set by Railway)
 - `DATABASE_URL`: PostgreSQL connection string (automatically set by Railway when you add PostgreSQL)
+- `NOTIFICATION_TO_EMAIL`: **Inbox for form emails** — manual `/search` lookups and mailing-address submissions are sent here. Aliases: `CONTACT_EMAIL`, `SENDGRID_TO_EMAIL`. If unset, defaults to `owedtoyoucontact@gmail.com`.
+- `SENDGRID_FROM_EMAIL`: Verified SendGrid sender address (must match a verified sender in SendGrid).
+- `SENDGRID_API_KEY`: Required for SendGrid.
 - `CAPSOLVER_API_KEY`: Your Capsolver API key (keys often start with `CAP-`). **Preferred.**
 - `CAPTCHA_API_KEY`: Legacy alias; used if `CAPSOLVER_API_KEY` is not set.
 - `MISSINGMONEY_PROXY_URL` or `PROXY_URL`: Optional. Single proxy used for **both** the Playwright browser and Capsolver when solving Turnstile (proxy is attached to the Capsolver task when supported). Use a **residential proxy** for best results. Format: `http://user:pass@host:port` or `socks5://user:pass@host:port`.
