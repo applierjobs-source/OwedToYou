@@ -84,6 +84,106 @@ h1 {
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
 }
 
+/* /search multi-step form: uniform corners (not pill “bevel”) */
+.search-container.search-wizard {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    max-width: 480px;
+    padding: 28px 28px 24px;
+    border-radius: 16px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+}
+
+.search-wizard-progress {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.search-wizard-progress .step-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #e0e0e0;
+    transition: background 0.2s, transform 0.2s;
+}
+
+.search-wizard-progress .step-dot.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    transform: scale(1.15);
+}
+
+.search-wizard-progress .step-dot.done {
+    background: #a78bfa;
+}
+
+.search-wizard-step-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #764ba2;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 8px;
+    text-align: center;
+}
+
+.search-wizard-fields .form-group {
+    margin: 0 0 8px;
+}
+
+.search-wizard-fields .form-group label {
+    color: #333;
+    display: block;
+    margin-bottom: 8px;
+    font-size: 0.95rem;
+}
+
+.search-wizard-input {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #e0e0e0 !important;
+    border-radius: 12px !important;
+    background: #fafafa !important;
+    padding: 14px 16px !important;
+    font-size: 1rem;
+}
+
+.search-wizard-input:focus {
+    outline: none;
+    border-color: #667eea !important;
+    background: #fff !important;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+}
+
+.search-wizard-nav {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.search-wizard-nav .search-button {
+    flex: 1;
+    border-radius: 12px;
+}
+
+.search-wizard-nav .btn-wizard-back {
+    flex: 0 0 auto;
+    background: #f0f0f0;
+    color: #444;
+    border: none;
+    padding: 16px 20px;
+    font-size: 1rem;
+    font-weight: 600;
+    border-radius: 12px;
+    cursor: pointer;
+}
+
+.search-wizard-nav .btn-wizard-back:hover {
+    background: #e5e5e5;
+}
+
 .search-input {
     flex: 1;
     border: none;

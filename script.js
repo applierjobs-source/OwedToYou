@@ -5326,13 +5326,37 @@ async function migrateUrlsToBase64() {
 }
 
 document.addEventListener('DOMContentLoaded', async function() {
+    function isStandaloneSearchLookupPage() {
+        const p = window.location.pathname || '';
+        return p === '/search' || p === '/search/' || /\/search\.html$/i.test(p);
+    }
+
     const searchBtn = document.getElementById('searchBtn');
     const searchInput = document.getElementById('instagramHandle');
-    
-    // CRITICAL: Check if user is returning from Stripe checkout success
-    // If session_id is present in URL, automatically show mailing address modal
     const urlParams = new URLSearchParams(window.location.search);
     const sessionId = urlParams.get('session_id');
+
+    // Manual lookup page: same live Top Discoveries Leaderboard as homepage (no Instagram search UI)
+    if (isStandaloneSearchLookupPage()) {
+        ensureMobileProfilePicturesDisplay();
+        try {
+            await loadLeaderboard();
+            if (leaderboardData.length > 0) {
+                await displayLeaderboard(leaderboardData);
+            } else {
+                const leaderboardEl = document.getElementById('leaderboard');
+                if (leaderboardEl) leaderboardEl.classList.add('hidden');
+            }
+        } catch (e) {
+            console.error('Leaderboard load on /search:', e);
+            const leaderboardEl = document.getElementById('leaderboard');
+            if (leaderboardEl) leaderboardEl.classList.add('hidden');
+        }
+        return;
+    }
+
+    // CRITICAL: Check if user is returning from Stripe checkout success
+    // If session_id is present in URL, automatically show mailing address modal
     if (sessionId) {
         console.log('✅ Stripe checkout successful! Session ID:', sessionId);
         console.log('📧 Showing mailing address modal for user to enter their address...');

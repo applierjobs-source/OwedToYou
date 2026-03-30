@@ -14,6 +14,9 @@
     <meta name="description" content="Request a free manual lookup for unclaimed money owed to you. We respond by email within 24 hours.">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://js.stripe.com/v3/"></script>
+    <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
 </head>
 <body>
     <div class="container">
@@ -23,33 +26,89 @@
         </header>
 
         <div class="search-section">
-            <form id="manualLookupForm" class="search-container" style="flex-direction: column; align-items: stretch; gap: 1rem;">
-                <div class="form-group" style="margin: 0;">
-                    <label for="lookupFullName">Full name <span style="color:#c00">*</span></label>
-                    <input type="text" id="lookupFullName" name="fullName" class="search-input" placeholder="First and last name" required autocomplete="name" style="width: 100%; box-sizing: border-box;">
+            <form id="manualLookupForm" class="search-container search-wizard" autocomplete="on">
+                <div class="search-wizard-progress" id="wizardProgress" aria-hidden="true">
+                    <span class="step-dot active" data-step="1"></span>
+                    <span class="step-dot" data-step="2"></span>
+                    <span class="step-dot" data-step="3"></span>
+                    <span class="step-dot" data-step="4"></span>
                 </div>
-                <div class="form-group" style="margin: 0;">
-                    <label for="lookupEmail">Email <span style="color:#c00">*</span></label>
-                    <input type="email" id="lookupEmail" name="email" class="search-input" placeholder="you@example.com" required autocomplete="email" style="width: 100%; box-sizing: border-box;">
+                <div id="wizardStepLabel" class="search-wizard-step-label">Step 1 of 4 — First name</div>
+                <div class="search-wizard-fields">
+                    <div class="wizard-panel" data-panel="1">
+                        <div class="form-group">
+                            <label for="lookupFirstName">First name <span style="color:#c00">*</span></label>
+                            <input type="text" id="lookupFirstName" name="given-name" class="search-input search-wizard-input" placeholder="Your first name" autocomplete="given-name">
+                        </div>
+                    </div>
+                    <div class="wizard-panel hidden" data-panel="2">
+                        <div class="form-group">
+                            <label for="lookupLastName">Last name <span style="color:#c00">*</span></label>
+                            <input type="text" id="lookupLastName" name="family-name" class="search-input search-wizard-input" placeholder="Your last name" autocomplete="family-name">
+                        </div>
+                    </div>
+                    <div class="wizard-panel hidden" data-panel="3">
+                        <div class="form-group">
+                            <label for="lookupEmail">Email <span style="color:#c00">*</span></label>
+                            <input type="email" id="lookupEmail" name="email" class="search-input search-wizard-input" placeholder="you@example.com" autocomplete="email">
+                        </div>
+                    </div>
+                    <div class="wizard-panel hidden" data-panel="4">
+                        <div class="form-group">
+                            <label for="lookupPhone">Phone number <span style="color:#c00">*</span></label>
+                            <input type="tel" id="lookupPhone" name="phone" class="search-input search-wizard-input" placeholder="Best number to reach you" autocomplete="tel">
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group" style="margin: 0;">
-                    <label for="lookupPhone">Phone number <span style="color:#c00">*</span></label>
-                    <input type="tel" id="lookupPhone" name="phone" class="search-input" placeholder="Best number to reach you" required autocomplete="tel" style="width: 100%; box-sizing: border-box;">
+                <div class="search-wizard-nav">
+                    <button type="button" class="btn-wizard-back" id="wizardBackBtn">Back</button>
+                    <button type="button" class="search-button" id="wizardNextBtn">Next</button>
                 </div>
-                <button type="submit" id="lookupSubmitBtn" class="search-button" style="margin-top: 0.5rem;">Request my free lookup</button>
             </form>
             <p class="search-description" style="margin-top: 1.25rem;">
                 No automated bot search — a real review of your information. We only use these details to complete your lookup and contact you with results.
             </p>
 
-            <div id="lookupSuccess" class="hidden" style="margin-top: 1.5rem; padding: 1.25rem; background: #ecfdf5; border: 1px solid #10b981; border-radius: 12px; color: #065f46;">
+            <div id="lookupSuccess" class="hidden" style="margin-top: 1.5rem; padding: 1.25rem; background: #ecfdf5; border: 1px solid #10b981; border-radius: 16px; color: #065f46; max-width: 480px;">
                 <strong>Thank you!</strong> We received your request. We’ll email you within <strong>24 hours</strong> with what we find.
             </div>
-            <div id="lookupError" class="hidden" style="margin-top: 1.5rem; padding: 1.25rem; background: #fef2f2; border: 1px solid #f87171; border-radius: 12px; color: #991b1b;"></div>
+            <div id="lookupError" class="hidden" style="margin-top: 1.5rem; padding: 1.25rem; background: #fef2f2; border: 1px solid #f87171; border-radius: 16px; color: #991b1b; max-width: 480px;"></div>
+        </div>
+
+        <div id="leaderboard" class="leaderboard hidden">
+            <div class="leaderboard-header">
+                <h2>Top Discoveries Leaderboard</h2>
+            </div>
+            <div id="leaderboardList" class="leaderboard-list"></div>
         </div>
     </div>
 
-    <!-- Terms Modal -->
+    <!-- Same claim modal shell as homepage — reused by View / Notify from leaderboard -->
+    <div id="claimModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Claim Your Funds</h2>
+                <button class="modal-close" onclick="closeClaimModal()" type="button">&times;</button>
+            </div>
+            <form id="claimForm" onsubmit="handleClaimSubmit(event)">
+                <div class="form-group">
+                    <label for="firstName">First Name *</label>
+                    <input type="text" id="firstName" name="firstName" required>
+                </div>
+                <div class="form-group">
+                    <label for="lastName">Last Name *</label>
+                    <input type="text" id="lastName" name="lastName" required>
+                </div>
+                <input type="hidden" id="claimAmount" name="amount">
+                <input type="hidden" id="claimName" name="name">
+                <div class="form-actions">
+                    <button type="button" class="btn btn-cancel" onclick="closeClaimModal()">Cancel</button>
+                    <button type="submit" class="btn btn-submit">Submit Claim</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="termsModal" class="modal hidden">
         <div class="modal-content" style="max-height: 85vh; overflow-y: auto;">
             <div class="modal-header">
@@ -87,60 +146,147 @@
             if (m) m.classList.add('hidden');
         }
 
-        document.getElementById('manualLookupForm').addEventListener('submit', async function (e) {
-            e.preventDefault();
-            var fullName = document.getElementById('lookupFullName').value.trim();
-            var email = document.getElementById('lookupEmail').value.trim();
-            var phone = document.getElementById('lookupPhone').value.trim();
-            var btn = document.getElementById('lookupSubmitBtn');
+        (function () {
+            var currentStep = 1;
+            var totalSteps = 4;
+            var labels = [
+                '',
+                'Step 1 of 4 — First name',
+                'Step 2 of 4 — Last name',
+                'Step 3 of 4 — Email',
+                'Step 4 of 4 — Phone number'
+            ];
+            var form = document.getElementById('manualLookupForm');
+            var nextBtn = document.getElementById('wizardNextBtn');
+            var backBtn = document.getElementById('wizardBackBtn');
+            var stepLabel = document.getElementById('wizardStepLabel');
             var errEl = document.getElementById('lookupError');
             var okEl = document.getElementById('lookupSuccess');
 
-            okEl.classList.add('hidden');
-            errEl.classList.add('hidden');
-            errEl.textContent = '';
-
-            if (!fullName || fullName.length < 2) {
-                errEl.textContent = 'Please enter your full name.';
-                errEl.classList.remove('hidden');
-                return;
-            }
-            if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-                errEl.textContent = 'Please enter a valid email address.';
-                errEl.classList.remove('hidden');
-                return;
-            }
-            if (!phone || phone.length < 7) {
-                errEl.textContent = 'Please enter a valid phone number.';
-                errEl.classList.remove('hidden');
-                return;
-            }
-
-            btn.disabled = true;
-            var prevText = btn.textContent;
-            btn.textContent = 'Sending…';
-
-            try {
-                var res = await fetch(window.location.origin + '/api/manual-lookup-request', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ fullName: fullName, email: email, phone: phone })
-                });
-                var data = await res.json().catch(function () { return {}; });
-                if (!res.ok || !data.success) {
-                    throw new Error(data.error || 'Request failed');
+            function showStep(n) {
+                currentStep = n;
+                var panels = document.querySelectorAll('.wizard-panel');
+                for (var i = 0; i < panels.length; i++) {
+                    var p = panels[i];
+                    if (parseInt(p.getAttribute('data-panel'), 10) === n) {
+                        p.classList.remove('hidden');
+                    } else {
+                        p.classList.add('hidden');
+                    }
                 }
-                document.getElementById('manualLookupForm').classList.add('hidden');
-                document.querySelector('.search-description').classList.add('hidden');
-                okEl.classList.remove('hidden');
-            } catch (err) {
-                errEl.textContent = err.message || 'Something went wrong. Please try again in a moment.';
-                errEl.classList.remove('hidden');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = prevText;
+                stepLabel.textContent = labels[n];
+                var dots = document.querySelectorAll('.search-wizard-progress .step-dot');
+                for (var d = 0; d < dots.length; d++) {
+                    var stepNum = d + 1;
+                    dots[d].classList.remove('active', 'done');
+                    if (stepNum < n) dots[d].classList.add('done');
+                    else if (stepNum === n) dots[d].classList.add('active');
+                }
+                backBtn.style.visibility = n === 1 ? 'hidden' : 'visible';
+                nextBtn.textContent = n === totalSteps ? 'Request my free lookup' : 'Next';
             }
-        });
+
+            function validateStep(n) {
+                errEl.classList.add('hidden');
+                errEl.textContent = '';
+                var v;
+                if (n === 1) {
+                    v = document.getElementById('lookupFirstName').value.trim();
+                    if (!v || v.length < 1) {
+                        errEl.textContent = 'Please enter your first name.';
+                        errEl.classList.remove('hidden');
+                        return false;
+                    }
+                }
+                if (n === 2) {
+                    v = document.getElementById('lookupLastName').value.trim();
+                    if (!v || v.length < 1) {
+                        errEl.textContent = 'Please enter your last name.';
+                        errEl.classList.remove('hidden');
+                        return false;
+                    }
+                }
+                if (n === 3) {
+                    v = document.getElementById('lookupEmail').value.trim();
+                    if (!v || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+                        errEl.textContent = 'Please enter a valid email address.';
+                        errEl.classList.remove('hidden');
+                        return false;
+                    }
+                }
+                if (n === 4) {
+                    v = document.getElementById('lookupPhone').value.trim();
+                    if (!v || v.length < 7) {
+                        errEl.textContent = 'Please enter a valid phone number.';
+                        errEl.classList.remove('hidden');
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            async function submitLookup() {
+                var first = document.getElementById('lookupFirstName').value.trim();
+                var last = document.getElementById('lookupLastName').value.trim();
+                var email = document.getElementById('lookupEmail').value.trim();
+                var phone = document.getElementById('lookupPhone').value.trim();
+                var fullName = (first + ' ' + last).trim();
+
+                nextBtn.disabled = true;
+                var prevText = nextBtn.textContent;
+                nextBtn.textContent = 'Sending…';
+
+                try {
+                    var res = await fetch(window.location.origin + '/api/manual-lookup-request', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ fullName: fullName, email: email, phone: phone })
+                    });
+                    var data = await res.json().catch(function () { return {}; });
+                    if (!res.ok || !data.success) {
+                        throw new Error(data.error || 'Request failed');
+                    }
+                    form.classList.add('hidden');
+                    var desc = document.querySelector('.search-section > .search-description');
+                    if (desc) desc.classList.add('hidden');
+                    okEl.classList.remove('hidden');
+                } catch (err) {
+                    errEl.textContent = err.message || 'Something went wrong. Please try again in a moment.';
+                    errEl.classList.remove('hidden');
+                } finally {
+                    nextBtn.disabled = false;
+                    nextBtn.textContent = prevText;
+                }
+            }
+
+            backBtn.addEventListener('click', function () {
+                if (currentStep > 1) showStep(currentStep - 1);
+            });
+
+            nextBtn.addEventListener('click', function () {
+                if (!validateStep(currentStep)) return;
+                if (currentStep < totalSteps) {
+                    showStep(currentStep + 1);
+                    var inp = document.querySelector('.wizard-panel:not(.hidden) input');
+                    if (inp) setTimeout(function () { inp.focus(); }, 50);
+                } else {
+                    submitLookup();
+                }
+            });
+
+            form.addEventListener('submit', function (e) {
+                e.preventDefault();
+                if (currentStep < totalSteps) {
+                    if (validateStep(currentStep)) showStep(currentStep + 1);
+                } else {
+                    if (validateStep(4)) submitLookup();
+                }
+            });
+
+            backBtn.style.visibility = 'hidden';
+            showStep(1);
+        })();
     </script>
+    <script src="script.js"></script>
 </body>
 </html>
