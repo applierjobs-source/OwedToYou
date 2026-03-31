@@ -5328,7 +5328,9 @@ async function migrateUrlsToBase64() {
 document.addEventListener('DOMContentLoaded', async function() {
     function isStandaloneSearchLookupPage() {
         const p = window.location.pathname || '';
-        return p === '/search' || p === '/search/' || /\/search\.html$/i.test(p);
+        return p === '/search' || p === '/search/' ||
+            p === '/collect' || p === '/collect/' ||
+            /\/search\.html$/i.test(p) || /\/collect\.html$/i.test(p);
     }
 
     const searchBtn = document.getElementById('searchBtn');

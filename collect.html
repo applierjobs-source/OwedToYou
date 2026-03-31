@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script async src="https://www.googletagmanager.com/gtag/js?id=AW-17850698021"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'AW-17850698021');
+    </script>
+    <title>Claim setup — OwedToYou.ai</title>
+    <meta name="description" content="Start your unclaimed-funds claim — secure processing fee and next steps.">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://js.stripe.com/v3/"></script>
+    <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1 class="collect-spirited">Let’s get what’s yours</h1>
+            <p class="subtext">Real people, official sources, zero guesswork. Lock in your spot and we’ll guide you through the rest—fast, clear, and on your side.</p>
+        </header>
+
+        <div class="search-section">
+            <div class="search-container search-wizard collect-card">
+                <div class="collect-copy">
+                    <p class="collect-lede">You’ve already done the hard part: showing up. The next move is simple—secure your processing slot and we’ll route you to checkout. No maze. No spam folder archaeology.</p>
+                    <ul class="collect-bullets">
+                        <li><strong>Straight talk</strong> — what you’re paying for, upfront.</li>
+                        <li><strong>Stripe-powered</strong> — card checkout you already trust.</li>
+                        <li><strong>Your name on the receipt</strong> — we match legal first &amp; last name to your payment.</li>
+                    </ul>
+                    <p class="collect-kicker">Ready? Drop your name, tap the button, you’re in.</p>
+                </div>
+                <div class="form-group collect-name-row">
+                    <label for="collectFirstName">First name <span style="color:#c00">*</span></label>
+                    <input type="text" id="collectFirstName" name="given-name" class="search-input search-wizard-input" placeholder="Legal first name" autocomplete="given-name">
+                </div>
+                <div class="form-group collect-name-row">
+                    <label for="collectLastName">Last name <span style="color:#c00">*</span></label>
+                    <input type="text" id="collectLastName" name="family-name" class="search-input search-wizard-input" placeholder="Legal last name" autocomplete="family-name">
+                </div>
+                <button type="button" class="search-button btn-buy-now collect-pay-btn" id="collectPayBtn">Pay $12.95 — secure checkout</button>
+                <p class="collect-fineprint">One-time processing fee. You’ll complete payment on Stripe’s secure page. Charges appear per your card statement.</p>
+                <div id="collectError" class="hidden collect-error" role="alert"></div>
+            </div>
+        </div>
+
+        <div id="leaderboard" class="leaderboard hidden">
+            <div class="leaderboard-header">
+                <h2>Top Discoveries Leaderboard</h2>
+            </div>
+            <div id="leaderboardList" class="leaderboard-list"></div>
+        </div>
+    </div>
+
+    <div id="claimModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Claim Your Funds</h2>
+                <button class="modal-close" onclick="closeClaimModal()" type="button">&times;</button>
+            </div>
+            <form id="claimForm" onsubmit="handleClaimSubmit(event)">
+                <div class="form-group">
+                    <label for="firstName">First Name *</label>
+                    <input type="text" id="firstName" name="firstName" required>
+                </div>
+                <div class="form-group">
+                    <label for="lastName">Last Name *</label>
+                    <input type="text" id="lastName" name="lastName" required>
+                </div>
+                <input type="hidden" id="claimAmount" name="amount">
+                <input type="hidden" id="claimName" name="name">
+                <div class="form-actions">
+                    <button type="button" class="btn btn-cancel" onclick="closeClaimModal()">Cancel</button>
+                    <button type="submit" class="btn btn-submit">Submit Claim</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="termsModal" class="modal hidden">
+        <div class="modal-content" style="max-height: 85vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h2>Terms and Conditions</h2>
+                <button class="modal-close" onclick="closeTermsModal()" type="button">&times;</button>
+            </div>
+            <div class="modal-body" style="text-align: left; line-height: 1.5;">
+                <p><strong>Welcome to OwedToYou.AI</strong> (&quot;Website,&quot; &quot;we,&quot; &quot;us,&quot; or &quot;our&quot;). By accessing or using www.owedtoyou.ai, you agree to be bound by these Terms and Conditions (&quot;Terms&quot;). If you do not agree with these Terms, you must not use the Website.</p>
+                <p>Purchases and claims are subject to the service described at checkout and on the main site. Results depend on public records and eligibility.</p>
+                <p>For the full Terms, see the main site or contact us at <a href="https://www.owedtoyou.ai" target="_blank" rel="noopener">www.owedtoyou.ai</a>.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" type="button" onclick="closeTermsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="site-footer">
+        <div class="footer-content">
+            <p>&copy; 2026 OwedToYou.AI. All rights reserved.</p>
+            <p>
+                <a href="#" onclick="showTermsModal(); return false;" class="footer-link">Terms and Conditions</a> |
+                <a href="/privacy-policy.html" class="footer-link">Privacy Policy</a>
+            </p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+    <script>
+        (function () {
+            var btn = document.getElementById('collectPayBtn');
+            var errEl = document.getElementById('collectError');
+            if (!btn) return;
+            btn.addEventListener('click', function () {
+                var fn = document.getElementById('collectFirstName').value.trim();
+                var ln = document.getElementById('collectLastName').value.trim();
+                errEl.classList.add('hidden');
+                errEl.textContent = '';
+                if (!fn || !ln) {
+                    errEl.textContent = 'Please enter your first and last name so we can match your payment.';
+                    errEl.classList.remove('hidden');
+                    return;
+                }
+                if (typeof handleBuyNow !== 'function') {
+                    alert('Payment is still loading. Please wait a moment and try again.');
+                    return;
+                }
+                handleBuyNow(fn, ln, 0);
+            });
+        })();
+    </script>
+</body>
+</html>

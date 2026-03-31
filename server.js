@@ -3828,6 +3828,8 @@ Submitted: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })
         let filePath;
         if (parsedUrl.pathname === '/search' || parsedUrl.pathname === '/search/') {
             filePath = '/search.html';
+        } else if (parsedUrl.pathname === '/collect' || parsedUrl.pathname === '/collect/') {
+            filePath = '/collect.html';
         } else {
             filePath = parsedUrl.pathname === '/' ? '/index.html' : parsedUrl.pathname;
         }
