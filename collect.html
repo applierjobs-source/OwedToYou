@@ -21,32 +21,14 @@
 <body>
     <div class="container">
         <header>
-            <h1 class="collect-spirited">Let’s get what’s yours</h1>
-            <p class="subtext">Real people, official sources, zero guesswork. Lock in your spot and we’ll guide you through the rest—fast, clear, and on your side.</p>
+            <h1 class="collect-spirited">Claim the Funds That Are Owed To You</h1>
+            <p class="subtext">Let us handle the paperwork. Get your check mailed to your home address within 24 hours.</p>
         </header>
 
         <div class="search-section">
             <div class="search-container search-wizard collect-card">
-                <div class="collect-copy">
-                    <p class="collect-lede">You’ve already done the hard part: showing up. The next move is simple—secure your processing slot and we’ll route you to checkout. No maze. No spam folder archaeology.</p>
-                    <ul class="collect-bullets">
-                        <li><strong>Straight talk</strong> — what you’re paying for, upfront.</li>
-                        <li><strong>Stripe-powered</strong> — card checkout you already trust.</li>
-                        <li><strong>Your name on the receipt</strong> — we match legal first &amp; last name to your payment.</li>
-                    </ul>
-                    <p class="collect-kicker">Ready? Drop your name, tap the button, you’re in.</p>
-                </div>
-                <div class="form-group collect-name-row">
-                    <label for="collectFirstName">First name <span style="color:#c00">*</span></label>
-                    <input type="text" id="collectFirstName" name="given-name" class="search-input search-wizard-input" placeholder="Legal first name" autocomplete="given-name">
-                </div>
-                <div class="form-group collect-name-row">
-                    <label for="collectLastName">Last name <span style="color:#c00">*</span></label>
-                    <input type="text" id="collectLastName" name="family-name" class="search-input search-wizard-input" placeholder="Legal last name" autocomplete="family-name">
-                </div>
                 <button type="button" class="search-button btn-buy-now collect-pay-btn" id="collectPayBtn">Pay $12.95 — secure checkout</button>
                 <p class="collect-fineprint">One-time processing fee. You’ll complete payment on Stripe’s secure page. Charges appear per your card statement.</p>
-                <div id="collectError" class="hidden collect-error" role="alert"></div>
             </div>
         </div>
 
@@ -114,23 +96,13 @@
     <script>
         (function () {
             var btn = document.getElementById('collectPayBtn');
-            var errEl = document.getElementById('collectError');
             if (!btn) return;
             btn.addEventListener('click', function () {
-                var fn = document.getElementById('collectFirstName').value.trim();
-                var ln = document.getElementById('collectLastName').value.trim();
-                errEl.classList.add('hidden');
-                errEl.textContent = '';
-                if (!fn || !ln) {
-                    errEl.textContent = 'Please enter your first and last name so we can match your payment.';
-                    errEl.classList.remove('hidden');
-                    return;
-                }
                 if (typeof handleBuyNow !== 'function') {
                     alert('Payment is still loading. Please wait a moment and try again.');
                     return;
                 }
-                handleBuyNow(fn, ln, 0);
+                handleBuyNow('Collect', 'Checkout', 0);
             });
         })();
     </script>
