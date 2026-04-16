@@ -3830,6 +3830,8 @@ Submitted: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })
             filePath = '/search.html';
         } else if (parsedUrl.pathname === '/collect' || parsedUrl.pathname === '/collect/') {
             filePath = '/collect.html';
+        } else if (parsedUrl.pathname === '/money-report' || parsedUrl.pathname === '/money-report/') {
+            filePath = '/money-report.html';
         } else {
             filePath = parsedUrl.pathname === '/' ? '/index.html' : parsedUrl.pathname;
         }

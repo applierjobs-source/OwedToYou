@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Money Owed Report — OwedToYou.ai</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <style>
+        :root {
+            --ink: #1a1a1a;
+            --muted: #555;
+            --border: #ccc;
+            --accent: #2c5282;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Georgia', 'Times New Roman', serif;
+            color: var(--ink);
+            line-height: 1.45;
+            max-width: 8.5in;
+            margin: 0 auto;
+            padding: 1rem 1.25rem 3rem;
+            background: #fafafa;
+        }
+        .screen-bar {
+            font-family: system-ui, sans-serif;
+            background: #2d3748;
+            color: #fff;
+            padding: 12px 16px;
+            margin: -1rem -1.25rem 1.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .screen-bar button {
+            font-family: inherit;
+            background: #667eea;
+            color: #fff;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .screen-bar button:hover { filter: brightness(1.08); }
+        .screen-bar a { color: #b794f4; }
+        .report-doc {
+            background: #fff;
+            padding: 1.25rem 1.5rem;
+            box-shadow: 0 1px 8px rgba(0,0,0,.08);
+        }
+        .eyebrow {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--muted);
+            margin: 0 0 0.25rem;
+        }
+        h1 {
+            font-size: 1.65rem;
+            font-weight: 700;
+            margin: 0 0 0.35rem;
+            line-height: 1.2;
+        }
+        .meta {
+            font-size: 0.9rem;
+            color: var(--muted);
+            margin-bottom: 1.25rem;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 1.5rem;
+        }
+        .stat {
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        .stat-label { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+        h2 {
+            font-size: 1.1rem;
+            margin: 1.75rem 0 0.65rem;
+            border-bottom: 2px solid var(--ink);
+            padding-bottom: 4px;
+            page-break-after: avoid;
+        }
+        h3 {
+            font-size: 0.95rem;
+            margin: 1.25rem 0 0.5rem;
+            color: #744210;
+            page-break-after: avoid;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+            margin-bottom: 1rem;
+        }
+        th, td {
+            border: 1px solid var(--border);
+            padding: 8px 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th { background: #f0f4f8; font-weight: 600; }
+        tr { page-break-inside: avoid; }
+        .footnote {
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-top: 0.5rem;
+        }
+        .disclaimer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            font-size: 0.75rem;
+            color: var(--muted);
+        }
+        .error-box {
+            font-family: system-ui, sans-serif;
+            padding: 2rem;
+            text-align: center;
+            color: var(--muted);
+        }
+        @media print {
+            body { background: #fff; padding: 0; max-width: none; }
+            .screen-bar { display: none !important; }
+            .report-doc { box-shadow: none; padding: 0; }
+            @page { margin: 0.6in 0.55in; }
+            h2 { page-break-before: auto; }
+        }
+    </style>
+</head>
+<body>
+    <div class="screen-bar no-print">
+        <span>Confidential report preview</span>
+        <div>
+            <button type="button" id="btnPrint">Save / print PDF</button>
+            <a href="/">← Back to site</a>
+        </div>
+    </div>
+    <div id="reportRoot" class="report-doc">
+        <div class="error-box" id="reportLoading">Loading report…</div>
+    </div>
+    <script src="/money-report.js"></script>
+</body>
+</html>

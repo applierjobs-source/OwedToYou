@@ -4180,7 +4180,7 @@ function handleView(name, handle, amount) {
                     <span class="total-value" style="font-size: 2.5rem; font-weight: 700;">$${amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
             </div>
-            <div class="claim-button-container" style="margin-bottom: 30px; text-align: center;">
+            <div class="claim-button-container" style="margin-bottom: 30px; text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center;">
                 <button class="btn btn-claim-funds" 
                         data-name="${escapeHtml(name).replace(/"/g, '&quot;')}" 
                         data-amount="${amount}" 
@@ -4188,6 +4188,14 @@ function handleView(name, handle, amount) {
                         onclick="handleClaimYourFundsFromView(this)" 
                         style="width: 100%; max-width: 400px; padding: 16px; font-size: 1.2rem; font-weight: 600; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
                     Claim Your Funds
+                </button>
+                <button type="button" class="btn btn-money-report-leaderboard"
+                        data-name="${escapeHtml(name).replace(/"/g, '&quot;')}"
+                        data-amount="${amount}"
+                        data-entities="${entitiesJson.replace(/"/g, '&quot;')}"
+                        onclick="openMoneyReportFromLeaderboardButton(this)"
+                        style="width: 100%; max-width: 400px; padding: 12px; font-size: 1rem; font-weight: 600; background: white; color: #667eea; border: 2px solid #667eea; border-radius: 8px; cursor: pointer;">
+                    Full money report (print / PDF)
                 </button>
             </div>
             <div class="results-list">
@@ -5011,9 +5019,12 @@ function showResultsModal(claimData, searchResult) {
                     <span class="total-label">Total Unclaimed:</span>
                     <span class="total-value">$${searchResult.totalAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
-                <div class="claim-options" style="margin-top: 30px;">
+                <div class="claim-options" style="margin-top: 30px; display: flex; flex-direction: column; gap: 12px;">
                     <button class="btn btn-claim-paid" data-first-name="${escapeHtml(claimData.firstName)}" data-last-name="${escapeHtml(claimData.lastName)}" data-amount="${searchResult.totalAmount}" data-results="${escapeHtml(JSON.stringify(searchResult.results || []))}" onclick="handleClaimYourFundsClick(this)" style="width: 100%; padding: 14px; font-size: 1.1rem; font-weight: 600; background: white; color: #667eea; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
                         Claim Your Funds
+                    </button>
+                    <button type="button" class="btn btn-money-report" data-first-name="${escapeHtml(claimData.firstName)}" data-last-name="${escapeHtml(claimData.lastName)}" data-city="${escapeHtml(claimData.city || '')}" data-state="${escapeHtml(claimData.state || '')}" data-amount="${searchResult.totalAmount}" data-results="${escapeHtml(JSON.stringify(searchResult.results || []))}" onclick="openMoneyReportFromResultsButton(this)" style="width: 100%; padding: 12px; font-size: 1rem; font-weight: 600; background: rgba(255,255,255,0.25); color: white; border: 2px solid rgba(255,255,255,0.9); border-radius: 8px; cursor: pointer;">
+                        Full money report (print / PDF)
                     </button>
                 </div>
             </div>
@@ -5057,6 +5068,71 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+const MONEY_REPORT_STORAGE_KEY = 'moneyOwedReportPayload';
+
+function buildMoneyReportPayloadFromSearch(claimData, searchResult) {
+    const displayName = `${claimData.firstName || ''} ${claimData.lastName || ''}`.trim();
+    return {
+        displayName,
+        firstName: claimData.firstName || '',
+        lastName: claimData.lastName || '',
+        city: claimData.city || '',
+        state: claimData.state || '',
+        totalAmount: searchResult.totalAmount || 0,
+        results: searchResult.results || [],
+        generatedAt: new Date().toISOString()
+    };
+}
+
+function buildMoneyReportPayloadFromLeaderboard(name, amount, entities) {
+    const trimmed = (name || '').trim();
+    const parts = trimmed.split(/\s+/).filter(Boolean);
+    const firstName = parts[0] || '';
+    const lastName = parts.slice(1).join(' ') || '';
+    return {
+        displayName: trimmed || 'Unknown',
+        firstName,
+        lastName: lastName || firstName,
+        city: '',
+        state: '',
+        totalAmount: amount,
+        results: entities || [],
+        generatedAt: new Date().toISOString()
+    };
+}
+
+function openMoneyOwedReport(payload) {
+    try {
+        sessionStorage.setItem(MONEY_REPORT_STORAGE_KEY, JSON.stringify(payload));
+        window.open(`${window.location.origin}/money-report.html`, '_blank', 'noopener');
+    } catch (e) {
+        console.error(e);
+        alert('Could not open the report. Allow pop-ups for this site or try again.');
+    }
+}
+
+function openMoneyReportFromResultsButton(button) {
+    const firstName = button.getAttribute('data-first-name') || '';
+    const lastName = button.getAttribute('data-last-name') || '';
+    const amount = parseFloat(button.getAttribute('data-amount')) || 0;
+    let results = [];
+    try {
+        results = JSON.parse(button.getAttribute('data-results') || '[]');
+    } catch (_) {}
+    const claimData = { firstName, lastName, city: button.getAttribute('data-city') || '', state: button.getAttribute('data-state') || '' };
+    openMoneyOwedReport(buildMoneyReportPayloadFromSearch(claimData, { totalAmount: amount, results }));
+}
+
+function openMoneyReportFromLeaderboardButton(button) {
+    const name = button.getAttribute('data-name') || '';
+    const amount = parseFloat(button.getAttribute('data-amount')) || 0;
+    let entities = [];
+    try {
+        entities = JSON.parse(button.getAttribute('data-entities') || '[]');
+    } catch (_) {}
+    openMoneyOwedReport(buildMoneyReportPayloadFromLeaderboard(name, amount, entities));
 }
 
 // Close results modal and reset form
@@ -5113,7 +5189,7 @@ function handleNotify(name, handle, amount) {
                     <span class="total-value" style="font-size: 2.5rem; font-weight: 700;">$${amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                 </div>
             </div>
-            <div class="claim-button-container" style="margin-bottom: 30px; text-align: center;">
+            <div class="claim-button-container" style="margin-bottom: 30px; text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center;">
                 <button class="btn btn-claim-funds" 
                         data-name="${escapeHtml(name).replace(/"/g, '&quot;')}" 
                         data-amount="${amount}" 
@@ -5121,6 +5197,14 @@ function handleNotify(name, handle, amount) {
                         onclick="handleClaimYourFundsFromView(this)" 
                         style="width: 100%; max-width: 400px; padding: 16px; font-size: 1.2rem; font-weight: 600; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
                     Claim Your Funds
+                </button>
+                <button type="button" class="btn btn-money-report-leaderboard"
+                        data-name="${escapeHtml(name).replace(/"/g, '&quot;')}"
+                        data-amount="${amount}"
+                        data-entities="${entitiesJson.replace(/"/g, '&quot;')}"
+                        onclick="openMoneyReportFromLeaderboardButton(this)"
+                        style="width: 100%; max-width: 400px; padding: 12px; font-size: 1rem; font-weight: 600; background: white; color: #667eea; border: 2px solid #667eea; border-radius: 8px; cursor: pointer;">
+                    Full money report (print / PDF)
                 </button>
             </div>
             <div class="share-actions-container" style="margin-bottom: 30px; padding-bottom: 30px; border-bottom: 2px solid #e0e0e0;">
@@ -6249,6 +6333,27 @@ try {
     console.error('Failed to initialize Stripe:', e);
 }
 
+/** Turn Stripe/API errors into clearer copy for alerts (owners still see console). */
+function formatStripeCheckoutUserMessage(raw) {
+    if (!raw) return 'Something went wrong. Please try again.';
+    const m = String(raw);
+    if (/cannot currently make live charges/i.test(m)) {
+        return (
+            'Live card payments are not enabled for this Stripe account yet. ' +
+            'If you own this site: open dashboard.stripe.com, finish account activation (business details, identity, bank), ' +
+            'or use test keys (pk_test_ + sk_test_) while developing. ' +
+            'Publishable and secret keys must both be live or both be test.'
+        );
+    }
+    if (/no such|invalid api key|api key/i.test(m) && /stripe/i.test(m)) {
+        return 'Stripe API keys may be missing or mismatched. Check STRIPE_SECRET_KEY on the server matches your publishable key mode (test vs live).';
+    }
+    if (/Stripe not configured/i.test(m)) {
+        return 'Payments are not configured on the server (set STRIPE_SECRET_KEY).';
+    }
+    return m;
+}
+
 // Handle Buy Now button click
 async function handleBuyNow(firstName, lastName, amount) {
     console.log('🛒 Buy Now clicked:', { firstName, lastName, amount });
@@ -6332,7 +6437,11 @@ async function handleBuyNow(firstName, lastName, amount) {
             stack: error.stack,
             name: error.name
         });
-        alert('Error processing payment: ' + error.message + '\n\nPlease check the browser console for more details.');
+        alert(
+            'Error processing payment: ' +
+                formatStripeCheckoutUserMessage(error.message) +
+                '\n\nDetails are in the browser console.'
+        );
         if (button) {
             button.disabled = false;
             button.textContent = originalText;
