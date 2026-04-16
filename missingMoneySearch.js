@@ -577,9 +577,15 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
     try {
         // Headed mode: local window (USE_HEADED=true) or virtual display (USE_XVFB_HEADED=true + Xvfb on Railway/Docker).
         // Force headless: USE_HEADLESS_ONLY=true
-        const useHeaded =
+        const requestedHeaded =
             process.env.USE_HEADLESS_ONLY !== 'true' &&
             (process.env.USE_XVFB_HEADED === 'true' || process.env.USE_HEADED === 'true');
+        const hasDisplay = !!(process.env.DISPLAY && String(process.env.DISPLAY).trim());
+        const useHeaded = requestedHeaded && hasDisplay;
+        if (requestedHeaded && !hasDisplay) {
+            console.warn('[BROWSER] Headed mode requested but DISPLAY is missing. Falling back to headless.');
+            console.warn('[BROWSER] Start with Xvfb (npm run start:xvfb) or set USE_HEADLESS_ONLY=true.');
+        }
         const launchArgs = [
             '--no-sandbox',
             '--disable-setuid-sandbox',
