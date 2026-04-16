@@ -488,7 +488,7 @@ function expandNameWithAliases(name) {
     return Array.from(aliases);
 }
 
-async function searchMissingMoney(firstName, lastName, city, state, use2Captcha = false, captchaApiKey = null, onScreenshot = null) {
+async function searchMissingMoney(firstName, lastName, city, state, use2Captcha = false, captchaApiKey = null, onScreenshot = null, options = {}) {
     // CRITICAL: Log the exact names being searched for debugging
     console.log(`🔍🔍🔍 SEARCHING MISSING MONEY 🔍🔍🔍`);
     console.log(`🔍 Original names received: firstName="${firstName}", lastName="${lastName}"`);
@@ -559,15 +559,15 @@ async function searchMissingMoney(firstName, lastName, city, state, use2Captcha 
         };
     }
     
-    // Overall timeout wrapper (5 minutes max) to allow searches to complete
-    // Increased from 75s to allow for Cloudflare challenges and slow networks
+    // Overall timeout wrapper. Default is 5 minutes, can be lowered by caller (fast mode).
+    const overallTimeoutMs = Number(options.overallTimeoutMs) > 0 ? Number(options.overallTimeoutMs) : 300000;
     const overallTimeout = new Promise((_, reject) => {
         setTimeout(() => {
             const timeoutError = new Error('Search operation timed out - this is retryable');
             timeoutError._isRetryable = true;
             timeoutError._isTimeout = true;
             reject(timeoutError);
-        }, 300000); // 5 minutes
+        }, overallTimeoutMs);
     });
     
     const searchOperation = (async () => {

@@ -2663,7 +2663,8 @@ const server = http.createServer((req, res) => {
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
-                const { firstName, lastName, city, state, use2Captcha, captchaApiKey } = data;
+                const { firstName, lastName, city, state, use2Captcha, captchaApiKey, fastMode } = data;
+                const isFastMode = fastMode === true;
                 
                 // Only require first and last name (city and state are optional on missingmoney.com)
                 if (!firstName || !lastName) {
@@ -2707,10 +2708,11 @@ const server = http.createServer((req, res) => {
                 }
                 
                 // Execute search with timeout protection and retry logic
-                // Increased retries to ensure searches never fail
+                // Manual /search uses fast mode to avoid long waits.
                 let result;
                 let retries = 0;
-                const MAX_RETRIES = 5; // Increased from 2 to 5 to ensure searches complete
+                const MAX_RETRIES = isFastMode ? 1 : 5;
+                const overallTimeoutMs = isFastMode ? 90000 : 300000;
                 
                 const onScreenshot = (base64) => {
                     const payload = base64 === null ? { done: true } : { image: base64 };
@@ -2720,7 +2722,16 @@ const server = http.createServer((req, res) => {
                 };
                 while (retries <= MAX_RETRIES) {
                     try {
-                        result = await searchMissingMoney(cleanedFirstName, cleanedLastName, searchCity, searchState, use2Captcha || false, effectiveCaptchaKey, onScreenshot);
+                        result = await searchMissingMoney(
+                            cleanedFirstName,
+                            cleanedLastName,
+                            searchCity,
+                            searchState,
+                            use2Captcha || false,
+                            effectiveCaptchaKey,
+                            onScreenshot,
+                            { overallTimeoutMs }
+                        );
                         
                         // If successful, break immediately
                         if (result.success) {

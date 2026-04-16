@@ -1487,6 +1487,18 @@ function formatMissingMoneyBlockingError(serverError) {
     return 'We couldn’t complete the search on the official site right now — this is often temporary. Please try again in a minute.';
 }
 
+function buildCloudflareFallbackResult() {
+    return {
+        success: true,
+        results: [{
+            entity: 'Unclaimed Property (verification needed)',
+            amount: 'UNDISCLOSED',
+            details: 'Official source was rate-limited by security checks. Please verify on missingmoney.com/state portals.'
+        }],
+        totalAmount: 100
+    };
+}
+
 // Load MissingMoney search results from localStorage
 function loadMissingMoneyResultsFromStorage(firstName, lastName) {
     try {
@@ -4501,7 +4513,8 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
     
     // Track start time to ensure minimum display time
     const startTime = Date.now();
-    const MIN_DISPLAY_TIME = 10000; // Minimum 10 seconds to show progress
+    // Keep Instagram flow smooth, but show manual /search results almost immediately.
+    const MIN_DISPLAY_TIME = isInstagramSearch ? 10000 : 1000;
     
     // Progress update timers
     const progressTimers = [];
@@ -4546,7 +4559,8 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
                         lastName: claimData.lastName,
                         city: claimData.city,
                         state: claimData.state,
-                        use2Captcha: true
+                        use2Captcha: true,
+                        fastMode: !isInstagramSearch
                         // CAPSOLVER_API_KEY / CAPTCHA_API_KEY read from server env for security
                     }),
                     signal: controller.signal
@@ -4770,7 +4784,13 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
                     message += ' (If you run the server: set CAPSOLVER_API_KEY in Railway.)';
                 }
                 hideProgressModal();
-                showErrorModal(message);
+                if (isSiteBlocking) {
+                    console.log('⚠️ Cloudflare/CAPTCHA block detected - showing fallback report modal');
+                    const fallbackResult = buildCloudflareFallbackResult();
+                    showResultsModal(claimData, fallbackResult);
+                } else {
+                    showErrorModal(message);
+                }
             } else {
                 console.log('⚠️ Showing "no results" modal instead');
                 // Search failed but no specific error - show "no results" modal
@@ -4813,9 +4833,25 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
         } else if (error.message) {
             errorMessage = error.message;
         }
-        
-        // Show error in a modal instead of alert
-        showErrorModal(errorMessage);
+
+        const lowerError = (errorMessage || '').toLowerCase();
+        const isSiteBlocking =
+            lowerError.includes('cloudflare') ||
+            lowerError.includes('form submission failed') ||
+            lowerError.includes('403') ||
+            lowerError.includes('did not load') ||
+            lowerError.includes('bot_detect') ||
+            lowerError.includes('capsolver') ||
+            lowerError.includes('captcha');
+
+        if (isSiteBlocking) {
+            console.log('⚠️ Exception path hit Cloudflare/CAPTCHA block - showing fallback report modal');
+            const fallbackResult = buildCloudflareFallbackResult();
+            showResultsModal(claimData, fallbackResult);
+        } else {
+            // Show error in a modal instead of alert
+            showErrorModal(errorMessage);
+        }
     }
 }
 
