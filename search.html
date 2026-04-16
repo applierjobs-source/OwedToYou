@@ -10,8 +10,8 @@
       gtag('js', new Date());
       gtag('config', 'AW-17850698021');
     </script>
-    <title>Request Your Unclaimed Funds Lookup - OwedToYou.ai</title>
-    <meta name="description" content="Request a free manual lookup for unclaimed money owed to you. We respond by email within 24 hours.">
+    <title>Live Unclaimed Funds Lookup - OwedToYou.ai</title>
+    <meta name="description" content="Run a live lookup for unclaimed money owed to you and view results instantly.">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -22,7 +22,7 @@
     <div class="container">
         <header>
             <h1>Find Out If You’re Owed Money</h1>
-            <p class="subtext">We manually research official unclaimed-property records for you. Submit your details below and we’ll email you within <strong>24 hours</strong> with what we find.</p>
+            <p class="subtext">Run a live search of official unclaimed-property records. Enter your details below and we will generate your report while you wait.</p>
         </header>
 
         <div class="search-section">
@@ -66,12 +66,8 @@
                 </div>
             </form>
             <p class="search-description" style="margin-top: 1.25rem;">
-                No automated bot search — a real review of your information. We only use these details to complete your lookup and contact you with results.
+                This runs a live automated lookup now. Your email and phone are only used for claim support and updates if you choose to continue.
             </p>
-
-            <div id="lookupSuccess" class="hidden" style="margin-top: 1.5rem; padding: 1.25rem; background: #ecfdf5; border: 1px solid #10b981; border-radius: 16px; color: #065f46; max-width: 480px;">
-                <strong>Thank you!</strong> We received your request. We’ll email you within <strong>24 hours</strong> with what we find.
-            </div>
             <div id="lookupError" class="hidden" style="margin-top: 1.5rem; padding: 1.25rem; background: #fef2f2; border: 1px solid #f87171; border-radius: 16px; color: #991b1b; max-width: 480px;"></div>
         </div>
 
@@ -126,6 +122,25 @@
         </div>
     </div>
 
+    <div id="progressModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Searching Unclaimed Funds</h2>
+            </div>
+            <div class="progress-body" style="padding: 20px;">
+                <p id="progressMessage" style="margin-bottom: 16px; color: #555;">Preparing search...</p>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <div id="step1" class="progress-step">1. Preparing search</div>
+                    <div id="step2" class="progress-step">2. Opening Missing Money website</div>
+                    <div id="step3" class="progress-step">3. Filling out your information</div>
+                    <div id="step4" class="progress-step">4. Solving security verification</div>
+                    <div id="step5" class="progress-step">5. Searching database</div>
+                    <div id="step6" class="progress-step">6. Compiling results</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <footer class="site-footer">
         <div class="footer-content">
             <p>&copy; 2026 OwedToYou.AI. All rights reserved.</p>
@@ -161,7 +176,6 @@
             var backBtn = document.getElementById('wizardBackBtn');
             var stepLabel = document.getElementById('wizardStepLabel');
             var errEl = document.getElementById('lookupError');
-            var okEl = document.getElementById('lookupSuccess');
 
             function showStep(n) {
                 currentStep = n;
@@ -183,7 +197,7 @@
                     else if (stepNum === n) dots[d].classList.add('active');
                 }
                 backBtn.style.visibility = n === 1 ? 'hidden' : 'visible';
-                nextBtn.textContent = n === totalSteps ? 'Request my free lookup' : 'Next';
+                nextBtn.textContent = n === totalSteps ? 'Start live lookup' : 'Next';
             }
 
             function validateStep(n) {
@@ -234,22 +248,13 @@
 
                 nextBtn.disabled = true;
                 var prevText = nextBtn.textContent;
-                nextBtn.textContent = 'Sending…';
+                nextBtn.textContent = 'Starting…';
 
                 try {
-                    var res = await fetch(window.location.origin + '/api/manual-lookup-request', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ fullName: fullName, email: email, phone: phone })
-                    });
-                    var data = await res.json().catch(function () { return {}; });
-                    if (!res.ok || !data.success) {
-                        throw new Error(data.error || 'Request failed');
+                    if (typeof startMissingMoneySearch !== 'function') {
+                        throw new Error('Live search is not available right now. Please refresh and try again.');
                     }
-                    form.classList.add('hidden');
-                    var desc = document.querySelector('.search-section > .search-description');
-                    if (desc) desc.classList.add('hidden');
-                    okEl.classList.remove('hidden');
+                    await startMissingMoneySearch(first, last, fullName.toLowerCase().replace(/\s+/g, ''), null, false);
                 } catch (err) {
                     errEl.textContent = err.message || 'Something went wrong. Please try again in a moment.';
                     errEl.classList.remove('hidden');
