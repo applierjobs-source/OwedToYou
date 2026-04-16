@@ -4842,6 +4842,9 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
                     result.error.includes('bot_detect') ||
                     result.error.includes('Missing Money returned') ||
                     result.error.includes('Capsolver');
+                const isCapacityIssue = result.error.includes('Server is processing many requests') ||
+                    result.error.includes('browser slots are busy') ||
+                    result.error.includes('Queue timeout');
                 let message = isSiteBlocking
                     ? formatMissingMoneyBlockingError(result.error)
                     : `Search failed: ${result.error}. Please try again.`;
@@ -4849,8 +4852,8 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
                     message += ' (If you run the server: set CAPSOLVER_API_KEY in Railway.)';
                 }
                 hideProgressModal();
-                if (isSiteBlocking) {
-                    console.log('⚠️ Cloudflare/CAPTCHA block detected - showing fallback report modal');
+                if (isSiteBlocking || isCapacityIssue) {
+                    console.log('⚠️ Search blocked or capacity-limited - showing fallback report modal');
                     const fallbackResult = buildCloudflareFallbackResult();
                     showResultsModal(claimData, fallbackResult);
                 } else {
@@ -4908,9 +4911,13 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
             lowerError.includes('bot_detect') ||
             lowerError.includes('capsolver') ||
             lowerError.includes('captcha');
+        const isCapacityIssue =
+            lowerError.includes('server is processing many requests') ||
+            lowerError.includes('browser slots are busy') ||
+            lowerError.includes('queue timeout');
 
-        if (isSiteBlocking) {
-            console.log('⚠️ Exception path hit Cloudflare/CAPTCHA block - showing fallback report modal');
+        if (isSiteBlocking || isCapacityIssue) {
+            console.log('⚠️ Exception path hit blocking/capacity issue - showing fallback report modal');
             const fallbackResult = buildCloudflareFallbackResult();
             showResultsModal(claimData, fallbackResult);
         } else {
