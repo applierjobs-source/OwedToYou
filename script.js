@@ -4356,6 +4356,13 @@ function showProgressModal() {
     
     // Start with step 1 (Instagram name extraction)
     updateProgressStep(1, 'Extracting name from Instagram...');
+
+    // Reset long-wait status line if present
+    const statusEl = document.getElementById('progressBackgroundStatus');
+    if (statusEl) {
+        statusEl.textContent = '';
+        statusEl.style.display = 'none';
+    }
 }
 
 // Update progress step
@@ -4385,6 +4392,24 @@ function updateProgressStep(stepNumber, message) {
 function hideProgressModal() {
     const progressModal = document.getElementById('progressModal');
     progressModal.classList.add('hidden');
+}
+
+function ensureProgressBackgroundStatusEl() {
+    let statusEl = document.getElementById('progressBackgroundStatus');
+    if (statusEl) return statusEl;
+
+    const progressBody = document.querySelector('#progressModal .progress-body');
+    if (!progressBody) return null;
+
+    statusEl = document.createElement('p');
+    statusEl.id = 'progressBackgroundStatus';
+    statusEl.style.marginTop = '12px';
+    statusEl.style.fontSize = '0.92rem';
+    statusEl.style.color = '#4a5568';
+    statusEl.style.lineHeight = '1.45';
+    statusEl.style.display = 'none';
+    progressBody.appendChild(statusEl);
+    return statusEl;
 }
 
 // Remove emojis and special characters from names for Missing Money search
@@ -4534,7 +4559,47 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
         progressTimers.push(setTimeout(() => updateProgressStep(6, 'Compiling results...'), 31000));
     }
     
+    // If a lookup runs longer than expected, keep users informed.
+    let backgroundStatusInterval = null;
+    const backgroundStatusStart = Date.now();
+    const startLongWaitUpdates = () => {
+        if (backgroundStatusInterval) return;
+        const statusEl = ensureProgressBackgroundStatusEl();
+        if (!statusEl) return;
+        backgroundStatusInterval = setInterval(() => {
+            const elapsedSec = Math.floor((Date.now() - backgroundStatusStart) / 1000);
+            if (elapsedSec < 10) {
+                statusEl.style.display = 'none';
+                return;
+            }
+
+            const activeStep = document.querySelector('.progress-step.active');
+            const activeText = activeStep ? activeStep.textContent.trim() : 'Running search';
+            let detail = 'Working through anti-bot checks and querying official records.';
+            if (elapsedSec >= 25 && elapsedSec < 45) {
+                detail = 'Still in progress — security verification can take longer when traffic is high.';
+            } else if (elapsedSec >= 45) {
+                detail = 'Still searching in the background. We will return results (or fallback report) automatically when this attempt finishes.';
+            }
+
+            statusEl.style.display = 'block';
+            statusEl.textContent = `Still working (${elapsedSec}s): ${activeText}. ${detail}`;
+        }, 2000);
+    };
+    const stopLongWaitUpdates = () => {
+        if (backgroundStatusInterval) {
+            clearInterval(backgroundStatusInterval);
+            backgroundStatusInterval = null;
+        }
+        const statusEl = document.getElementById('progressBackgroundStatus');
+        if (statusEl) {
+            statusEl.textContent = '';
+            statusEl.style.display = 'none';
+        }
+    };
+
     try {
+        startLongWaitUpdates();
         // Search Missing Money; server uses CAPSOLVER_API_KEY / CAPTCHA_API_KEY for Turnstile
         const apiBase = window.location.origin;
         
@@ -4852,6 +4917,8 @@ async function startMissingMoneySearch(firstName, lastName, handle, profilePic =
             // Show error in a modal instead of alert
             showErrorModal(errorMessage);
         }
+    } finally {
+        stopLongWaitUpdates();
     }
 }
 
